@@ -1,0 +1,40 @@
+# Python environment for building the diffusion MRI executable book.
+#
+#   micromamba create -n dwibook -f environment.yml
+#   micromamba run -n dwibook pip install -e .        # once the dwibook package exists
+#
+# Book engine: Jupyter Book 2, i.e. mystmd (`myst start` for live preview, `myst build`).
+# mystmd needs Node >= 20; the system node in WSL is 18, so Node comes from conda-forge.
+#
+# Offline pipeline tools are NOT here: TRXScan (Rust, on the WSL PATH) and FSL/MRtrix/qsiprep
+# (via the pennlinc/qsiprep Docker image) are called from pipelines/, never at book build time.
+name: dwibook
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  # scientific core
+  - numpy
+  - scipy
+  - pandas
+  - nibabel
+  - dipy>=1.12
+  - matplotlib
+  - scikit-image
+  - pooch
+  # notebooks / execution
+  - jupyterlab
+  - ipykernel
+  - jupytext
+  - ipywidgets
+  - nbmake
+  # book engine (Jupyter Book 2)
+  - nodejs>=20
+  - pip:
+      - mystmd            # jupyter-book 2 engine
+      - snakemake         # offline pipeline driver (runs in WSL; calls trxscan + docker)
+      - sigpy             # compressed-sensing k-space reconstruction (Ch. 3)
+      # optional extras, installed later if the chapter needs them:
+      # - dmri-amico      # NODDI (Ch. 16); pulls spams, which may need a compiler
+      # - fury            # 3-D renders; not used on CI
