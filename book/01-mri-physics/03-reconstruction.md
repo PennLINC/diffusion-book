@@ -51,6 +51,7 @@ phase carries information that is used later in this book: the static field offs
 (Chapter 12). Saving only the magnitude removes all of it.
 
 ```{code-cell} python
+:tags: [hide-input]
 rec = kspace.ifft2c(kspace.fft2c(img))
 fig, axes = plt.subplots(1, 3, figsize=(9, 3))
 show_kspace(axes[0], kspace.fft2c(img), "acquired k-space (log scale)")
@@ -79,6 +80,7 @@ The coil model used here is the one TRXScan uses: coils on a ring around the hea
 Gaussian falloff, plus a smooth phase per coil.
 
 ```{code-cell} python
+:tags: [hide-input]
 NC = 8
 sens = kspace.ring_coil_sensitivities(NC, N, N)
 coil_ksp = kspace.fft2c(sens * img)
@@ -112,6 +114,7 @@ reconstruction unfold it:
   in later chapters went through this reconstruction.
 
 ```{code-cell} python
+:tags: [hide-input]
 R, ACS = 2, 24
 mask_r2 = kspace.regular_undersampling_mask(N, N, R, acs_lines=ACS)
 under = np.where(mask_r2, coil_ksp, 0)
@@ -137,6 +140,7 @@ sensitivities are at the positions that fold together. The amplification can be 
 directly by adding noise and comparing the reconstructions:
 
 ```{code-cell} python
+:tags: [hide-input]
 sigma = 0.01
 noisy_full = kspace.add_complex_noise(coil_ksp, sigma, seed=1)
 noisy_under = np.where(mask_r2, kspace.add_complex_noise(coil_ksp, sigma, seed=1), 0)
@@ -167,6 +171,7 @@ image phase:
   acquired data and agreement with the estimated phase.
 
 ```{code-cell} python
+:tags: [hide-input]
 pf_mask = kspace.partial_fourier_mask(N, N, 0.625)
 full = kspace.fft2c(img)
 recs = {"zero filling": kspace.zero_fill(full, pf_mask), "homodyne": kspace.homodyne(full, pf_mask), "POCS": kspace.pocs(full, pf_mask, 20)}
@@ -187,6 +192,7 @@ motion imprint sharp phase changes. This is one reason partial Fourier factors a
 moderate (6/8 or 7/8) in diffusion protocols.
 
 ```{code-cell} python
+:tags: [hide-input]
 yy, xx = np.mgrid[0:N, 0:N] / N - 0.5
 fast_phase = np.exp(1j * (phantoms.brain_phase() + 14 * np.sin(6 * np.pi * yy) * (np.abs(xx) < 0.12)))
 full_fast = kspace.fft2c(obj * fast_phase)
@@ -210,6 +216,7 @@ three requirements, incoherent sampling, a sparsifying transform, and an iterati
 nonlinear solver, define compressed sensing {cite:p}`lustig2007`.
 
 ```{code-cell} python
+:tags: [hide-input]
 cs_mask = kspace.random_undersampling_mask(N, N, accel=3, acs_lines=12, seed=3)
 reg_mask = kspace.regular_undersampling_mask(N, N, 3)
 ksp_obj = kspace.fft2c(obj)
@@ -249,6 +256,7 @@ the magnitude changes the statistics {cite:p}`gudbjartsson1995`:
   distribution holds exactly.
 
 ```{code-cell} python
+:tags: [hide-input]
 sigma = 0.02
 noisy = kspace.ifft2c(kspace.add_complex_noise(kspace.fft2c(obj), sigma, seed=0))
 tissue = phantoms.brain_slice()
@@ -282,6 +290,7 @@ The right panel gives the practical numbers. The magnitude overestimates the tru
 about 30 % at SNR 1, 5 % at SNR 3, and 2 % at SNR 5:
 
 ```{code-cell} python
+:tags: [hide-input]
 for s in [0.5, 1, 2, 3, 5, 10]:
     print(f"SNR {s:>4}: measured / true = {kspace.rician_mean(s * sigma, sigma) / (s * sigma):.3f}")
 ```

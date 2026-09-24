@@ -38,8 +38,18 @@ ADULT_DIFFUSIVITY = {
     "CSF": 0.003,
 }
 
+#: Compartment fractions of the ``adult`` preset: intra-axonal share of the WM fiber
+#: compartment, restricted (soma) share of GM, and the soma ball diffusivity (mm^2/s).
+ADULT_FRACTIONS = {"WM_intra": 0.55, "GM_restricted": 0.20, "d_soma": 0.0003}
+
 #: Echo time (ms) of the HBCD-like protocol TRXScan simulates by default.
 TE_HBCD_MS = 88.0
+
+#: Total EPI readout duration (ms) of the HBCD-like protocol, pinned by TRXScan for any matrix.
+READOUT_HBCD_MS = 91.7
+
+#: Maximum gradient amplitude (mT/m) of representative gradient systems.
+GMAX_MT_PER_M = {"clinical 40": 40.0, "whole-body 80": 80.0, "Connectom 300": 300.0}
 
 #: Gyromagnetic ratio of 1H, MHz/T (gamma / 2 pi).
 GAMMA_BAR_MHZ_PER_T = 42.577

@@ -30,7 +30,7 @@ test = ["pytest"]
 include = ["dwibook*"]
 
 [tool.setuptools.package-data]
-dwibook = ["registry.txt", "data/*.npz"]
+dwibook = ["registry.txt", "data/*.npz", "data/schemes/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["dwibook/tests"]

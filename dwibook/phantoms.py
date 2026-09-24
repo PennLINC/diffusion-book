@@ -165,26 +165,60 @@ def bloch_sequence(
 
 
 def random_walk_2d(
-    n_walkers: int, n_steps: int, step: float, seed: int = 0, radius: float | None = None
+    n_walkers: int,
+    n_steps: int,
+    step: float,
+    seed: int = 0,
+    radius: float | None = None,
+    geometry: str | None = None,
+    spacing: float = 4.0,
 ) -> np.ndarray:
-    """Isotropic 2-D random walk, optionally restricted inside a circle of ``radius``.
+    """Isotropic 2-D random walk in one of four geometries.
 
-    Returns positions of shape ``(n_steps + 1, n_walkers, 2)``. Restriction is implemented as
-    elastic reflection at the boundary (a step that would leave the circle is rejected and the
-    walker stays put), which is enough to show hindered vs. restricted mean squared displacement.
+    ``geometry`` is ``"free"``, ``"disc"`` (restricted inside a circle of ``radius``),
+    ``"channel"`` (restricted between two walls at ``|x| <= radius``, free along ``y``), or
+    ``"obstacles"`` (hindered: a square lattice of impermeable discs of radius ``radius`` with
+    center spacing ``spacing``). Passing ``radius`` without ``geometry`` selects ``"disc"``.
+    Returns positions of shape ``(n_steps + 1, n_walkers, 2)``. Barriers are implemented by
+    rejecting steps that would cross them, which is sufficient for the mean squared
+    displacement curves the chapter shows.
     """
     rng = np.random.default_rng(seed)
+    if geometry is None:
+        geometry = "free" if radius is None else "disc"
+    if geometry != "free" and radius is None:
+        raise ValueError("radius is required for this geometry")
+
+    def blocked(p: np.ndarray) -> np.ndarray:
+        if geometry == "free":
+            return np.zeros(p.shape[0], dtype=bool)
+        if geometry == "disc":
+            return np.hypot(p[:, 0], p[:, 1]) > radius
+        if geometry == "channel":
+            return np.abs(p[:, 0]) > radius
+        if geometry == "obstacles":
+            local = (p + spacing / 2) % spacing - spacing / 2  # position relative to the nearest disc center
+            return np.hypot(local[:, 0], local[:, 1]) < radius
+        raise ValueError(f"unknown geometry {geometry!r}")
+
     pos = np.zeros((n_steps + 1, n_walkers, 2))
-    if radius is not None:
+    if geometry == "disc":
         r = radius * np.sqrt(rng.random(n_walkers))
         th = 2 * np.pi * rng.random(n_walkers)
         pos[0] = np.stack([r * np.cos(th), r * np.sin(th)], axis=1)
+    elif geometry == "channel":
+        pos[0, :, 0] = radius * (2 * rng.random(n_walkers) - 1)
+    elif geometry == "obstacles":
+        start = spacing * (rng.random((n_walkers, 2)) - 0.5)
+        while blocked(start).any():
+            bad = blocked(start)
+            start[bad] = spacing * (rng.random((bad.sum(), 2)) - 0.5)
+        pos[0] = start
     for i in range(n_steps):
         th = 2 * np.pi * rng.random(n_walkers)
         proposal = pos[i] + step * np.stack([np.cos(th), np.sin(th)], axis=1)
-        if radius is not None:
-            outside = np.hypot(proposal[:, 0], proposal[:, 1]) > radius
-            proposal[outside] = pos[i][outside]
+        bad = blocked(proposal)
+        proposal[bad] = pos[i][bad]
         pos[i + 1] = proposal
     return pos
 

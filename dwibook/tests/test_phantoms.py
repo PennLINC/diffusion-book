@@ -50,3 +50,15 @@ def test_restricted_walk_msd_saturates():
     msd = phantoms.mean_squared_displacement(pos)
     assert np.hypot(pos[-1, :, 0], pos[-1, :, 1]).max() <= 3.0 + 1e-9
     assert msd[-1] < 2 * 3.0**2
+
+
+def test_channel_walk_is_anisotropic_and_obstacles_hinder():
+    ch = phantoms.random_walk_2d(2000, 300, step=0.5, seed=1, radius=2.0, geometry="channel")
+    d = ch[-1] - ch[0]
+    assert np.abs(ch[:, :, 0]).max() <= 2.0 + 1e-9
+    assert np.var(d[:, 1]) > 5 * np.var(d[:, 0])  # free along y, restricted along x
+    free = phantoms.random_walk_2d(2000, 300, step=0.5, seed=1)
+    obs = phantoms.random_walk_2d(2000, 300, step=0.5, seed=1, radius=1.5, geometry="obstacles", spacing=4.0)
+    msd_free = phantoms.mean_squared_displacement(free)[-1]
+    msd_obs = phantoms.mean_squared_displacement(obs)[-1]
+    assert 0.2 * msd_free < msd_obs < 0.9 * msd_free  # hindered: slower but not bounded

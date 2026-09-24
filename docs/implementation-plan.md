@@ -174,7 +174,7 @@ lint script (`dwibook/tests/test_structure.py`):
 
 1. Front cell: learning goals (3–5 bullets), datasets used (`load_dataset` calls), estimated run time.
 2. Physics/prose with equations (MyST math, numbered, glossary links).
-3. "See it" code cells: minimal, readable, top-level; helpers imported from `dwibook`. No cell over ~30 lines and none over ~60 s.
+3. "See it" code cells: minimal, readable, top-level; helpers imported from `dwibook`. No cell over ~30 lines and none over ~60 s. **Code is hidden by default**: every code cell carries `:tags: [hide-input]` (collapsed behind a toggle, output shown); setup cells use `hide-cell`; a cell whose code is the point of the passage is left untagged so it shows.
 4. "Measure it": at least one number or error map against truth where a truth exists.
 5. "What this means for acquisition": 3–6 bullets.
 6. Further reading (bibtex keys).

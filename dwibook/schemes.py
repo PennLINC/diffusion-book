@@ -115,24 +115,52 @@ def read_fsl(stem: str | Path) -> tuple[np.ndarray, np.ndarray]:
     return np.loadtxt(stem.with_suffix(".bval")), np.loadtxt(stem.with_suffix(".bvec")).T
 
 
-def plot_scheme(bvals: np.ndarray, bvecs: np.ndarray, ax=None, title: str | None = None):
-    """3-D scatter of q-space samples, radius proportional to sqrt(b), colored by shell."""
+def hbcd() -> tuple[np.ndarray, np.ndarray]:
+    """The HBCD-style multi-shell scheme bundled with the phantom (75 volumes, AP polarity).
+
+    Ten b=0 volumes and four shells (b = 500, 1000, 2000, 3000 with 6, 12, 18, 29 directions),
+    interleaved in acquisition order. This is the scheme TRXScan simulates by default and the
+    reference protocol of the book.
+    """
+    return read_fsl(Path(__file__).with_name("data") / "schemes" / "hbcd_ap")
+
+
+def scan_time_s(n_volumes: int, tr_s: float) -> float:
+    """Acquisition time of a scheme: one TR per volume (dummy scans and calibration excluded)."""
+    return n_volumes * tr_s
+
+
+def plot_scheme(bvals: np.ndarray, bvecs: np.ndarray, ax=None, title: str | None = None, antipodal: bool = True):
+    """3-D scatter of q-space samples, radius proportional to sqrt(b).
+
+    Each measurement samples both ``q`` and ``-q`` (the signal is symmetric), so by default
+    both points are drawn. Schemes with up to six shells are colored by shell with a legend;
+    schemes with more (DSI grids) use a sequential color scale by b-value instead.
+    """
     import matplotlib.pyplot as plt
 
     if ax is None:
         fig = plt.figure(figsize=(4.5, 4.5))
         ax = fig.add_subplot(111, projection="3d")
-    q = np.sqrt(np.asarray(bvals))[:, None] * np.asarray(bvecs)
+    bvals = np.asarray(bvals, float)
+    q = np.sqrt(bvals)[:, None] * np.asarray(bvecs, float)
+    if antipodal:
+        q, bvals = np.concatenate([q, -q]), np.concatenate([bvals, bvals])
     shells = shells_of(bvals)
-    keys = np.round(np.asarray(bvals) / 50.0) * 50.0
-    for i, b in enumerate(sorted(shells)):
-        sel = keys == b
-        ax.scatter(*q[sel].T, s=12, label=f"b={b:.0f} ({sel.sum()})", depthshade=False)
-    lim = np.sqrt(max(bvals)) * 1.05 if max(bvals) > 0 else 1.0
+    keys = np.round(bvals / 50.0) * 50.0
+    if len(shells) <= 6:
+        for b in sorted(shells):
+            sel = keys == b
+            n = int(sel.sum() // (2 if antipodal else 1))
+            ax.scatter(*q[sel].T, s=12, label=f"b = {b:.0f} ({n})", depthshade=False)
+        ax.legend(fontsize=7, loc="upper left")
+    else:
+        sc = ax.scatter(*q.T, s=10, c=bvals, cmap="viridis", depthshade=False)
+        plt.colorbar(sc, ax=ax, shrink=0.5, pad=0.05, label="b (s/mm²)")
+    lim = np.sqrt(bvals.max()) * 1.05 if bvals.max() > 0 else 1.0
     ax.set_xlim(-lim, lim), ax.set_ylim(-lim, lim), ax.set_zlim(-lim, lim)
     ax.set_box_aspect((1, 1, 1))
     ax.set_xticks([]), ax.set_yticks([]), ax.set_zticks([])
-    ax.legend(fontsize=7, loc="upper left")
     if title:
         ax.set_title(title)
     return ax

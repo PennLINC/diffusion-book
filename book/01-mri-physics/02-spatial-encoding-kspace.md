@@ -62,6 +62,7 @@ fractions of one axial slice, weighted by proton density and T2 decay at the HBC
 (Chapter 1). Its k-space is computed directly.
 
 ```{code-cell} python
+:tags: [hide-input]
 ksp = kspace.fft2c(img)
 
 fig, axes = plt.subplots(1, 3, figsize=(9, 3))
@@ -76,6 +77,7 @@ shape; the periphery encodes edges and fine detail. Reconstructing from only one
 shows the division:
 
 ```{code-cell} python
+:tags: [hide-input]
 ny, nx = ksp.shape
 c = ny // 2
 low = np.zeros_like(ksp); low[c - 8 : c + 8, c - 8 : c + 8] = ksp[c - 8 : c + 8, c - 8 : c + 8]
@@ -101,6 +103,7 @@ characteristic failure:
   induces and then removes.
 
 ```{code-cell} python
+:tags: [hide-input]
 lowres = np.zeros_like(ksp); lowres[c - 16 : c + 16, c - 16 : c + 16] = ksp[c - 16 : c + 16, c - 16 : c + 16]
 every_other = np.where(kspace.regular_undersampling_mask(ny, nx, 2), ksp, 0)
 
@@ -120,6 +123,7 @@ phase-encode blips step $k_y$ one line at a time. The path through k-space is a 
 the time between successive lines is the echo spacing.
 
 ```{code-cell} python
+:tags: [hide-input]
 tr = kspace.epi_trajectory(16, 16, echo_spacing_ms=0.6)
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9, 3.4), gridspec_kw={"width_ratios": [1, 1.4]})
 for i, (ky, d) in enumerate(zip(tr.lines, tr.directions)):
@@ -147,6 +151,7 @@ of 0.5–1 ms, the readout lasts 40–90 ms. TRXScan uses the HBCD protocol's 91
 readout time for any matrix size. For a 128-line matrix:
 
 ```{code-cell} python
+:tags: [hide-input]
 esp = 91.7 / 128
 for label, kw in [("full", {}), ("partial Fourier 6/8", {"partial_fourier": 0.75}),
                   ("R = 2", {"accel": 2}), ("6/8 and R = 2", {"partial_fourier": 0.75, "accel": 2})]:
@@ -186,6 +191,7 @@ at a finite frequency overshoots at every sharp edge by about 9 % of the step, a
 overshoot does not shrink with more samples; it only moves closer to the edge.
 
 ```{code-cell} python
+:tags: [hide-input]
 x = np.linspace(-1, 1, 2001)
 step = (np.abs(x) < 0.5).astype(float)
 fig, ax = plt.subplots(figsize=(7.5, 3))
@@ -204,6 +210,7 @@ surface ring most. The example below reconstructs the slice from a 64 × 64 k-sp
 resolution of 4 mm, on the 2 mm grid:
 
 ```{code-cell} python
+:tags: [hide-input]
 crop = np.zeros_like(ksp); crop[c - 32 : c + 32, c - 32 : c + 32] = ksp[c - 32 : c + 32, c - 32 : c + 32]
 ringing = np.abs(kspace.ifft2c(crop))
 row = 58  # through the frontal horns of the lateral ventricles
@@ -232,6 +239,7 @@ magnitude image. In a multi-shot acquisition the shots disagree, and the disagre
 as ghosts:
 
 ```{code-cell} python
+:tags: [hide-input]
 shot = np.arange(ny) % 2  # two interleaved shots
 phase_error = np.exp(1j * np.deg2rad(60))  # the second shot acquired with a 60° bulk phase
 ksp_multishot = np.where(shot[:, None] == 1, ksp * phase_error, ksp)

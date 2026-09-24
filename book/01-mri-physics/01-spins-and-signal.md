@@ -43,6 +43,7 @@ motion; the net alignment along the field is a few parts per million. That small
 magnetization is the quantity MRI measures.
 
 ```{code-cell} python
+:tags: [hide-input]
 for name, b0 in presets.B0_T.items():
     print(f"{name:>4}: Larmor frequency {presets.GAMMA_BAR_MHZ_PER_T * b0:6.1f} MHz")
 ```
@@ -75,6 +76,7 @@ TRXScan's `adult` compartment preset. TRXScan does not model T1, so the T1 value
 literature figures and appear only in this chapter's simulations.
 
 ```{code-cell} python
+:tags: [hide-input]
 tissues = presets.tissues("adult")
 print(f"{'tissue':>6} {'T1 (ms)':>8} {'T2 (ms)':>8}")
 for t in tissues.values():
@@ -82,6 +84,7 @@ for t in tissues.values():
 ```
 
 ```{code-cell} python
+:tags: [hide-input]
 t = np.linspace(0, 3000, 600)
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 3))
 for name, tis in tissues.items():
@@ -128,6 +131,7 @@ visible, and an off-resonance of 50 Hz so that the demodulated signal has a phas
 with time.
 
 ```{code-cell} python
+:tags: [hide-input]
 fs, carrier, offset = 40_000.0, 2_000.0, 50.0  # Hz; sampling rate, carrier, off-resonance
 T2 = 20.0  # ms
 t = np.arange(0, 0.06, 1 / fs)  # s
@@ -190,6 +194,7 @@ FID that is gone within 40 ms. Adding a 180° pulse at 25 ms produces an echo at
 amplitude matches the T2 curve.
 
 ```{code-cell} python
+:tags: [hide-input]
 T1, T2, T2P = 1000.0, 80.0, 20.0
 T2STAR = 1 / (1 / T2 + 1 / T2P)
 TE = 50.0
@@ -220,6 +225,7 @@ TRXScan provides three tissue presets: `adult` (3 T literature T2 values) and `n
 tissue is its proton density times the T2 decay at TE. At the HBCD echo time:
 
 ```{code-cell} python
+:tags: [hide-input]
 TE = presets.TE_HBCD_MS
 print(f"b=0 signal at TE = {TE:.0f} ms, relative to proton density")
 print(f"{'preset':>9} {'WM':>6} {'GM':>6} {'CSF':>6} {'GM/WM':>7} {'CSF/WM':>7}")
@@ -233,6 +239,7 @@ b=0 images used in the next two chapters. The adult image is dark in tissue and 
 the neonatal image retains more tissue signal at the same TE.
 
 ```{code-cell} python
+:tags: [hide-input]
 fig, axes = plt.subplots(1, 3, figsize=(9, 3.2))
 for ax, preset in zip(axes, ["adult", "neonatal", "infant"]):
     show_image(ax, phantoms.brain_image(te_ms=TE, preset=preset), f"{preset} preset, TE {TE:.0f} ms", vmin=0, vmax=1)
@@ -240,6 +247,7 @@ fig.tight_layout()
 ```
 
 ```{code-cell} python
+:tags: [hide-input]
 te = np.linspace(0, 200, 201)
 fig, axes = plt.subplots(1, 2, figsize=(8, 3), sharey=True)
 for ax, preset in zip(axes, ["adult", "neonatal"]):
