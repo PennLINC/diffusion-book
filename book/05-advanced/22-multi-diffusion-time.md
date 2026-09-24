@@ -1,6 +1,6 @@
 ---
-title: Biophysical microstructure models
-subtitle: Chapter 16
+title: Multi-diffusion-time DWI
+subtitle: Chapter 22
 kernelspec:
   name: python3
   display_name: Python 3
@@ -16,42 +16,34 @@ structure are final; the content is not written yet.
 
 After this chapter you can:
 
-- fit ball-and-stick, NODDI, SMT, free-water DTI and IVIM
-- explain the standard-model degeneracy and what breaks it
-- separate model mismatch from sampling and noise effects using the phantom
+- explain time-dependent diffusion in restricted and hindered geometries
+- contrast PGSE and OGSE
+- state what axon-diameter sensitivity needs from the hardware
 
-**Datasets used:** `ref-schemes`, `truth`
-**Simulation tier:** phantom
+**Datasets used:** none (toy tier)
+**Simulation tier:** toy
 
-## Compartment models and the standard model
-
-*To be written.*
-
-## Ball-and-stick
+## Time-dependent diffusion
 
 *To be written.*
 
-## NODDI
+## PGSE versus OGSE
 
 *To be written.*
 
-## Spherical mean
+## Exchange
 
 *To be written.*
 
-## Free water and IVIM
+## Axon diameter and gradient strength
 
 *To be written.*
 
-## Degeneracy
+## See it: restricted cylinders and spheres (toy)
 
 *To be written.*
 
-## Fits versus truth
-
-*To be written.*
-
-## Honest limits of a Gaussian phantom
+## Why the phantom cannot show this
 
 *To be written.*
 

@@ -1,6 +1,6 @@
 ---
 title: What your data allow
-subtitle: Chapter 18
+subtitle: Chapter 19
 kernelspec:
   name: python3
   display_name: Python 3

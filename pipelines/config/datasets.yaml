@@ -99,6 +99,20 @@ datasets:
       - { name: motion, extra_flags: ["--motion", "{phantom.motion_ap}"] }
       - { name: dropout, extra_flags: ["--mb", "3", "--dropout-rate", "0.1", "--noise", "2e-4"] }
     precompute: [eddy]
+  gnl:
+    phantom: sub-0001a
+    description: >-
+      gradient nonlinearity on two gradient systems, a severity sweep, and runs with only the
+      spatial warp or only the encoding deviation; TRXScan writes the truth coefficient file,
+      displacement field and graddev image next to each DWI
+    extra_flags: ["--noise", "2e-4", "--isocenter", "0,-20,-30"]
+    variants:
+      - { name: wb80, extra_flags: ["--gnl", "whole-body-80"] }
+      - { name: wb80-x2, extra_flags: ["--gnl", "whole-body-80", "--gnl-scale", "2.0"] }
+      - { name: wb80-warp-only, extra_flags: ["--gnl", "whole-body-80", "--gnl-no-encoding"] }
+      - { name: wb80-encoding-only, extra_flags: ["--gnl", "whole-body-80", "--gnl-no-warp"] }
+      - { name: c300, extra_flags: ["--gnl", "connectom-300"] }
+    precompute: [gradunwarp, tortoise-gnl]   # gradwarp fields + graddev from both toolchains
   kitchen-sink:
     phantom: sub-0001a
     description: every artifact on, corrected end to end by qsiprep

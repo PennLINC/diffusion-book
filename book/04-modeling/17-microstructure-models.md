@@ -1,6 +1,6 @@
 ---
-title: Signal representations
-subtitle: Chapter 14
+title: Biophysical microstructure models
+subtitle: Chapter 17
 kernelspec:
   name: python3
   display_name: Python 3
@@ -16,30 +16,42 @@ structure are final; the content is not written yet.
 
 After this chapter you can:
 
-- fit DTI, DKI and MAP-MRI and state each model's assumptions
-- state the minimum sampling each needs and why
-- score each fit against truth on every reference scheme
+- fit ball-and-stick, NODDI, SMT, free-water DTI and IVIM
+- explain the standard-model degeneracy and what breaks it
+- separate model mismatch from sampling and noise effects using the phantom
 
 **Datasets used:** `ref-schemes`, `truth`
 **Simulation tier:** phantom
 
-## DTI
+## Compartment models and the standard model
 
 *To be written.*
 
-## DKI
+## Ball-and-stick
 
 *To be written.*
 
-## MAP-MRI and SHORE
+## NODDI
 
 *To be written.*
 
-## QTI and b-tensor
+## Spherical mean
 
 *To be written.*
 
-## Effect of sampling on each model
+## Free water and IVIM
+
+*To be written.*
+
+## Degeneracy
+
+*To be written.*
+
+## Fits versus truth
+
+*To be written.*
+
+## Honest limits of a Gaussian phantom
 
 *To be written.*
 

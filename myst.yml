@@ -48,20 +48,21 @@ project:
         - file: book/03-preprocessing/10-susceptibility-distortion.md
         - file: book/03-preprocessing/11-eddy-currents.md
         - file: book/03-preprocessing/12-motion-and-dropout.md
-        - file: book/03-preprocessing/13-assembled-pipeline.md
+        - file: book/03-preprocessing/13-gradient-nonlinearity.md
+        - file: book/03-preprocessing/14-assembled-pipeline.md
     - title: "Part IV: Reconstruction and modeling"
       children:
-        - file: book/04-modeling/14-signal-representations.md
-        - file: book/04-modeling/15-fiber-orientation.md
-        - file: book/04-modeling/16-microstructure-models.md
-        - file: book/04-modeling/17-tractography.md
-        - file: book/04-modeling/18-what-your-data-allow.md
+        - file: book/04-modeling/15-signal-representations.md
+        - file: book/04-modeling/16-fiber-orientation.md
+        - file: book/04-modeling/17-microstructure-models.md
+        - file: book/04-modeling/18-tractography.md
+        - file: book/04-modeling/19-what-your-data-allow.md
     - title: "Part V: Advanced acquisitions"
       children:
-        - file: book/05-advanced/19-multi-te.md
-        - file: book/05-advanced/20-multi-echo.md
-        - file: book/05-advanced/21-multi-diffusion-time.md
-        - file: book/05-advanced/22-frontiers.md
+        - file: book/05-advanced/20-multi-te.md
+        - file: book/05-advanced/21-multi-echo.md
+        - file: book/05-advanced/22-multi-diffusion-time.md
+        - file: book/05-advanced/23-frontiers.md
     - title: Appendices
       children:
         - file: book/appendices/a-trxscan-cookbook.md

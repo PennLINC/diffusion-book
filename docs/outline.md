@@ -51,7 +51,7 @@ What `sub-0001a` is (tissue probability maps, tractogram with SIFT2 weights, fie
 - *Phantom:* b=0 images at the three presets to show why low-b GM/WM contrast differs.
 
 ### Chapter 2 — Spatial encoding and k-space
-- Gradients as frequency/phase encoding; the Fourier relationship; FOV, matrix, resolution, Nyquist; the EPI trajectory; readout time, echo spacing, bandwidth; partial Fourier; multi-shot vs. single-shot; why EPI dominates diffusion.
+- Gradients as frequency/phase encoding; the Fourier relationship; FOV, matrix, resolution, Nyquist; the EPI trajectory; readout time, echo spacing, bandwidth; partial Fourier; multi-shot vs. single-shot; why EPI dominates diffusion. The whole chapter assumes perfectly linear gradients; what happens when they are not is Ch. 13.
 - *Toy:* Shepp–Logan (and a simple crossing-fiber geometric phantom) → k-space → image; figures varying matrix size, FOV, partial Fourier fraction; the EPI trajectory drawn on k-space with timing annotations; truncation → Gibbs ringing.
 - *Phantom:* a single TRXScan slice with the k-space that produced it (needs the k-space export flag, plan §4) and its EPI readout timing derived from the JSON sidecar.
 
@@ -59,7 +59,7 @@ What `sub-0001a` is (tissue probability maps, tractogram with SIFT2 weights, fie
 - Inverse FFT; complex images, magnitude and phase; multi-coil acquisition and combination (sum-of-squares, Roemer/adaptive); parallel imaging (SENSE concept, GRAPPA in detail since TRXScan implements it), g-factor; partial Fourier reconstruction (zero-filling, homodyne, POCS); k-space apodization; compressed sensing in k-space (random undersampling + sparsity prior); noise: Gaussian in k-space → Rician in magnitude → non-central χ after multi-coil/GRAPPA.
 - *Toy:* full reconstruction pipeline on Shepp–Logan with synthetic coil sensitivities; GRAPPA kernel fitting from ACS lines; CS reconstruction with a wavelet/TV prior (sigpy or a hand-written FISTA); noise histograms.
 - *Phantom:* TRXScan runs with `--coils 8 --accel 2`, PF 6/8, and noise; reconstruct the exported k-space in Python and confirm agreement with TRXScan's own reconstruction; show the phase image and what it carries (object phase, eddy phase ramp, background).
-- **Complex data implications** (first appearance; revisited in Ch. 8 and 18): what is possible only if phase is kept (complex denoising, Rician-bias avoidance, phase-based motion/eddy diagnostics).
+- **Complex data implications** (first appearance; revisited in Ch. 8 and 19): what is possible only if phase is kept (complex denoising, Rician-bias avoidance, phase-based motion/eddy diagnostics).
 
 ---
 
@@ -83,7 +83,7 @@ For each scheme: what is sampled, how directions are generated, what the scheme 
 5. Free-form / multi-dimensional: multi-Δ, multi-TE, b-tensor (pointer to Part V).
 - *Toy:* 3-D sphere plots of every scheme (dipy `disperse_charges`, HemiSphere), q-space grid and CS-subset plots, angular coverage/condition-number plots, scan-time estimates from TR × volumes.
 - *Phantom:* the same phantom simulated under 5 schemes (DTI-30, HARDI-64, multi-shell HBCD, DSI-257, CS-DSI-64 as a subset of the DSI run) at matched scan time — used as the reference dataset by all of Part IV.
-- **Table 6.1: scheme → model matrix** (which of DTI, DKI, MAP-MRI, CSD, MSMT-CSD, QBI, DSI, NODDI, SMT, free-water, standard model, IVIM each scheme supports and why). This table is reproduced and refined in Ch. 18.
+- **Table 6.1: scheme → model matrix** (which of DTI, DKI, MAP-MRI, CSD, MSMT-CSD, QBI, DSI, NODDI, SMT, free-water, standard model, IVIM each scheme supports and why). This table is reproduced and refined in Ch. 19.
 
 ### Chapter 7 — Acquisition parameter choices
 Each parameter: what it controls physically, what it costs, what artifact/analysis it affects, and a simulated sweep.
@@ -95,7 +95,7 @@ Each parameter: what it controls physically, what it costs, what artifact/analys
 - **Partial Fourier** (6/8, 7/8, off): SNR/TE gain vs. blurring and phase-error sensitivity.
 - **Multiband / SMS** (`--mb`), **in-plane acceleration** (`--accel`, `--coils`, ACS lines): scan time vs. g-factor noise and slice leakage/dropout.
 - **Phase-encode direction, echo spacing, readout time, reverse-PE pairs** (`--reverse-pe`): distortion magnitude, what topup needs.
-- **Gradient hardware**: Gmax/slew, gradient nonlinearity (`--gnl whole-body-80|connectom-300`).
+- **Gradient hardware**: Gmax/slew (what b is reachable at what TE), and gradient nonlinearity as the price of strong or head-only gradients: the spatial warp and encoding error grow with distance from the isocentre, so head positioning and the availability of the vendor coefficient file are acquisition decisions. *Phantom:* `--gnl whole-body-80` vs. `--gnl connectom-300` at matched b; the correction itself is Ch. 13.
 - **Complex vs. magnitude export**; **multi-echo/multi-TE options** (pointer to Part V).
 - Closing worked example: designing an HBCD-like protocol under a 10-minute budget, with the trade-offs made explicit.
 
@@ -120,8 +120,11 @@ Diffusion-gradient-induced fields; direction- and b-dependent shear/scale/transl
 ### Chapter 12 — Head motion, multiband, and slice dropout
 Rigid motion between and within volumes; multiband shot structure; signal dropout from motion during diffusion encoding; motion–eddy coupling; registration-based correction; outlier detection and replacement (eddy `--repol`, SHORELine); b-vector rotation after registration; motion QC metrics (FD, dropout counts). *Phantom:* `--motion` with the real trace from `sub-60501` (faithful per-volume re-simulation), `--mb 3 --dropout-rate 0.1` writing the dropped-shot truth TSV; score outlier detection against it.
 
-### Chapter 13 — Remaining artifacts and the assembled pipeline
-Nyquist ghosting (`ghost_offset`), k-space spikes (`n_spikes`, needs a CLI flag), gradient nonlinearity (`--gnl`, gradwarp and graddev; effect on b-vectors/b-values and on FA far from isocentre), receive-field bias, partial volume/CSF and free water, slice-timing/interleave effects. Then the **assembled pipeline**: ordering (denoise → unring → distortion + eddy + motion jointly → bias → resampling), why each order choice matters (resampling once), how qsiprep/MRtrix/FSL pipelines order these, and QC. *Phantom:* a "kitchen sink" run with every artifact on, corrected end to end, with per-step error-vs-truth plots.
+### Chapter 13 — Gradient nonlinearity
+The gradient coil's field is a solid-harmonic expansion whose $l \geq 3$ terms grow with distance from the isocentre; one field $\phi(r) = r + d(r)$ produces **two** artifacts: a spatial warp of the image (compression toward the isocentre plus an intensity Jacobian) and a per-voxel deviation of the diffusion encoding ($G_\mathrm{eff} = J^\top g$, so b-vectors *and* b-values differ voxel by voxel, biasing FA/MD and peak directions far from the isocentre). Whole-body vs. head-insert/Connectom-class gradients; why the encoding error survives an image unwarp. **Correction step by step:** (a) *gradwarp* — geometric unwarping with the vendor coefficient file via HCP `gradunwarp` or TORTOISE's `CreateNonlinearityDisplacementMap` (the path qsiprep runs), Jacobian intensity modulation, composing with the susceptibility field so the data are resampled once, frame and isocentre conventions; (b) *graddev* — the per-voxel gradient-deviation tensor (`CreateGradientNonlinearityBMatrix`, qsiprep's `graddev` output, HCP nine-volume layout) applied as a per-voxel b-matrix in fits (FSL `dtifit --gradnonlin`, `bedpostx -g`, a per-voxel gradient table in dipy, `odx graddev` for ODFs), and why it must be evaluated in the final resampled frame; (c) where both sit in the pipeline. *Phantom:* `gnl` dataset — `--gnl whole-body-80` and `--gnl connectom-300`, a `--gnl-scale` sweep, and the `--gnl-no-warp` / `--gnl-no-encoding` runs that isolate each effect; TRXScan writes the truth coefficient file, displacement field and graddev image, so gradwarp is scored against `_desc-gnl_disp`, the estimated $J$ against `_desc-gnl_graddev`, and FA/MD/peak error vs. distance from the isocentre before and after each correction.
+
+### Chapter 14 — Remaining artifacts and the assembled pipeline
+Nyquist ghosting (`ghost_offset`), k-space spikes (`n_spikes`, needs a CLI flag), receive-field bias, partial volume/CSF and free water, slice-timing/interleave effects. Then the **assembled pipeline**: ordering (denoise → unring → gradwarp + distortion + eddy + motion with a single resampling → graddev in the final frame → bias), why each order choice matters, how qsiprep/MRtrix/FSL pipelines order these, and QC. *Phantom:* a "kitchen sink" run with every artifact on (including `--gnl`), corrected end to end by qsiprep with the coefficient file, with per-step error-vs-truth plots.
 
 ---
 
@@ -129,26 +132,26 @@ Nyquist ghosting (`ghost_offset`), k-space spikes (`n_spikes`, needs a CLI flag)
 
 Every model section states: *the signal model*, *its assumptions*, *the minimum q-space sampling it needs and why*, *what breaks when the assumption fails*, and *the fit vs. TRXScan truth* on the Chapter 6 reference datasets.
 
-### Chapter 14 — Signal representations
-- **DTI**: tensor model, fit methods (LLS, WLS, NLLS, RESTORE), eigen-decomposition, FA/MD/AD/RD, color FA, the minimum-6-direction argument, why b≤1000 is "Gaussian enough"; failure in crossings and at high b. Fit vs. truth `fa/md/rd/ad`.
+### Chapter 15 — Signal representations
+- **DTI**: tensor model, fit methods (LLS, WLS, NLLS, RESTORE), eigen-decomposition, FA/MD/AD/RD, color FA, the minimum-6-direction argument, why b≤1000 is "Gaussian enough"; failure in crossings and at high b; fitting with a per-voxel b-matrix from the gradient-deviation image (Ch. 13) instead of one gradient table. Fit vs. truth `fa/md/rd/ad`.
 - **DKI**: kurtosis tensor, needs ≥2 non-zero shells and b up to ~2000–3000; MK/AK/RK; kurtosis-based WMTI (mention). Fit vs. truth `mk/ak/rk/kfa`.
 - **MAP-MRI / SHORE**: propagator bases, needs multi-shell (ideally ≥3 shells, DSI-like coverage); RTOP/RTAP/RTPP, MSD, QIV, NG. Fit vs. truth `rtop/rtap/rtpp/msd/qiv/ng`.
 - **QTI / b-tensor** (µFA, k_bulk/k_shear) as the case where the *sampling type* (not just b) unlocks a parameter: truth exists (`micro_fa`, `k_bulk`, `k_shear`) but the acquisition cannot be simulated by TRXScan today (plan §4).
 - Effect of sampling on each: fits on DTI-30 vs. HARDI-64 vs. multi-shell vs. DSI, and a "what happens if you fit DKI to single-shell data" demonstration.
 
-### Chapter 15 — Fiber orientation estimation
+### Chapter 16 — Fiber orientation estimation
 - dODF vs. fODF; QBI/CSA; DSI (q-space Fourier → propagator → ODF); CSD and MSMT-CSD (response functions, single-shell vs. multi-shell, tissue separation); peak extraction; crossing-fiber resolution vs. b, directions, and SNR. Fit vs. `--truth-peaks` (angular error, number of peaks, GFA/QA vs. truth `gfa/qa`).
 - Sampling requirements: single-shell b≥2000 for CSD; multi-shell for MSMT; DSI grid for DSI; CS-DSI as the sparse variant (link to Ch. 6.4), with ODFs from the CS-reconstructed propagator compared against the full-grid DSI ODFs and the truth peaks.
 
-### Chapter 16 — Biophysical microstructure models
+### Chapter 17 — Biophysical microstructure models
 - Compartment models and the standard model; **ball-and-stick**, **NODDI** (ICVF/ODI/ISOVF; needs ≥2 shells), **SMT / spherical mean** (rotational invariance; needs multi-shell), **free-water DTI** (needs ≥2 shells or a prior), **IVIM** (low-b shells), the **standard model degeneracy** and what breaks it (multi-Δ, b-tensor, multi-TE, high b). Fits vs. truth `icvf/odi/isovf` and the phantom's known compartment fractions.
 - Honest limits: the phantom's compartments are Gaussian (stick/tensor/ball), so models that assume restriction fit the phantom differently than real tissue; the book uses this to separate "model mismatch" from "sampling/noise" effects.
 
-### Chapter 17 — Tractography
+### Chapter 18 — Tractography
 - Local models feeding tracking; deterministic vs. probabilistic; step size, curvature, stopping criteria; seeding strategies; anatomically constrained tractography (5TT), PFT; SIFT/SIFT2 weighting; bundle segmentation (brief); connectomes (brief).
 - *Phantom:* track on the reconstructed fODFs; evaluate against the ground-truth tractogram that generated the data (bundle overlap/overreach, valid/invalid connections, Tractometer-style scores); repeat on DTI-30 vs. HARDI vs. multi-shell to show how the acquisition bounds tractography quality. Renders through TRXViz's headless CLI.
 
-### Chapter 18 — What your data allow
+### Chapter 19 — What your data allow
 - The decision matrix, refined: acquisition (scheme × b-max × directions × complex export × multi-TE/Δ/echo) → analyses that are valid, marginal, or impossible, with the chapter that demonstrates each cell.
 - Complex reconstruction revisited: what phase enables (complex denoising, Rician-free high-b, phase-based QC) and what it costs (storage, pipeline support).
 - Retrospective questions: "I have single-shell b=1000, 32 directions — what can I do?" style worked cases.
@@ -157,16 +160,16 @@ Every model section states: *the signal model*, *its assumptions*, *the minimum 
 
 ## Part V — Advanced acquisitions
 
-### Chapter 19 — Multi-TE diffusion MRI
+### Chapter 20 — Multi-TE diffusion MRI
 Compartmental T2 differences; TE-dependence of diffusion metrics; diffusion–relaxation correlation (TEdDI, MTE-NODDI); sampling in the (b, TE) plane. *Phantom:* the same scheme at several TE (needs `--te`; plan §4) using TRXScan's per-compartment T2, fit a joint T2–diffusion model, compare with the preset T2s. *Toy:* 2-compartment (b, TE) signal surfaces.
 
-### Chapter 20 — Multi-echo diffusion MRI
+### Chapter 21 — Multi-echo diffusion MRI
 Multiple EPI readouts per excitation; per-volume T2* mapping; echo combination (weighted, complex); distortion and SNR differing per echo; use for dropout recovery and relaxometry. *Toy:* multi-echo readout timing and per-echo distortion. *Phantom:* only if the multi-echo readout extension lands in mrsim-acq (plan §4, stretch).
 
-### Chapter 21 — Multi-diffusion-time DWI
+### Chapter 22 — Multi-diffusion-time DWI
 Time-dependent diffusion in restricted/hindered geometries; PGSE vs. OGSE; exchange; axon diameter sensitivity and its gradient-strength dependence; sampling in (b, Δ). *Toy:* restricted-cylinder and sphere signals (Callaghan / GPD approximations), Monte Carlo from Ch. 4 at several Δ. *Phantom:* not possible with TRXScan's Gaussian compartments; stated explicitly, with what a restricted-compartment extension would require.
 
-### Chapter 22 — Frontiers (survey)
+### Chapter 23 — Frontiers (survey)
 b-tensor encoding and µFA; diffusion relaxometry beyond TE; high-gradient systems; spiral/multi-shot readouts; deep-learning reconstruction and denoising; simulation as validation (closing the loop the book has been using).
 
 ---
@@ -182,15 +185,16 @@ b-tensor encoding and µFA; diffusion relaxometry beyond TE; high-gradient syste
 
 | Dataset id | Phantom | Scheme | Key flags | Chapters |
 |---|---|---|---|---|
-| `ref-clean` | sub-0001a, 2.5 mm | HBCD 4-shell | no noise, `--oversample 1` | 0, 6, 14–17 (truth baseline) |
-| `ref-schemes` | sub-0001a, 2.5 mm | DTI-30, HARDI-64, HBCD, DSI-257 (+ CS-DSI-64 subset) | modest noise | 6, 14–18 |
+| `ref-clean` | sub-0001a, 2.5 mm | HBCD 4-shell | no noise, `--oversample 1` | 0, 6, 15–18 (truth baseline) |
+| `ref-schemes` | sub-0001a, 2.5 mm | DTI-30, HARDI-64, HBCD, DSI-257 (+ CS-DSI-64 subset) | modest noise | 6, 15–19 |
 | `slab-kspace` | sub-0001a, 5 axial slices | HBCD subset (12 vols) | k-space export, `--coils 8 --accel 2`, PF 6/8 | 2, 3 |
 | `noise-sweep` | sub-0001a | HBCD | `--noise` × 4 levels, `--coils`/`--accel` | 8 |
 | `gibbs` | sub-0001a | HBCD | `--oversample 2` vs `1`, window variants | 9 |
 | `sdc-pair` | sub-0001a + sub-60501 | HBCD | `--reverse-pe`, `--gre-out` | 10 |
 | `eddy` | sub-60501 | HBCD | `--eddy`, `--eddy-quad`, `--eddy-trace`, `--eddy-phase` | 11 |
 | `motion-mb` | sub-60501 | HBCD | `--motion`, `--mb 3 --dropout-rate 0.1` | 12 |
-| `kitchen-sink` | sub-0001a | HBCD | everything on, incl. `--gnl` | 13 |
+| `gnl` | sub-0001a | HBCD | `--gnl whole-body-80` / `connectom-300`, `--gnl-scale` sweep, `--gnl-no-warp`, `--gnl-no-encoding`; writes truth coeff/disp/graddev | 7, 13, 15 |
+| `kitchen-sink` | sub-0001a | HBCD | everything on, incl. `--gnl` | 14 |
 | `voxel-sweep` | sub-0001a | HBCD | 1.5/2.0/2.5/3.0 mm | 7 |
-| `te-sweep` | sub-0001a | HBCD | `--te` × 4 (new flag) | 7, 19 |
+| `te-sweep` | sub-0001a | HBCD | `--te` × 4 (new flag) | 7, 20 |
 | `truth` | sub-0001a | — | `trxscan-microstructure`, `--truth-peaks` | all Part IV |

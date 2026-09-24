@@ -1,6 +1,6 @@
 ---
 title: Frontiers
-subtitle: Chapter 22
+subtitle: Chapter 23
 kernelspec:
   name: python3
   display_name: Python 3

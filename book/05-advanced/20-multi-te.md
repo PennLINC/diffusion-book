@@ -1,6 +1,6 @@
 ---
-title: Fiber orientation estimation
-subtitle: Chapter 15
+title: Multi-TE diffusion MRI
+subtitle: Chapter 20
 kernelspec:
   name: python3
   display_name: Python 3
@@ -16,34 +16,26 @@ structure are final; the content is not written yet.
 
 After this chapter you can:
 
-- distinguish dODF from fODF
-- fit QBI, DSI, CSD and MSMT-CSD and extract peaks
-- score angular error and peak count against the truth peaks
+- explain TE dependence of diffusion metrics through compartmental T2
+- fit a joint T2-diffusion model
+- design sampling in the (b, TE) plane
 
-**Datasets used:** `ref-schemes`, `truth`
-**Simulation tier:** phantom
+**Datasets used:** `te-sweep`, `truth`
+**Simulation tier:** toy+phantom
 
-## dODF versus fODF
-
-*To be written.*
-
-## QBI and CSA
+## Compartmental T2
 
 *To be written.*
 
-## DSI and CS-DSI
+## Diffusion-relaxation correlation
 
 *To be written.*
 
-## CSD and MSMT-CSD
+## See it: the phantom at four echo times
 
 *To be written.*
 
-## Peaks versus truth
-
-*To be written.*
-
-## Crossing-fiber resolution versus acquisition
+## Measure it: recovered compartment T2s
 
 *To be written.*
 

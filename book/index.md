@@ -25,9 +25,9 @@ lands chapter by chapter. See the [implementation plan](https://github.com/PennL
 | Front matter | 0.1–0.3 | run the book, know the phantom, read the notation |
 | I. MRI physics | 1–3 | simulate spins, encode an image in k-space, reconstruct it with multiple coils, parallel imaging and partial Fourier |
 | II. Diffusion physics and encoding | 4–7 | derive the diffusion signal, design a q-space scheme (single-shell, multi-shell, DSI, CS-DSI), choose TE/TR/voxel/b |
-| III. Artifacts and preprocessing | 8–13 | recognise noise, Gibbs ringing, distortion, eddy currents, motion and dropout in simulated data, correct them, and measure what remains |
-| IV. Reconstruction and modeling | 14–18 | fit DTI/DKI/MAP-MRI, estimate fiber orientations, fit microstructure models, run tractography, and decide what a given acquisition allows |
-| V. Advanced acquisitions | 19–22 | reason about multi-TE, multi-echo and multi-diffusion-time DWI, and where the field is heading |
+| III. Artifacts and preprocessing | 8–14 | recognise noise, Gibbs ringing, susceptibility distortion, eddy currents, motion and dropout, and gradient nonlinearity in simulated data, correct them, and measure what remains |
+| IV. Reconstruction and modeling | 15–19 | fit DTI/DKI/MAP-MRI, estimate fiber orientations, fit microstructure models, run tractography, and decide what a given acquisition allows |
+| V. Advanced acquisitions | 20–23 | reason about multi-TE, multi-echo and multi-diffusion-time DWI, and where the field is heading |
 
 ## Two kinds of simulation
 

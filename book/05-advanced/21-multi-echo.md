@@ -1,6 +1,6 @@
 ---
 title: Multi-echo diffusion MRI
-subtitle: Chapter 20
+subtitle: Chapter 21
 kernelspec:
   name: python3
   display_name: Python 3

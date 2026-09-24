@@ -17,7 +17,7 @@ Status: stage 1, 2026-09-24. Companion: [outline.md](outline.md) (chapter conten
   a fieldmap unwarp, a Kellner unringing loop).
 - Real-scanner data. Everything is simulated; real data are mentioned only as motivation.
 - Restricted-diffusion (time-dependent) *phantom* simulation. TRXScan's compartments are
-  Gaussian, so Chapter 21 is toy-only until a restricted compartment exists.
+  Gaussian, so Chapter 22 is toy-only until a restricted compartment exists.
 
 ## 2. Toolchain
 
@@ -27,7 +27,7 @@ Status: stage 1, 2026-09-24. Companion: [outline.md](outline.md) (chapter conten
 | Python env | **`dwibook`**, a dedicated micromamba env defined in [`environment.yml`](../environment.yml) (WSL side), created 2026-09-24 | no existing env had both dipy and Jupyter Book; the `trxscan` env is the NIBS pipeline env and is left untouched |
 | Core Python deps | python 3.11, numpy, scipy, nibabel, dipy ≥ 1.10, matplotlib, pandas, scikit-image, pooch, jupyter-book 2, jupyterlab, jupytext, ipywidgets (static fallbacks only) | dipy covers DTI/DKI/MAP-MRI/SHORE/CSD/MSMT/QBI/DSI/free-water/IVIM/tracking/denoising/unringing; pooch fetches the data release |
 | Optional Python deps | sigpy (CS k-space recon), dmri-amico (NODDI), scilpy or tractometer-style scoring code (tractography evaluation), fury (3-D renders; off on CI) | each is used in one or two chapters; keep them optional extras so the core build never depends on them |
-| External tools (offline pipeline only) | TRXScan + `trxscan-microstructure` (built, on the WSL PATH), TRXViz CLI (tractogram/ODF renders to PNG), **FSL and MRtrix via the `pennlinc/qsiprep` Docker image** (Docker 29 is installed in WSL; `pennlinc/qsiprep:test` and `:unstable` are already pulled; the pipeline pins a released tag) | heavy or non-Python steps run in the data pipeline and ship results; the book never shells out at build time. Using the QSIPrep image also lets Ch. 13 run the real assembled pipeline (`qsiprep` itself) on the kitchen-sink dataset. |
+| External tools (offline pipeline only) | TRXScan + `trxscan-microstructure` (built, on the WSL PATH), TRXViz CLI (tractogram/ODF renders to PNG), **FSL and MRtrix via the `pennlinc/qsiprep` Docker image** (Docker 29 is installed in WSL; `pennlinc/qsiprep:test` and `:unstable` are already pulled; the pipeline pins a released tag) | heavy or non-Python steps run in the data pipeline and ship results; the book never shells out at build time. Using the QSIPrep image also lets Ch. 14 run the real assembled pipeline (`qsiprep` itself) on the kitchen-sink dataset. |
 | Simulation host | WSL (`wsl -e bash -lc "..."`), per the machine's toolchain layout | TRXScan, cargo, micromamba all live there |
 | Hosting | GitHub Pages via Actions; data on a GitHub release (or OSF/Zenodo if > 2 GB) with a pooch registry | zero-infrastructure, versioned data with checksums |
 
@@ -110,13 +110,13 @@ branch there and pinned by commit in `pipelines/config`.
 
 | # | Item | Blocks | Size | Notes |
 |---|---|---|---|---|
-| T1 | **Acquisition parameters from the CLI (or the planned TOML config)**: `--te`, `--partial-fourier`, `--ghost`, `--spikes`/`--spike-amplitude`, `--window {none,hann,tukey,fermi}`, `--readout-time` (or `--t-line`), `--acs-lines`, `--t-inhom` | Ch. 7, 9, 13, 19, `te-sweep`, `gibbs` | small–medium | Today `TE_MS = 88.0` is a `const` and the `Acquisition` literal in `src/bin/trxscan.rs` is hard-coded (t_line pinned to HBCD's 91.7 ms readout, PF 0.75, ghost 0.015). The struct already has every field; this is plumbing. The `config` feature's TOML is the cleaner home; a flag set is the faster one. |
+| T1 | **Acquisition parameters from the CLI (or the planned TOML config)**: `--te`, `--partial-fourier`, `--ghost`, `--spikes`/`--spike-amplitude`, `--window {none,hann,tukey,fermi}`, `--readout-time` (or `--t-line`), `--acs-lines`, `--t-inhom` | Ch. 7, 9, 14, 20, `te-sweep`, `gibbs` | small–medium | Today `TE_MS = 88.0` is a `const` and the `Acquisition` literal in `src/bin/trxscan.rs` is hard-coded (t_line pinned to HBCD's 91.7 ms readout, PF 0.75, ghost 0.015). The struct already has every field; this is plumbing. The `config` feature's TOML is the cleaner home; a flag set is the faster one. |
 | T2 | **Raw k-space export**: per-slice, per-coil, pre-GRAPPA/pre-combination complex k-space (and the sampling mask) as NIfTI complex64 or `.npy`, opt-in flag, ideally for a slice subset | Ch. 2, 3, `slab-kspace` | small–medium | The book's reconstruction chapter must start from *acquired* k-space (undersampled, PF-cropped, per coil), not from an FFT of the reconstructed image. Needs a hook in `mrsim-acq::kspace` before reconstruction; write once per volume × slice × coil. Keep to a slab (`--slices a:b`) to bound size. |
-| T3 | **Per-volume TE** (a TE column, e.g. `--te-list` or a BIDS-style TSV) so a single run yields a multi-TE series with shared noise realization | Ch. 19 | small once T1 exists | Per-compartment T2 is already applied in k-space per volume; TE just needs to vary per volume. |
+| T3 | **Per-volume TE** (a TE column, e.g. `--te-list` or a BIDS-style TSV) so a single run yields a multi-TE series with shared noise realization | Ch. 20 | small once T1 exists | Per-compartment T2 is already applied in k-space per volume; TE just needs to vary per volume. |
 | T4 | **CS-style irregular undersampling mask** (random / Poisson-disc PE lines, or a user-supplied mask) as an alternative to regular GRAPPA `accel`, with the mask exported | Ch. 3 (k-space CS), 7 | medium | Optional if T2 lands: the book can undersample the exported *fully sampled* k-space retrospectively in Python, which is how retrospective k-space CS studies are done anyway. Unrelated to CS-DSI (Ch. 6.4), which undersamples q-space and needs no simulator change. So T4 is a nice-to-have. |
-| T5 | **Multi-echo readout** (N EPI echoes per excitation, per-echo TE, T2* decay and distortion per echo) | Ch. 20 phantom figures | large | Stretch. mrsim-acq's readout model is single-shot SE-EPI; multi-echo needs a readout-time offset per echo and per-echo k-space. Ch. 20 ships toy-only if this slips. |
-| T6 | **Restricted compartment** (cylinder/sphere with Δ/δ dependence) | Ch. 21 phantom figures | large | Out of scope for edition 1; Ch. 21 is toy-only. Note the truth maps already accept `--big-delta/--small-delta` for MAP-MRI units. |
-| T7 | **b-tensor (LTE/PTE/STE) encoding** in `scheme` + signal stage | Ch. 14 QTI, 22 | medium–large | Truth for µFA/k_bulk/k_shear already exists, which makes this tempting, but it is a second-edition item. |
+| T5 | **Multi-echo readout** (N EPI echoes per excitation, per-echo TE, T2* decay and distortion per echo) | Ch. 21 phantom figures | large | Stretch. mrsim-acq's readout model is single-shot SE-EPI; multi-echo needs a readout-time offset per echo and per-echo k-space. Ch. 21 ships toy-only if this slips. |
+| T6 | **Restricted compartment** (cylinder/sphere with Δ/δ dependence) | Ch. 22 phantom figures | large | Out of scope for edition 1; Ch. 22 is toy-only. Note the truth maps already accept `--big-delta/--small-delta` for MAP-MRI units. |
+| T7 | **b-tensor (LTE/PTE/STE) encoding** in `scheme` + signal stage | Ch. 15 QTI, 22 | medium–large | Truth for µFA/k_bulk/k_shear already exists, which makes this tempting, but it is a second-edition item. |
 | T8 | **`--slices a:b` / small-FOV slab mode** for cheap runs | all k-space chapters, CI smoke test | small | Cropping the tissue maps upstream with nibabel achieves most of this without touching Rust; keep as a convenience. |
 
 Decision for stage 2: implement **T1 and T2 first** (both small, both unblock several chapters);
@@ -152,9 +152,11 @@ dataset (per-volume re-simulation) is the expensive one (× volumes). `--oversam
 Gibbs doubles in-plane voxels ×4 and needs the memory headroom TRXScan's preflight warns about.
 
 **Precomputed heavy results** (shipped with the dataset, loaded by notebooks):
-FSL topup/eddy outputs (Ch. 10–12), MRtrix `dwi2response`/`dwi2fod`/`tckgen`/`tcksift2` outputs
-and tractography scores (Ch. 15, 17), a full `qsiprep` run on the kitchen-sink dataset (Ch. 13),
-NODDI/AMICO fits (Ch. 16), TRXViz renders (Ch. 0, 17). FSL, MRtrix, and qsiprep itself all come
+FSL topup/eddy outputs (Ch. 10–12), gradwarp fields from HCP `gradunwarp` and from TORTOISE's
+`CreateNonlinearityDisplacementMap` plus the `CreateGradientNonlinearityBMatrix` graddev image
+(Ch. 13; both TORTOISE tools ship in the qsiprep image, `gradunwarp` is a pip install), MRtrix `dwi2response`/`dwi2fod`/`tckgen`/`tcksift2` outputs
+and tractography scores (Ch. 16, 18), a full `qsiprep` run on the kitchen-sink dataset (Ch. 14),
+NODDI/AMICO fits (Ch. 17), TRXViz renders (Ch. 0, 18). FSL, MRtrix, and qsiprep itself all come
 from the `pennlinc/qsiprep` Docker image, invoked by Snakemake rules as
 `docker run --rm -v <data>:/data pennlinc/qsiprep:<tag> <command>`; the image tag is pinned in
 `pipelines/config/datasets.yaml` and recorded in every provenance JSON. Everything else (DTI/DKI/MAP-MRI fits,
@@ -214,9 +216,9 @@ identical layout for every fit-vs-truth panel (map | truth | difference | scatte
 | **1b Simulator PRs** | T1 (acquisition flags/TOML), T2 (k-space export), T3 (per-volume TE) on a TRXScan/mrsim-acq branch, pinned by commit | runs in parallel with 1 |
 | **2 Physics (Part I, Ch. 4–5)** | Ch. 1–5 complete; all toy-tier, plus `slab-kspace` once T2 lands | 1, T2 for the phantom figures in Ch. 2–3 |
 | **3 Encoding (Ch. 6–7)** | schemes checked in; `ref-schemes`, `voxel-sweep`, `te-sweep` datasets; Table 6.1 first version | 1, T1, T3 |
-| **4 Preprocessing (Part III)** | `noise-sweep`, `gibbs`, `sdc-pair`, `eddy`, `motion-mb`, `kitchen-sink` datasets with FSL precomputes; Ch. 8–13 | 1, T1; `fsl` env for topup/eddy |
-| **5 Modeling (Part IV)** | truth loader; DTI/DKI/MAP-MRI/CSD/NODDI/tractography chapters with fit-vs-truth; Ch. 18 matrix | 3 |
-| **6 Advanced + polish** | Ch. 19 (needs `te-sweep`), 20–22 (toy), appendices auto-generated from the registry and pipeline config, glossary, PDF export; Codex adversarial review of the helper package and of each chapter's fit-vs-truth code; final Codex code review | all |
+| **4 Preprocessing (Part III)** | `noise-sweep`, `gibbs`, `sdc-pair`, `eddy`, `motion-mb`, `kitchen-sink` datasets with FSL precomputes; Ch. 8–14 | 1, T1; `fsl` env for topup/eddy |
+| **5 Modeling (Part IV)** | truth loader; DTI/DKI/MAP-MRI/CSD/NODDI/tractography chapters with fit-vs-truth; Ch. 19 matrix | 3 |
+| **6 Advanced + polish** | Ch. 20 (needs `te-sweep`), 20–22 (toy), appendices auto-generated from the registry and pipeline config, glossary, PDF export; Codex adversarial review of the helper package and of each chapter's fit-vs-truth code; final Codex code review | all |
 
 Each chapter is a PR. A chapter is "done" when its notebook executes in CI, its figures follow
 the plotting conventions, and any truth comparison reports a number in the text.
@@ -236,7 +238,7 @@ Decided (2026-09-24):
 1. **Python environment:** `dwibook`, created from `environment.yml` (Python 3.11, dipy 1.12.1, mystmd 1.11.0 on Node 26, sigpy, snakemake 9).
 2. **Simulator changes:** T1–T3 are developed on a branch of TRXScan/mrsim-acq and pinned by commit in the pipeline config.
 3. **q-space families:** single-shell, multi-shell, DSI, and CS-DSI (the "DTI"/"CS-DTI" wording in the original brief meant DSI/CS-DSI).
-4. **FSL/MRtrix:** used freely in the offline pipeline through the `pennlinc/qsiprep` Docker image, which also provides `qsiprep` itself for Ch. 13.
+4. **FSL/MRtrix:** used freely in the offline pipeline through the `pennlinc/qsiprep` Docker image, which also provides `qsiprep` itself for Ch. 14.
 5. **Book engine:** Jupyter Book 2 (§2a).
 
 Still open (defaults assumed until changed):
@@ -248,7 +250,7 @@ Still open (defaults assumed until changed):
 - **Memory/time of oversampled runs.** `--oversample 2` at 2.5 mm is fine; at 1.7 mm it is the
   11+ GB case. Keep Gibbs on the 2.5 mm grid or on a slab.
 - **Gaussian-compartment phantom vs. biophysical models.** NODDI/SMT fits to a stick+tensor+ball
-  phantom will not look like in vivo fits. The book turns this into a teaching point (Ch. 16), but
+  phantom will not look like in vivo fits. The book turns this into a teaching point (Ch. 17), but
   reviewers may read it as "the simulator is wrong". Say it up front in Ch. 0.2.
 - **Simulator drift.** Pin TRXScan/mrsim-acq commits in the pipeline config and store the full
   command line in every dataset's provenance JSON.

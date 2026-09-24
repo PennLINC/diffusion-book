@@ -1,6 +1,6 @@
 ---
-title: Multi-diffusion-time DWI
-subtitle: Chapter 21
+title: Signal representations
+subtitle: Chapter 15
 kernelspec:
   name: python3
   display_name: Python 3
@@ -16,34 +16,30 @@ structure are final; the content is not written yet.
 
 After this chapter you can:
 
-- explain time-dependent diffusion in restricted and hindered geometries
-- contrast PGSE and OGSE
-- state what axon-diameter sensitivity needs from the hardware
+- fit DTI, DKI and MAP-MRI and state each model's assumptions
+- state the minimum sampling each needs and why
+- score each fit against truth on every reference scheme
 
-**Datasets used:** none (toy tier)
-**Simulation tier:** toy
+**Datasets used:** `ref-schemes`, `truth`
+**Simulation tier:** phantom
 
-## Time-dependent diffusion
-
-*To be written.*
-
-## PGSE versus OGSE
+## DTI
 
 *To be written.*
 
-## Exchange
+## DKI
 
 *To be written.*
 
-## Axon diameter and gradient strength
+## MAP-MRI and SHORE
 
 *To be written.*
 
-## See it: restricted cylinders and spheres (toy)
+## QTI and b-tensor
 
 *To be written.*
 
-## Why the phantom cannot show this
+## Effect of sampling on each model
 
 *To be written.*
 

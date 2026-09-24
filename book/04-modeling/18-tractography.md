@@ -1,6 +1,6 @@
 ---
-title: Multi-TE diffusion MRI
-subtitle: Chapter 19
+title: Tractography
+subtitle: Chapter 18
 kernelspec:
   name: python3
   display_name: Python 3
@@ -16,26 +16,34 @@ structure are final; the content is not written yet.
 
 After this chapter you can:
 
-- explain TE dependence of diffusion metrics through compartmental T2
-- fit a joint T2-diffusion model
-- design sampling in the (b, TE) plane
+- run deterministic and probabilistic tracking with anatomical constraints
+- apply SIFT2 weighting
+- evaluate a tractogram against the ground-truth tractogram
 
-**Datasets used:** `te-sweep`, `truth`
-**Simulation tier:** toy+phantom
+**Datasets used:** `ref-schemes`, `truth`
+**Simulation tier:** phantom
 
-## Compartmental T2
-
-*To be written.*
-
-## Diffusion-relaxation correlation
+## From local model to streamline
 
 *To be written.*
 
-## See it: the phantom at four echo times
+## Deterministic and probabilistic
 
 *To be written.*
 
-## Measure it: recovered compartment T2s
+## Seeding, stopping, anatomical constraints
+
+*To be written.*
+
+## SIFT and SIFT2
+
+*To be written.*
+
+## Evaluation against the generating tractogram
+
+*To be written.*
+
+## Tractography quality versus acquisition
 
 *To be written.*
 

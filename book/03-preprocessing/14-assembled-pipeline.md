@@ -1,6 +1,6 @@
 ---
-title: Tractography
-subtitle: Chapter 17
+title: Remaining artifacts and the assembled pipeline
+subtitle: Chapter 14
 kernelspec:
   name: python3
   display_name: Python 3
@@ -16,34 +16,38 @@ structure are final; the content is not written yet.
 
 After this chapter you can:
 
-- run deterministic and probabilistic tracking with anatomical constraints
-- apply SIFT2 weighting
-- evaluate a tractogram against the ground-truth tractogram
+- recognise Nyquist ghosts, spikes, gradient nonlinearity and receive bias
+- order the preprocessing steps and justify the order
+- run and QC a full pipeline on the kitchen-sink dataset
 
-**Datasets used:** `ref-schemes`, `truth`
+**Datasets used:** `kitchen-sink`, `truth`
 **Simulation tier:** phantom
 
-## From local model to streamline
+## Nyquist ghosting
 
 *To be written.*
 
-## Deterministic and probabilistic
+## k-space spikes
 
 *To be written.*
 
-## Seeding, stopping, anatomical constraints
+## Gradient nonlinearity
 
 *To be written.*
 
-## SIFT and SIFT2
+## Receive-field bias and partial volume
 
 *To be written.*
 
-## Evaluation against the generating tractogram
+## The assembled pipeline and its order
 
 *To be written.*
 
-## Tractography quality versus acquisition
+## See it: qsiprep on the kitchen-sink dataset
+
+*To be written.*
+
+## Per-step error versus truth
 
 *To be written.*
 

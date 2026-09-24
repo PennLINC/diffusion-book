@@ -1,6 +1,6 @@
 ---
-title: Remaining artifacts and the assembled pipeline
-subtitle: Chapter 13
+title: Fiber orientation estimation
+subtitle: Chapter 16
 kernelspec:
   name: python3
   display_name: Python 3
@@ -16,38 +16,34 @@ structure are final; the content is not written yet.
 
 After this chapter you can:
 
-- recognise Nyquist ghosts, spikes, gradient nonlinearity and receive bias
-- order the preprocessing steps and justify the order
-- run and QC a full pipeline on the kitchen-sink dataset
+- distinguish dODF from fODF
+- fit QBI, DSI, CSD and MSMT-CSD and extract peaks
+- score angular error and peak count against the truth peaks
 
-**Datasets used:** `kitchen-sink`, `truth`
+**Datasets used:** `ref-schemes`, `truth`
 **Simulation tier:** phantom
 
-## Nyquist ghosting
+## dODF versus fODF
 
 *To be written.*
 
-## k-space spikes
+## QBI and CSA
 
 *To be written.*
 
-## Gradient nonlinearity
+## DSI and CS-DSI
 
 *To be written.*
 
-## Receive-field bias and partial volume
+## CSD and MSMT-CSD
 
 *To be written.*
 
-## The assembled pipeline and its order
+## Peaks versus truth
 
 *To be written.*
 
-## See it: qsiprep on the kitchen-sink dataset
-
-*To be written.*
-
-## Per-step error versus truth
+## Crossing-fiber resolution versus acquisition
 
 *To be written.*
 
