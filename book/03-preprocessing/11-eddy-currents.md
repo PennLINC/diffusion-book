@@ -16,7 +16,7 @@ structure are final; the content is not written yet.
 
 After this chapter you can:
 
-- recognise direction- and b-dependent shear, scale and translation
+- recognize direction- and b-dependent shear, scale and translation
 - correct by registration or model-based prediction
 - rotate b-vectors after correction
 

@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "book-static",
+      "runtimeExecutable": "wsl",
+      "runtimeArgs": ["-e", "bash", "-lc", "cd /mnt/c/Users/tsalo/Documents/linc/diffusion-book/_build/html && python3 -m http.server 8765"],
+      "port": 8765
+    },
+    {
+      "name": "book-live",
+      "runtimeExecutable": "wsl",
+      "runtimeArgs": ["-e", "bash", "-lc", "cd /mnt/c/Users/tsalo/Documents/linc/diffusion-book && /home/tsalo/.local/bin/micromamba run -n dwibook myst start --execute --port 3000"],
+      "port": 3000
+    }
+  ]
+}

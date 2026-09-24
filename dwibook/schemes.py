@@ -97,7 +97,7 @@ def cs_subset(bvals: np.ndarray, bvecs: np.ndarray, n_keep: int, seed: int = 0) 
 
 
 def shells_of(bvals: np.ndarray, tol: float = 50.0) -> dict[float, int]:
-    """Group b-values into shells (centres rounded to ``tol``) with volume counts."""
+    """Group b-values into shells (centers rounded to ``tol``) with volume counts."""
     keys = np.round(np.asarray(bvals) / tol) * tol
     uniq, counts = np.unique(keys, return_counts=True)
     return {float(u): int(c) for u, c in zip(uniq, counts)}
@@ -116,7 +116,7 @@ def read_fsl(stem: str | Path) -> tuple[np.ndarray, np.ndarray]:
 
 
 def plot_scheme(bvals: np.ndarray, bvecs: np.ndarray, ax=None, title: str | None = None):
-    """3-D scatter of q-space samples, radius proportional to sqrt(b), coloured by shell."""
+    """3-D scatter of q-space samples, radius proportional to sqrt(b), colored by shell."""
     import matplotlib.pyplot as plt
 
     if ax is None:

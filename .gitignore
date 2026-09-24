@@ -1,7 +1,7 @@
 # book build
 _build/
-# pooch cache / pipeline outputs
-data/
+# pooch cache / pipeline outputs (root only; dwibook/data/ holds shipped package data)
+/data/
 # python
 __pycache__/
 *.py[cod]

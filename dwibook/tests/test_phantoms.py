@@ -22,6 +22,22 @@ def test_bloch_matches_analytic_decay():
     np.testing.assert_allclose(mz, 1 - np.exp(-t / 1000))
 
 
+def test_spin_echo_refocuses_and_gradient_echo_does_not():
+    t = np.linspace(0, 100, 2001)
+    offsets = phantoms.offresonance_ensemble(3000, t2prime_ms=20.0, seed=0)
+    # 90x at t=0 only: FID decays with T2* (T2 = 80, T2' = 20 -> T2* = 16 ms)
+    fid, _ = phantoms.bloch_sequence(t, [(0.0, 90.0, 0.0)], 1000.0, 80.0, offsets)
+    i40 = np.searchsorted(t, 40.0)
+    assert abs(fid[i40]) < 0.15  # e^{-40/16} = 0.08, ensemble-limited
+    # 90x then 180y at 25 ms: echo at 50 ms with amplitude e^{-50/80}
+    se, mz = phantoms.bloch_sequence(t, [(0.0, 90.0, 0.0), (25.0, 180.0, 90.0)], 1000.0, 80.0, offsets)
+    i50 = np.searchsorted(t, 50.0)
+    np.testing.assert_allclose(abs(se[i50]), np.exp(-50 / 80), rtol=0.05)
+    assert abs(se[i50]) > abs(fid[i50]) * 5
+    # longitudinal recovery is untouched by the offsets
+    assert 0 < mz[i50] < 1
+
+
 def test_free_random_walk_msd_is_linear_in_time():
     pos = phantoms.random_walk_2d(4000, 200, step=1.0, seed=0)
     msd = phantoms.mean_squared_displacement(pos)

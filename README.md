@@ -16,7 +16,8 @@ micromamba run -n dwibook myst build --html --execute  # static site in _build/h
 ```
 
 Set `DWIBOOK_DATA=/path/to/data` to build against local pipeline output instead of the data
-release. The offline data pipeline lives in [pipelines/](pipelines/README.md).
+release. The execution cache is keyed on notebook text only, so after editing anything in
+`dwibook/` delete `_build/execute` (or the cached outputs will silently reflect the old code). The offline data pipeline lives in [pipelines/](pipelines/README.md).
 
 ## Layout
 

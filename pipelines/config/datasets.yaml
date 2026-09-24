@@ -86,7 +86,7 @@ datasets:
     precompute: [topup]
   eddy:
     phantom: sub-60501
-    description: modelled and replayed eddy currents, geometric and phase
+    description: modeled and replayed eddy currents, geometric and phase
     variants:
       - { name: model, extra_flags: ["--eddy", "0.02", "--eddy-quad", "0.005"] }
       - { name: trace, extra_flags: ["--eddy-trace", "{phantom.motion_ap}"] }

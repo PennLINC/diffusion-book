@@ -232,6 +232,16 @@ and a Snakefile with the grid-preparation and truth rules. Remaining: `pipelines
 first `ref-clean` run end to end, the `data-v0.1` release, and the TRXScan `book` branch
 (T1–T3).
 
+**Phase 2 progress (2026-09-24).** Chapters 1–3 are written at the toy tier and execute in
+the build: a Bloch isochromat simulator (FID, spin echo, T2*), the k-space/EPI chapter
+(Fourier relationship, FOV/resolution/aliasing, blipped-EPI timing, partial Fourier, Gibbs
+ringing, multi-shot phase ghosts), and the reconstruction chapter (coil combination, SENSE,
+GRAPPA with an empirical g-factor, zero-fill/homodyne/POCS, Haar-FISTA compressed sensing,
+Rician and non-central chi noise with the bias curve). The `dwibook.kspace` and
+`dwibook.phantoms` helpers behind them have unit tests. Each chapter's phantom section
+(`slab-kspace`) and the Chapter 1 preset comparison are marked pending on T2 and on a
+`presets` dataset respectively.
+
 ## 10. Decisions
 
 Decided (2026-09-24):

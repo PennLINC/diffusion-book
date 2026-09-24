@@ -1,14 +1,71 @@
 """House style for figures: slice mosaics, error maps, and fit-vs-truth panels.
 
 Every phantom figure in the book uses the same slice indices and intensity windows so the
-reader learns one brain. Colour maps are colourblind-safe: ``gray`` for magnitude,
-``twilight`` for phase, ``viridis`` for scalar maps, ``RdBu_r`` (zero-centred) for differences.
+reader learns one brain. Color maps are colorblind-safe: ``gray`` for magnitude,
+``twilight`` for phase, ``viridis`` for scalar maps, ``RdBu_r`` (zero-centered) for differences.
 """
 
 from __future__ import annotations
 
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
+
+#: Categorical palette (colorblind-validated, fixed order, never cycled past 8).
+PALETTE = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#4a3aa7", "#e34948"]
+
+#: Tissue colors are fixed for the whole book: WM blue, GM orange, CSF aqua.
+TISSUE_COLORS = {"WM": PALETTE[0], "GM": PALETTE[1], "CSF": PALETTE[2]}
+
+#: Text and grid tones (never used for data).
+INK = {"primary": "#0b0b0b", "secondary": "#52514e", "grid": "#e4e3df"}
+
+
+def set_style() -> None:
+    """Apply the book's matplotlib style: thin marks, recessive axes, the fixed palette."""
+    mpl.rcParams.update({
+        "axes.prop_cycle": mpl.cycler(color=PALETTE),
+        "lines.linewidth": 2.0,
+        "lines.markersize": 5,
+        "axes.spines.top": False,
+        "axes.spines.right": False,
+        "axes.edgecolor": INK["secondary"],
+        "axes.labelcolor": INK["primary"],
+        "axes.titlesize": 10,
+        "axes.labelsize": 9,
+        "axes.grid": True,
+        "grid.color": INK["grid"],
+        "grid.linewidth": 0.6,
+        "xtick.labelsize": 8,
+        "ytick.labelsize": 8,
+        "xtick.color": INK["secondary"],
+        "ytick.color": INK["secondary"],
+        "legend.fontsize": 8,
+        "legend.frameon": False,
+        "figure.dpi": 110,
+        "figure.figsize": (7.0, 3.2),
+        "image.cmap": "gray",
+        "image.interpolation": "nearest",
+    })
+
+
+def show_image(ax, img: np.ndarray, title: str | None = None, kind: str = "magnitude", **kw):
+    """Display a 2-D array with the book's color maps and no axes decoration."""
+    if np.iscomplexobj(img):
+        img = np.abs(img)
+    ax.imshow(img, cmap=CMAPS[kind], **kw)
+    ax.set_axis_off()
+    if title:
+        ax.set_title(title)
+
+
+def show_kspace(ax, ksp: np.ndarray, title: str | None = None):
+    """Display k-space as log magnitude (the only way to see anything beyond the center)."""
+    ax.imshow(np.log1p(np.abs(ksp) / (np.abs(ksp).max() + 1e-12) * 1e3), cmap="magma")
+    ax.set_axis_off()
+    if title:
+        ax.set_title(title)
+
 
 #: Default display slices (fractions of the array extent) so they survive resolution changes.
 SLICE_FRACTIONS = {"axial": 0.5, "coronal": 0.5, "sagittal": 0.5}

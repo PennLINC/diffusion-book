@@ -16,7 +16,7 @@ structure are final; the content is not written yet.
 
 After this chapter you can:
 
-- recognise Nyquist ghosts, spikes, gradient nonlinearity and receive bias
+- recognize Nyquist ghosts, spikes, gradient nonlinearity and receive bias
 - order the preprocessing steps and justify the order
 - run and QC a full pipeline on the kitchen-sink dataset
 
