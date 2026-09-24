@@ -140,7 +140,7 @@ everywhere except the Chapter 1 preset comparison.
 - `dti30`: 30 dirs b=1000 + 3 b0 (electrostatic repulsion)
 - `hardi64`: 64 dirs b=2000 + 4 b0
 - `hbcd`: the bundled HBCD AP/PA 4-shell scheme (as-is, it is the "real protocol" reference)
-- `dsi257`: 257-point Cartesian grid to b≈4000 (radial grid 5)
+- `dsi257`: 257-point Cartesian grid to b≈4000 (lattice points with |q|² ≤ 16, i.e. radius 4; radius 5 is the 515-point grid)
 - `csdsi64`: a random 64-point subset of `dsi257` (Ch. 6.4). Not simulated separately: the pipeline subsets the `dsi257` volumes so the CS-DSI and full-DSI comparisons share one noise realization, which is exactly how retrospective CS-DSI studies are done.
 - `msmt`: HCP-like 1000/2000/3000 × 30 (only if `hbcd` proves an awkward teaching shell set; otherwise `hbcd` serves)
 
@@ -220,6 +220,15 @@ identical layout for every fit-vs-truth panel (map | truth | difference | scatte
 
 Each chapter is a PR. A chapter is "done" when its notebook executes in CI, its figures follow
 the plotting conventions, and any truth comparison reports a number in the text.
+
+**Phase 1 progress (2026-09-24).** Done: `myst.yml` with the full TOC, 31 chapter stubs that
+each execute a cell, the `dwibook` package (loader with `$DWIBOOK_DATA` override and pooch
+registry, toy phantoms, k-space helpers, scheme generators, truth metrics, plotting) with 22
+passing unit tests, the CI workflow, `pipelines/config/datasets.yaml` encoding every dataset,
+and a Snakefile with the grid-preparation and truth rules. Remaining: `pipelines/scripts/`
+(`run_dataset.py`, `make_schemes.py`, `normalize_grid_names.py`, `package_release.py`), the
+first `ref-clean` run end to end, the `data-v0.1` release, and the TRXScan `book` branch
+(T1–T3).
 
 ## 10. Decisions
 

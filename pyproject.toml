@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dwibook"
+version = "0.1.0.dev0"
+description = "Helper package for the diffusion MRI executable book: data loading, toy simulators, plotting conventions."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Taylor Salo", email = "tsalo90@gmail.com" }]
+dependencies = [
+    "numpy",
+    "scipy",
+    "nibabel",
+    "dipy>=1.12",
+    "matplotlib",
+    "scikit-image",
+    "pooch",
+]
+
+[project.optional-dependencies]
+cs = ["sigpy"]
+noddi = ["dmri-amico"]
+render = ["fury"]
+test = ["pytest"]
+
+[tool.setuptools.packages.find]
+include = ["dwibook*"]
+
+[tool.setuptools.package-data]
+dwibook = ["registry.txt"]
+
+[tool.pytest.ini_options]
+testpaths = ["dwibook/tests"]
+addopts = "-q"

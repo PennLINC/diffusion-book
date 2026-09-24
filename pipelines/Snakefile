@@ -1,0 +1,101 @@
+# Offline data pipeline for the diffusion book. Runs in WSL, never at book build time.
+#
+#   cd pipelines
+#   micromamba run -n dwibook snakemake -c 8 ref-clean          # one dataset
+#   micromamba run -n dwibook snakemake -c 8 --until all         # everything
+#
+# Outputs land in ../data/<dataset-id>/ (gitignored). Point the book at them with
+#   DWIBOOK_DATA=$(pwd)/../data myst build --html --execute
+# and publish them with scripts/package_release.py once they are final.
+#
+# Status: skeleton. `prepare_grid` and `truth` are wired to the existing TRXScan helper scripts;
+# `simulate` is stubbed until pipelines/scripts/run_trxscan.py exists (Phase 1, second half).
+
+from pathlib import Path
+
+configfile: "config/datasets.yaml"
+
+DATA = Path("../data")
+WORK = Path("../data/_work")
+PHANTOMS = config["phantoms"]
+DEFAULTS = config["defaults"]
+DATASETS = config["datasets"]
+
+
+def phantom_of(ds_id):
+    p = DATASETS[ds_id]["phantom"]
+    return p if isinstance(p, str) else p[0]
+
+
+def setting(ds_id, key):
+    return DATASETS[ds_id].get(key, DEFAULTS[key])
+
+
+rule all:
+    input:
+        expand(str(DATA / "{ds}" / "provenance.json"), ds=[d for d in DATASETS if not DATASETS[d].get("requires")]),
+
+
+# Acquisition (+ optional oversampled simulation) grid for one phantom at one voxel size.
+rule prepare_grid:
+    output:
+        wm=str(WORK / "{phantom}" / "{voxel}mm" / "wm.nii.gz"),
+        gm=str(WORK / "{phantom}" / "{voxel}mm" / "gm.nii.gz"),
+        csf=str(WORK / "{phantom}" / "{voxel}mm" / "csf.nii.gz"),
+        mask=str(WORK / "{phantom}" / "{voxel}mm" / "mask.nii.gz"),
+        fmap=str(WORK / "{phantom}" / "{voxel}mm" / "fmap.nii.gz"),
+    params:
+        root=lambda w: PHANTOMS[w.phantom]["root"],
+        anat=lambda w: PHANTOMS[w.phantom]["anat_dir"],
+        prefix=lambda w: PHANTOMS[w.phantom]["prefix"],
+        fieldmap=lambda w: PHANTOMS[w.phantom]["fieldmap"],
+        oversample=lambda w: 2,  # always write the o=2 sim grid too; cheap, and gibbs/kitchen-sink need it
+        trxscan=config["tools"]["trxscan_repo"],
+    shell:
+        """
+        python {params.trxscan}/scripts/prepare_acquisition_grid.py \
+            --anat-dir {params.root}/{params.anat} --prefix {params.prefix} \
+            --fieldmap {params.root}/{params.fieldmap} \
+            --out $(dirname {output.wm}) --voxel {wildcards.voxel} --oversample {params.oversample}
+        python scripts/normalize_grid_names.py $(dirname {output.wm})
+        """
+
+
+# Ground-truth microstructure maps for the phantom at the book's default resolution.
+rule truth:
+    input:
+        wm=str(WORK / "{phantom}" / "{voxel}mm" / "wm.nii.gz"),
+        gm=str(WORK / "{phantom}" / "{voxel}mm" / "gm.nii.gz"),
+        csf=str(WORK / "{phantom}" / "{voxel}mm" / "csf.nii.gz"),
+        mask=str(WORK / "{phantom}" / "{voxel}mm" / "mask.nii.gz"),
+    output:
+        directory(str(DATA / "truth" / "{phantom}" / "{voxel}mm")),
+    params:
+        tract=lambda w: str(Path(PHANTOMS[w.phantom]["root"]) / PHANTOMS[w.phantom]["tract"]),
+        weights=lambda w: PHANTOMS[w.phantom]["weights"],
+        subsample=DEFAULTS["subsample"],
+        seed=DEFAULTS["seed"],
+        preset=DEFAULTS["params"],
+    shell:
+        """
+        mkdir -p {output}
+        trxscan-microstructure --wm {input.wm} --gm {input.gm} --csf {input.csf} --mask {input.mask} \
+            --streamlines {params.tract} --weights {params.weights} \
+            --subsample {params.subsample} --seed {params.seed} --params {params.preset} \
+            --big-delta 0.030 --small-delta 0.010 \
+            --out {output}/{wildcards.phantom}
+        """
+
+
+# One simulated dataset. Stub: the driver script that expands datasets.yaml into trxscan
+# command lines (sweeps, variants, reverse-PE pairs, truth peaks, provenance JSON) is the
+# next Phase 1 deliverable.
+rule simulate:
+    input:
+        lambda w: rules.prepare_grid.output if False else [],
+    output:
+        str(DATA / "{ds}" / "provenance.json"),
+    shell:
+        """
+        python scripts/run_dataset.py --config config/datasets.yaml --dataset {wildcards.ds} --out ../data
+        """
