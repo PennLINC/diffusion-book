@@ -6,47 +6,130 @@ kernelspec:
   display_name: Python 3
 ---
 
-:::{admonition} Stub
-:class: note
-This chapter is a placeholder from the Phase 1 skeleton. Its learning goals and section
-structure are final; the content is not written yet.
-:::
-
 ## Learning goals
 
 After this chapter you can:
 
-- read the acquisition-to-analysis decision matrix
-- decide what a given dataset supports
-- state what complex reconstruction buys and costs
+- read a scheme's b-values and say which analyses it supports, which are marginal, and
+  which are not possible
+- state what complex data add across the analysis chain and what they cost
+- work through a dataset you did not design and decide what to do with it
 
-**Datasets used:** `ref-schemes`
-**Simulation tier:** phantom
+**Datasets used:** `ref-schemes` (pending); the toy tier evaluates schemes from their b-values
+**Simulation tier:** toy + phantom
+
+```{code-cell} python
+:tags: [hide-cell]
+import numpy as np
+
+from dwibook import schemes
+```
 
 ## The decision matrix
 
-*To be written.*
+Every requirement in Parts II through IV reduces to a few counts: how many non-zero shells,
+how many directions on each, how high the top shell goes, how many b=0 volumes, whether the
+phase was saved. The helper below applies those rules to a b-value table. It is the
+book's Table 6.1 as a function, and it can be run on any `.bval` file.
 
-## Complex reconstruction revisited
+```{code-cell} python
+:tags: [hide-input]
+def report(name, bvals, complex_data=False):
+    print(f"\n{name}: {len(bvals)} volumes, shells {schemes.shells_of(bvals)}")
+    for analysis, verdict, reason in schemes.analysis_matrix(bvals, complex_data=complex_data):
+        print(f"  {analysis:<36} {verdict:<9} {reason}")
 
-*To be written.*
+report("30 directions at b = 1000 (clinical DTI)", schemes.single_shell(1000, 30, n_b0=3)[0])
+report("64 directions at b = 2000 (HARDI)", schemes.single_shell(2000, 64, n_b0=4)[0])
+report("HBCD multi-shell, phase saved", schemes.hbcd()[0], complex_data=True)
+report("DSI grid, 257 points", schemes.dsi_grid(radius=4)[0])
+```
+
+The verdicts are rules of thumb, not guarantees. A "yes" means the fit is determined and
+the sampling is in the range where the method was developed; "marginal" means the fit
+runs but its assumptions are strained or its precision is poor, and the chapter for that
+method shows what that looks like; "no" means the fit cannot be performed or its result
+has no meaning. The table below collects the rules with the chapter that demonstrates each.
+
+| Analysis | Needs | Chapter |
+|---|---|---|
+| ADC, MD | ≥ 3 directions, 1 b=0 | 15 |
+| DTI: FA, principal direction | ≥ 30 directions at b ≈ 1000 (6 minimum) | 6, 15 |
+| Diffusion kurtosis | ≥ 2 non-zero shells, top shell ≥ 2000 | 15 |
+| MAP-MRI, propagator | ≥ 3 shells, directions spread across them, pulse timing recorded | 15 |
+| Q-ball, single-shell CSD | 1 shell at b ≥ 2000, ≥ 45–60 directions | 16 |
+| Multi-tissue CSD | ≥ 2 shells, ≥ 45 directions on the top shell, tissue masks | 16 |
+| DSI | Cartesian grid, 200+ points, strong gradients | 6, 16 |
+| Free water, NODDI, spherical mean | ≥ 2 shells, top shell ≥ 2000 | 17 |
+| IVIM | several shells at b < 200 | 17 |
+| Deterministic tractography | any DTI or fODF scheme | 18 |
+| Probabilistic tractography with ACT | fODF scheme plus a registered tissue segmentation | 18 |
+| Complex-domain denoising | phase saved | 3, 8 |
+| Distortion correction (topup) | reverse-polarity volumes and correct metadata | 10 |
+| Eddy correction with prediction | full, well-spread direction set | 11 |
+| Gradient nonlinearity correction | coefficient file | 13 |
+
+## Complex data revisited
+
+Three chapters used the phase, and the case for saving it is now complete:
+
+- **Denoising without bias** (Chapter 8): the largest gain, and the one that reaches
+  every model fitted at high b, since the Rician floor biases exactly the volumes those
+  models depend on.
+- **Diagnostics** (Chapters 11 and 12): the eddy-current and motion phase are visible per
+  volume before any correction.
+- **Averaging** repeated acquisitions without the floor.
+
+The costs are storage (twice the data), a phase image that needs a reference and unwraps
+poorly in noise, and pipeline support: not every tool accepts complex input, and the
+denoising must be run before the magnitude is taken, which fixes its position in the
+pipeline. None of these costs applies at the scanner.
 
 ## Worked retrospective cases
 
-*To be written.*
+Datasets are more often inherited than designed. Three common cases:
 
+**Single shell, b = 1000, 32 directions, one b=0, magnitude only.** DTI is fully
+supported and the study should stay there: FA, MD, the principal direction, deterministic
+tractography, tract-based statistics. Crossing-fiber models will run (CSD at b = 1000 is
+"marginal") but resolve few crossings; kurtosis and compartment models are not possible.
+With no reverse-polarity volumes, distortion correction falls to a fieldmap if one exists,
+otherwise to registration to the anatomical image. The one b=0 volume limits outlier
+detection and eddy's prediction; report motion carefully.
+
+**Two shells, b = 1000 and 2500, 30 directions each, reverse-polarity b=0s.** Kurtosis,
+free-water, NODDI, and the spherical mean technique are supported; multi-tissue CSD is
+marginal on 30 directions at the top shell and should be run with a lower harmonic order;
+MAP-MRI is marginal with two shells. Fit the tensor to the b = 1000 shell only. Distortion
+correction with topup is available.
+
+**Full HBCD-style multi-shell with phase, 1.7 mm, both polarities.** Everything in the
+table except DSI and IVIM. Denoise in the complex domain first; correct with topup and
+eddy using both polarities; fit multi-tissue CSD, kurtosis, MAP-MRI, and the compartment
+models; track probabilistically with ACT. The remaining limits are the ones no processing
+removes: the fixed diffusion time, the Gaussian assumptions of the models, and the
+resolution.
+
+## Measure it: the phantom
+
+:::{admonition} Phantom figure pending
+:class: note
+This section will show every cell of the matrix on the `ref-schemes` dataset: the same
+phantom, five schemes, each model fitted where the rules allow, scored against the truth
+maps, so that "marginal" is a number rather than a word.
+:::
 
 ## What this implies for acquisition
 
-*To be written.*
+- **Decide the analyses, then read the matrix from the left**; the cheapest scheme that
+  says "yes" to all of them is the protocol.
+- **Multi-shell with the top shell at b ≥ 2000, 45 or more directions there, reverse
+  polarity, and the phase saved** supports every analysis in the table except DSI and
+  IVIM, at a scan time under ten minutes (Chapter 7).
+- **Record the metadata**: phase-encode direction, readout time, diffusion timing, and
+  the gradient coefficient file.
 
 ## Further reading
 
-*To be written.*
-
-```{code-cell} python
-:tags: [remove-cell]
-# Build-time smoke test: every chapter executes at least one cell.
-import dwibook
-assert dwibook.__version__
-```
+The reviews of {cite:t}`alexander2019` on microstructure and {cite:t}`jeurissen2019` on
+tractography, and the cautions of {cite:t}`jones2013`.

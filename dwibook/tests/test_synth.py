@@ -119,6 +119,26 @@ def test_register_pe_affine_recovers_eddy_parameters():
     assert np.abs(corrected - img)[t["mask"]].mean() < 0.3 * np.abs(distorted - img)[t["mask"]].mean()
 
 
+def test_crossing_series_and_spherical_mean_fit():
+    t = phantoms.brain_slice()
+    bvals, bvecs = schemes.multi_shell({1000: 12, 2000: 12, 3000: 12}, n_b0=2)
+    region = synth.crossing_region(t["mask"].shape)
+    series, o1, o2 = synth.synthetic_dwi_crossing(t, bvals, bvecs, region, fraction=0.5)
+    assert series.shape == (128, 128, 38)
+    assert np.allclose(o2[~region], 0) and np.allclose(np.linalg.norm(o2[region], axis=-1), 1)
+    single = synth.synthetic_dwi(t, bvals, bvecs)
+    assert np.allclose(series[~region], single[~region])
+    _, p1, p2 = synth.synthetic_dwi_crossing(t, bvals, bvecs, region, second="perpendicular")
+    dots = np.abs(np.sum(p1 * p2, axis=-1))[region & (t["wm"] > 0.5)]
+    assert dots.max() < 1e-6  # the second fiber is at 90 degrees to the first everywhere in the band
+    shells, means = synth.spherical_mean(series, bvals)
+    assert shells.tolist() == [0, 1000, 2000, 3000] and means.shape == (128, 128, 4)
+    fit = synth.smt_fit(shells, means)
+    wm = t["wm"] > 0.98
+    assert 0.35 < np.median(fit["f"][wm]) < 0.75  # the synthetic intra-axonal fraction is 0.55
+    assert 1.3e-3 < np.median(fit["d_par"][wm]) < 2.1e-3
+
+
 def test_gnl_warp_identity_and_jacobian():
     img = phantoms.brain_image()
     warped, jac = synth.gnl_warp(img, 0.0, 2.0)

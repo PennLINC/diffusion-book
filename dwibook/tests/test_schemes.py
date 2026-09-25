@@ -43,6 +43,21 @@ def test_cs_subset_keeps_b0():
     assert (b[idx] < 50).sum() == 3
 
 
+def test_analysis_matrix_rules():
+    verdict = lambda rows, name: next(v for n, v, _ in rows if n == name)
+    dti30 = schemes.analysis_matrix(schemes.single_shell(1000, 30, n_b0=3)[0])
+    assert verdict(dti30, "DTI (FA, direction)") == "yes"
+    assert verdict(dti30, "diffusion kurtosis") == "no"
+    assert verdict(dti30, "multi-tissue CSD") == "no"
+    hbcd = schemes.analysis_matrix(schemes.hbcd()[0], complex_data=True)
+    assert verdict(hbcd, "diffusion kurtosis") == "yes"
+    assert verdict(hbcd, "NODDI / spherical mean / free water") == "yes"
+    assert verdict(hbcd, "DSI (model-free propagator)") == "no"
+    assert verdict(hbcd, "complex-domain denoising") == "yes"
+    dsi = schemes.analysis_matrix(schemes.dsi_grid(radius=4)[0])
+    assert verdict(dsi, "DSI (model-free propagator)") == "yes"
+
+
 def test_fsl_round_trip(tmp_path):
     b, v = schemes.single_shell(2000, 8, n_b0=2)
     schemes.write_fsl(tmp_path / "s", b, v)

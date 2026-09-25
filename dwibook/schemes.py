@@ -130,6 +130,37 @@ def scan_time_s(n_volumes: int, tr_s: float) -> float:
     return n_volumes * tr_s
 
 
+def analysis_matrix(bvals: np.ndarray, complex_data: bool = False, n_dirs_min: int | None = None) -> list[tuple[str, str, str]]:
+    """What a scheme supports: rows of ``(analysis, verdict, reason)`` with verdict in
+    ``yes``, ``marginal``, ``no``. The rules are the ones Table 6.1 and Chapter 19 state:
+    counts of shells, directions per shell, and the maximum b-value.
+    """
+    bvals = np.asarray(bvals, float)
+    shells = {b: n for b, n in shells_of(bvals).items() if b > 0}
+    n_b0 = int((bvals < 50).sum())
+    b_max = max(shells) if shells else 0.0
+    n_shells = len(shells)
+    dirs_low = sum(n for b, n in shells.items() if b <= 1200)
+    dirs_high = sum(n for b, n in shells.items() if b >= 1800)
+    dirs_total = sum(shells.values())
+    rows = []
+    def add(name, verdict, reason): rows.append((name, verdict, reason))
+    add("mean diffusivity / ADC", "yes" if dirs_total >= 3 and n_b0 >= 1 else "no", f"{dirs_total} directions, {n_b0} b=0")
+    if dirs_low >= 30: add("DTI (FA, direction)", "yes", f"{dirs_low} directions at b <= 1200")
+    elif dirs_low >= 6: add("DTI (FA, direction)", "marginal", f"only {dirs_low} directions at b <= 1200; precision suffers")
+    elif dirs_total >= 6: add("DTI (FA, direction)", "marginal", "no low-b shell; high b breaks the Gaussian assumption")
+    else: add("DTI (FA, direction)", "no", "fewer than 6 directions")
+    add("diffusion kurtosis", "yes" if n_shells >= 2 and b_max >= 2000 and dirs_total >= 30 else ("marginal" if n_shells >= 2 else "no"),
+        f"{n_shells} non-zero shell(s), b_max {b_max:.0f}")
+    add("single-shell CSD", "yes" if dirs_high >= 45 else ("marginal" if dirs_total >= 30 else "no"), f"{dirs_high} directions at b >= 1800")
+    add("multi-tissue CSD", "yes" if n_shells >= 2 and dirs_high >= 45 else ("marginal" if n_shells >= 2 else "no"), f"{n_shells} shells, {dirs_high} high-b directions")
+    add("NODDI / spherical mean / free water", "yes" if n_shells >= 2 and b_max >= 2000 else ("marginal" if n_shells >= 2 else "no"), f"{n_shells} shells, b_max {b_max:.0f}")
+    add("MAP-MRI / propagator", "yes" if n_shells >= 3 and dirs_total >= 60 else ("marginal" if n_shells >= 2 else "no"), f"{n_shells} shells, {dirs_total} directions")
+    add("DSI (model-free propagator)", "yes" if n_shells >= 5 and dirs_total >= 200 else "no", f"{n_shells} shells, {dirs_total} directions (Cartesian grid needed)")
+    add("complex-domain denoising", "yes" if complex_data else "no", "phase saved" if complex_data else "magnitude only")
+    return rows
+
+
 def plot_scheme(bvals: np.ndarray, bvecs: np.ndarray, ax=None, title: str | None = None, antipodal: bool = True):
     """3-D scatter of q-space samples, radius proportional to sqrt(b).
 

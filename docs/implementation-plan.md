@@ -232,6 +232,17 @@ and a Snakefile with the grid-preparation and truth rules. Remaining: `pipelines
 first `ref-clean` run end to end, the `data-v0.1` release, and the TRXScan `book` branch
 (T1–T3).
 
+**Parts III and IV progress (2026-09-25).** Chapters 8–19 are written at the toy tier on
+synthetic series built from the phantom's tissue fractions (`dwibook.synth`: boundary-tangent
+fiber orientations, an optional second fiber at a chosen crossing angle, and operators for
+noise, distortion with pile-up, eddy currents, rigid motion with rotated b-vectors, slice
+dropout, gradient nonlinearity, ghosts and spikes, plus the inverse corrections). Part IV fits
+dipy's tensor/DKI/MAP-MRI, CSA/CSD/MSMT-CSD/DSI peaks, free-water and a spherical-mean model,
+and runs deterministic and probabilistic ACT tracking on the 3 mm volume, each scored against
+the synthetic answer key. `cvxpy` was added for multi-tissue CSD. Builds must pin BLAS to one
+thread per kernel (documented in the README and CI). Every phantom section remains pending on
+the offline pipeline.
+
 **Phase 2 progress (2026-09-24).** Chapters 1–3 are written at the toy tier and execute in
 the build: a Bloch isochromat simulator (FID, spin echo, T2*), the k-space/EPI chapter
 (Fourier relationship, FOV/resolution/aliasing, blipped-EPI timing, partial Fourier, Gibbs

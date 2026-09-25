@@ -77,6 +77,103 @@ def synthetic_dwi(
     return out
 
 
+def crossing_region(shape: tuple[int, ...], center_frac: float = 0.5, half_width_frac: float = 0.12) -> np.ndarray:
+    """A band of rows around ``center_frac`` of the row extent, ``half_width_frac`` wide on
+    each side: the region in which :func:`synthetic_dwi_crossing` adds a second fiber."""
+    rows = np.arange(shape[0])
+    c = center_frac * (shape[0] - 1)
+    band = np.abs(rows - c) <= half_width_frac * shape[0]
+    return np.broadcast_to(band.reshape((-1,) + (1,) * (len(shape) - 1)), shape).copy()
+
+
+def synthetic_dwi_crossing(
+    tissue: dict[str, np.ndarray],
+    bvals: np.ndarray,
+    bvecs: np.ndarray,
+    region: np.ndarray,
+    second: tuple[float, float, float] = (0.0, 1.0, 0.0),
+    fraction: float = 0.5,
+    te_ms: float = presets.TE_HBCD_MS,
+    preset: str = "adult",
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Like :func:`synthetic_dwi`, with a second fiber population inside ``region``.
+
+    Inside the region the white matter signal is ``(1 - fraction)`` of the boundary-tangent
+    fiber plus ``fraction`` of a second fiber: along the fixed direction ``second`` (row,
+    column, slice), or, when ``second`` is a number, at that angle in degrees to the first
+    fiber within the slice plane in every voxel (``"perpendicular"`` is 90). Returns the
+    series and the two orientation fields (the second is zero outside the region), the answer
+    key for Chapter 16's peak comparison.
+    """
+    wm = np.asarray(tissue["wm"], float)
+    o1 = orientation_field(wm)
+    o2 = np.zeros_like(o1)
+    if isinstance(second, str) and second == "perpendicular":
+        second = 90.0
+    if isinstance(second, (int, float)):
+        a = np.deg2rad(float(second))  # rotate the first fiber by this angle within the slice plane
+        rot = np.stack([np.cos(a) * o1[..., 0] - np.sin(a) * o1[..., 1],
+                        np.sin(a) * o1[..., 0] + np.cos(a) * o1[..., 1],
+                        np.zeros_like(o1[..., 0])], axis=-1)
+        o2[region] = rot[region]
+    else:
+        sec = np.asarray(second, float) / np.linalg.norm(second)
+        o2[region] = sec
+    t2 = presets.T2_MS[preset]
+    s0 = {k: PROTON_DENSITY[k] * np.exp(-te_ms / t2[k]) for k in ("WM", "GM", "CSF")}
+    bvals = np.asarray(bvals, float); bvecs = np.asarray(bvecs, float)
+    cos1 = np.tensordot(o1, bvecs, axes=([-1], [1]))
+    cos2 = np.tensordot(o2, bvecs, axes=([-1], [1]))
+    f2 = np.where(region, fraction, 0.0)[..., None]
+    wm_sig = (1 - f2) * signal.white_matter(bvals, cos1) + f2 * signal.white_matter(bvals, cos2)
+    out = wm[..., None] * s0["WM"] * wm_sig
+    out = out + np.asarray(tissue["gm"], float)[..., None] * s0["GM"] * signal.gray_matter(bvals)
+    out = out + np.asarray(tissue["csf"], float)[..., None] * s0["CSF"] * signal.csf(bvals)
+    return out, o1, o2
+
+
+def spherical_mean(series: np.ndarray, bvals: np.ndarray, tol: float = 50.0) -> tuple[np.ndarray, np.ndarray]:
+    """Per-shell mean of the signal over directions: ``(shell_bvals, means (..., n_shells))``."""
+    bvals = np.asarray(bvals, float)
+    keys = np.round(bvals / tol) * tol
+    shells = np.unique(keys)
+    means = np.stack([series[..., keys == b].mean(axis=-1) for b in shells], axis=-1)
+    return shells, means
+
+
+def smt_fit(shell_bvals: np.ndarray, means: np.ndarray, d_par_grid=None, f_grid=None) -> dict[str, np.ndarray]:
+    """Spherical-mean fit of a two-compartment model (intra-axonal stick fraction ``f`` with
+    axial diffusivity ``d``, extra-axonal tensor with the same axial and radial ``d (1 - f)``)
+    by grid search per voxel. Returns ``f``, ``d_par`` and the fit residual.
+
+    The spherical mean removes the orientation distribution, so the model has two parameters
+    regardless of how many fiber populations a voxel holds. This is the idea behind the
+    spherical mean technique; the parametrization here is a simplified one.
+    """
+    from scipy.special import erf
+
+    d_par_grid = np.linspace(0.8e-3, 2.4e-3, 33) if d_par_grid is None else d_par_grid
+    f_grid = np.linspace(0.0, 1.0, 41) if f_grid is None else f_grid
+    b = np.asarray(shell_bvals, float)
+    b0 = b == 0
+    ratio = means[..., ~b0] / np.maximum(means[..., b0].mean(axis=-1, keepdims=True), 1e-9)
+    bb = b[~b0]
+    F, D = np.meshgrid(f_grid, d_par_grid, indexing="ij")  # (nf, nd)
+    def stick_mean(bd):
+        bd = np.maximum(bd, 1e-9)
+        return np.sqrt(np.pi / (4 * bd)) * erf(np.sqrt(bd))
+    def zeppelin_mean(b, dpar, dperp):
+        return np.exp(-b * dperp) * stick_mean(b * (dpar - dperp))
+    model = np.stack([F * stick_mean(bi * D) + (1 - F) * zeppelin_mean(bi, D, D * (1 - F)) for bi in bb], axis=-1)  # (nf, nd, nb)
+    flat = ratio.reshape(-1, len(bb))
+    cost = ((flat[:, None, None, :] - model[None]) ** 2).sum(-1)  # (nvox, nf, nd)
+    best = cost.reshape(len(flat), -1).argmin(axis=1)
+    fi, di = np.unravel_index(best, F.shape)
+    shape = ratio.shape[:-1]
+    return {"f": f_grid[fi].reshape(shape), "d_par": d_par_grid[di].reshape(shape),
+            "residual": np.sqrt(cost.reshape(len(flat), -1).min(axis=1) / len(bb)).reshape(shape)}
+
+
 def add_noise(series: np.ndarray, sigma: float, seed: int = 0) -> np.ndarray:
     """Magnitude of the series plus complex Gaussian noise (per-component SD ``sigma``)."""
     rng = np.random.default_rng(seed)
