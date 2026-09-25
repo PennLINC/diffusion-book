@@ -1,5 +1,5 @@
 ---
-title: Noise and denoising
+title: Thermal noise
 subtitle: Chapter 8
 kernelspec:
   name: python3

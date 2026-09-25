@@ -88,6 +88,35 @@ def csf(b):
     return ball(b, presets.ADULT_DIFFUSIVITY["CSF"])
 
 
+# ----------------------------------------------------------------------------- restriction
+
+
+def cylinder_sgp(q_per_mm, radius_um: float):
+    """Signal across an impermeable cylinder in the long-diffusion-time, short-pulse limit.
+
+    ``E(q) = [2 J1(2 pi q R) / (2 pi q R)]^2`` with ``q`` in 1/mm and ``R`` in micrometers: the
+    displacement distribution is the cylinder's cross-section, and its Fourier transform is an
+    Airy pattern. Independent of diffusion time once molecules have reached the walls.
+    """
+    from scipy.special import j1
+
+    x = 2 * np.pi * np.asarray(q_per_mm, float) * radius_um * 1e-3
+    x = np.where(x == 0, 1e-12, x)
+    return (2 * j1(x) / x) ** 2
+
+
+def multi_te_white_matter(b, te_ms, cos_theta, t2_intra_ms: float = 90.0, t2_extra_ms: float = 60.0, f_intra: float | None = None):
+    """The phantom's white matter with compartment-specific T2: the intra-axonal stick and the
+    extra-axonal tensor each decay with their own T2, so the apparent intra-axonal fraction of
+    a diffusion-only fit depends on the echo time. Returns the unnormalized signal (proton
+    density 1)."""
+    f = presets.ADULT_FRACTIONS["WM_intra"] if f_intra is None else f_intra
+    d_intra = presets.ADULT_DIFFUSIVITY["WM_intra"]
+    d_par, d_perp, _ = presets.ADULT_DIFFUSIVITY["WM_extra"]
+    te = np.asarray(te_ms, float)
+    return f * np.exp(-te / t2_intra_ms) * stick(b, d_intra, cos_theta) + (1 - f) * np.exp(-te / t2_extra_ms) * zeppelin(b, d_par, d_perp, cos_theta)
+
+
 # ----------------------------------------------------------------------------- DTI design
 
 

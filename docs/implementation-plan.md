@@ -232,6 +232,16 @@ and a Snakefile with the grid-preparation and truth rules. Remaining: `pipelines
 first `ref-clean` run end to end, the `data-v0.1` release, and the TRXScan `book` branch
 (T1–T3).
 
+**Part V progress (2026-09-25).** Chapters 20–23 are written at the toy tier: the TE
+dependence of compartment fractions and a joint (b, TE) fit recovering compartment T2 values;
+multi-echo EPI readouts with T2* mapping and SNR-weighted combination; time-dependent ADC
+from the Chapter 4 random walks at fixed b, plus the restricted-cylinder signal against the q
+reachable on three gradient systems; and the b-tensor demonstration that direction-averaged
+linear encoding and spherical encoding separate microscopic anisotropy from arrangement.
+Chapters 21 and 22 are toy-only by design until the simulator gains a multi-echo readout (T5)
+and a restricted compartment (T6). Remaining for edition 1: the front matter and appendices,
+and every phantom section, which wait on the offline pipeline.
+
 **Parts III and IV progress (2026-09-25).** Chapters 8–19 are written at the toy tier on
 synthetic series built from the phantom's tissue fractions (`dwibook.synth`: boundary-tangent
 fiber orientations, an optional second fiber at a chosen crossing angle, and operators for

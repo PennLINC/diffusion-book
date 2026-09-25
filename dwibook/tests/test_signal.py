@@ -38,6 +38,23 @@ def test_condition_number_penalizes_clustered_directions():
     assert signal.condition_number(b_c, cone) > 5 * signal.condition_number(b6, v6)
 
 
+def test_cylinder_sgp_limits_and_size_ordering():
+    q = np.linspace(0, 110, 50)  # 1/mm, below the first zero of the 5 um cylinder (q ~ 122/mm)
+    e_small, e_large = signal.cylinder_sgp(q, 1.0), signal.cylinder_sgp(q, 5.0)
+    assert np.isclose(e_small[0], 1.0) and np.isclose(e_large[0], 1.0)
+    assert (e_small[1:] >= e_large[1:]).all()  # a larger cylinder loses more signal at every q before its first zero
+    assert e_large.min() < 0.2 and e_small.min() > 0.85  # a 1 um axon has lost little signal even at q = 110/mm
+
+
+def test_multi_te_white_matter_apparent_fraction_rises_with_te():
+    b = 2000.0
+    def apparent_intra(te):
+        s_par = signal.multi_te_white_matter(b, te, 1.0)
+        s_perp = signal.multi_te_white_matter(b, te, 0.0)
+        return s_perp - s_par  # crude anisotropy measure, grows with the intra-axonal share
+    assert apparent_intra(120.0) / signal.multi_te_white_matter(0.0, 120.0, 0.0) > apparent_intra(60.0) / signal.multi_te_white_matter(0.0, 60.0, 0.0)
+
+
 def test_hbcd_scheme_loads():
     b, v = schemes.hbcd()
     assert b.shape == (75,) and v.shape == (75, 3)
