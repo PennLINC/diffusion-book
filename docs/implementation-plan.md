@@ -232,6 +232,14 @@ and a Snakefile with the grid-preparation and truth rules. Remaining: `pipelines
 first `ref-clean` run end to end, the `data-v0.1` release, and the TRXScan `book` branch
 (T1–T3).
 
+**Appendices progress (2026-09-25).** Appendix A (cookbook) and B (manifest) are generated at
+build time from `pipelines/config/datasets.yaml` and `dwibook/registry.txt` by the new
+`dwibook.cookbook` module, which expands every dataset entry into its `trxscan` command lines
+(the same rules the pipeline driver will use, so `run_dataset.py` can be built on it);
+Appendix C prints the versions of the environment that built the page; D is the glossary;
+E the truth-map catalogue from `dwibook.truth`. Remaining for edition 1: the front matter
+(0.1–0.3) and the phantom sections.
+
 **Part V progress (2026-09-25).** Chapters 20–23 are written at the toy tier: the TE
 dependence of compartment fractions and a joint (b, TE) fit recovering compartment T2 values;
 multi-echo EPI readouts with T2* mapping and SNR-weighted combination; time-dependent ADC

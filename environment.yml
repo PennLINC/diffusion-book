@@ -36,6 +36,7 @@ dependencies:
       - snakemake         # offline pipeline driver (runs in WSL; calls trxscan + docker)
       - sigpy             # compressed-sensing k-space reconstruction (Ch. 3)
       - cvxpy             # dipy's multi-tissue CSD and MAP-MRI positivity constraints (Ch. 15-16)
+      - pyyaml            # pipeline configuration, read by the appendices
       # optional extras, installed later if the chapter needs them:
-      # - dmri-amico      # NODDI (Ch. 16); pulls spams, which may need a compiler
+      # - dmri-amico      # NODDI (Ch. 17); pulls spams, which may need a compiler
       # - fury            # 3-D renders; not used on CI
