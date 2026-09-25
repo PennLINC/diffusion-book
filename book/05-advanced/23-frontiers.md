@@ -26,8 +26,8 @@ After this chapter you can:
 import numpy as np
 import matplotlib.pyplot as plt
 
-from dwibook import presets, schemes, signal
-from dwibook.plotting import PALETTE, set_style
+from dwibook import kspace, phantoms, presets, schemes, signal
+from dwibook.plotting import PALETTE, set_style, show_image
 
 set_style()
 ```
@@ -116,11 +116,34 @@ meet, which is a recurring source of over-interpretation.
 
 ## Beyond single-shot EPI
 
-[Chapter 2](../01-mri-physics/02-spatial-encoding-kspace.md) explained why diffusion uses single-shot EPI and what it costs. Multi-shot EPI
-with navigator or self-navigated phase correction, spiral readouts, and reduced-FOV
-acquisitions each trade the robustness of single-shot for resolution or reduced distortion;
-they are established for the spinal cord and optic nerve and increasingly used for
-sub-millimeter brain imaging. Simultaneous multi-slice ([Chapter 7](../02-diffusion-encoding/07-acquisition-parameters.md)) is now standard.
+[Chapter 2](../01-mri-physics/02-spatial-encoding-kspace.md) explained why diffusion uses single-shot EPI and what it costs. Splitting the
+lines of k-space over several excitations (multi-shot EPI) shortens each readout, which
+reduces distortion and blur and allows higher resolution, but the diffusion gradients give
+each shot a different, unknown bulk phase from small movements of the head during the
+encoding. In a single-shot acquisition that phase is common to every line and drops out of
+the magnitude image. In a multi-shot acquisition the shots disagree, and the disagreement
+appears as ghosts:
+
+```{code-cell} python
+:tags: [hide-input]
+img = phantoms.brain_image()  # synthetic b=0 slice, 2 mm
+ksp = kspace.fft2c(img)
+shot = np.arange(ksp.shape[0]) % 2  # two interleaved shots
+phase_error = np.exp(1j * np.deg2rad(60))  # the second shot acquired with a 60° bulk phase
+ksp_multishot = np.where(shot[:, None] == 1, ksp * phase_error, ksp)
+
+fig, axes = plt.subplots(1, 2, figsize=(7, 3.5))
+show_image(axes[0], kspace.ifft2c(ksp), "single shot")
+show_image(axes[1], kspace.ifft2c(ksp_multishot), "two shots with a 60° phase difference")
+fig.tight_layout()
+```
+
+Multi-shot diffusion imaging therefore needs the per-shot phase: from a navigator echo
+acquired after each readout, or from a reconstruction that estimates it from the data
+themselves. Multi-shot EPI with navigator or self-navigated phase correction, spiral
+readouts, and reduced-FOV acquisitions each trade the robustness of single-shot for
+resolution or reduced distortion; they are established for the spinal cord and optic nerve
+and increasingly used for sub-millimeter brain imaging. Simultaneous multi-slice ([Chapter 7](../02-diffusion-encoding/07-acquisition-parameters.md)) is now standard.
 Three-dimensional readouts, which sample k-space in segments over several excitations,
 remove the slice profile penalty at the cost of the same phase-consistency problem in
 three dimensions.

@@ -125,11 +125,14 @@ examples = {
     "DSI grid (257 points)": (b_dsi, v_dsi),
     "CS-DSI (64 of 257 points)": (b_dsi[cs_idx], v_dsi[cs_idx]),
 }
+b_max = max(b.max() for b, _ in examples.values())  # shared limits and color scale
 fig = plt.figure(figsize=(12, 8))
 for i, (name, (b, v)) in enumerate(examples.items()):
     ax = fig.add_subplot(2, 3, i + 1, projection="3d")
-    schemes.plot_scheme(b, v, ax=ax, title=name)
-fig.tight_layout()
+    schemes.plot_scheme(b, v, ax=ax, title=name, b_max=b_max, colorbar=False)
+fig.tight_layout(rect=(0, 0, 0.92, 1))
+sm = plt.cm.ScalarMappable(cmap="viridis", norm=plt.Normalize(0, b_max))
+fig.colorbar(sm, cax=fig.add_axes((0.93, 0.25, 0.015, 0.5)), label="b (s/mm²)")
 ```
 
 A slice through the DSI grid shows the Cartesian structure and what the CS subset keeps:
@@ -138,7 +141,7 @@ A slice through the DSI grid shows the Cartesian structure and what the CS subse
 :tags: [hide-input]
 q_dsi = np.sqrt(b_dsi)[:, None] * v_dsi
 plane = np.abs(q_dsi[:, 2]) < 1e-6
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(7, 3.5))
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(7, 3.5), sharex=True, sharey=True)
 ax1.scatter(q_dsi[plane, 0], q_dsi[plane, 1], s=14)
 ax1.set(title="DSI grid, plane through the origin", aspect="equal", xlabel="$q_x$", ylabel="$q_y$")
 kept = np.zeros(len(b_dsi), bool); kept[cs_idx] = True

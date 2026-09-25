@@ -161,14 +161,26 @@ def analysis_matrix(bvals: np.ndarray, complex_data: bool = False, n_dirs_min: i
     return rows
 
 
-def plot_scheme(bvals: np.ndarray, bvecs: np.ndarray, ax=None, title: str | None = None, antipodal: bool = True):
+def plot_scheme(
+    bvals: np.ndarray,
+    bvecs: np.ndarray,
+    ax=None,
+    title: str | None = None,
+    antipodal: bool = True,
+    b_max: float | None = None,
+    colorbar: bool = True,
+):
     """3-D scatter of q-space samples, radius proportional to sqrt(b).
 
     Each measurement samples both ``q`` and ``-q`` (the signal is symmetric), so by default
-    both points are drawn. Schemes with up to six shells are colored by shell with a legend;
-    schemes with more (DSI grids) use a sequential color scale by b-value instead.
+    both points are drawn. Points are colored by b-value on a ``viridis`` scale running from
+    0 to ``b_max``. Schemes with up to six shells get a legend; schemes with more (DSI grids)
+    get a colorbar instead. Pass the same ``b_max`` to every panel of a comparison so that
+    axis limits and colors match across schemes; it defaults to this scheme's largest b.
+    Set ``colorbar=False`` when the figure draws one shared colorbar itself.
     """
     import matplotlib.pyplot as plt
+    from matplotlib.colors import Normalize
 
     if ax is None:
         fig = plt.figure(figsize=(4.5, 4.5))
@@ -177,18 +189,22 @@ def plot_scheme(bvals: np.ndarray, bvecs: np.ndarray, ax=None, title: str | None
     q = np.sqrt(bvals)[:, None] * np.asarray(bvecs, float)
     if antipodal:
         q, bvals = np.concatenate([q, -q]), np.concatenate([bvals, bvals])
+    if b_max is None:
+        b_max = bvals.max()
+    cmap, norm = plt.get_cmap("viridis"), Normalize(0.0, b_max if b_max > 0 else 1.0)
     shells = shells_of(bvals)
     keys = np.round(bvals / 50.0) * 50.0
     if len(shells) <= 6:
         for b in sorted(shells):
             sel = keys == b
             n = int(sel.sum() // (2 if antipodal else 1))
-            ax.scatter(*q[sel].T, s=12, label=f"b = {b:.0f} ({n})", depthshade=False)
+            ax.scatter(*q[sel].T, s=12, color=cmap(norm(b)), label=f"b = {b:.0f} ({n})", depthshade=False)
         ax.legend(fontsize=7, loc="upper left")
     else:
-        sc = ax.scatter(*q.T, s=10, c=bvals, cmap="viridis", depthshade=False)
-        plt.colorbar(sc, ax=ax, shrink=0.5, pad=0.05, label="b (s/mm²)")
-    lim = np.sqrt(bvals.max()) * 1.05 if bvals.max() > 0 else 1.0
+        sc = ax.scatter(*q.T, s=10, c=bvals, cmap=cmap, norm=norm, depthshade=False)
+        if colorbar:
+            plt.colorbar(sc, ax=ax, shrink=0.5, pad=0.05, label="b (s/mm²)")
+    lim = np.sqrt(b_max) * 1.05 if b_max > 0 else 1.0
     ax.set_xlim(-lim, lim), ax.set_ylim(-lim, lim), ax.set_zlim(-lim, lim)
     ax.set_box_aspect((1, 1, 1))
     ax.set_xticks([]), ax.set_yticks([]), ax.set_zticks([])
