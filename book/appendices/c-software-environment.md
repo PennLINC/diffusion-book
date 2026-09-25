@@ -57,14 +57,14 @@ a change to the `dwibook` package the cache must be cleared for the outputs to r
 
 ## Offline tools
 
-The phantom datasets are produced by a separate pipeline that is not part of the book
-build (Appendix A):
+The simulated datasets are produced by a separate pipeline that is not part of the book
+build ([Appendix A](./a-trxscan-cookbook.md)):
 
 | Tool | Role | Where it runs |
 |---|---|---|
 | TRXScan, `trxscan-microstructure` | the simulator and its ground truth | native binary; pinned to a commit in the pipeline configuration |
 | FSL (topup, eddy, dtifit, bedpostx), MRtrix (dwi2response, dwi2fod, tckgen, tcksift2), TORTOISE, qsiprep | the reference preprocessing and reconstruction tools the chapters compare against | the `pennlinc/qsiprep` container image, tag pinned in the pipeline configuration |
-| gradunwarp | HCP gradient-nonlinearity correction (Chapter 13) | pip, in the pipeline environment |
+| gradunwarp | HCP gradient-nonlinearity correction ([Chapter 13](../03-preprocessing/13-gradient-nonlinearity.md)) | pip, in the pipeline environment |
 | Snakemake | pipeline driver | the `dwibook` environment |
 
 ## Reproducibility

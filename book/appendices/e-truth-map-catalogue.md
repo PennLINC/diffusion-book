@@ -9,10 +9,10 @@ kernelspec:
 `trxscan-microstructure` evaluates closed-form expressions for 27 microstructure scalars
 from the same per-voxel mixture of stick, tensor, and ball compartments that the simulator
 draws its signal from, so the maps are the exact answer for a noise-free, artifact-free
-acquisition of the phantom. The expressions are ports of dipy's implementations and are
+acquisition of the simulated brain. The expressions are ports of dipy's implementations and are
 validated against dipy at 10⁻⁸, so a dipy fit of the simulated data can be compared with
 them directly. Because the compartments are Gaussian, the maps are long-diffusion-time
-quantities (Chapter 22), and the NODDI-style fractions are the phantom's own compartment
+quantities ([Chapter 22](../05-advanced/22-multi-diffusion-time.md)), and the NODDI-style fractions are the simulated brain's own compartment
 fractions rather than a fit.
 
 ```{code-cell} python
@@ -51,14 +51,14 @@ from dwibook import truth
 | NODDI-style | `isovf` | isotropic (CSF) volume fraction | 17 |
 
 The MAP-MRI maps come out in physical units when the pipeline passes the diffusion timing
-(`--big-delta 0.030 --small-delta 0.010`, Appendix A); without it they are in dipy's
+(`--big-delta 0.030 --small-delta 0.010`, [Appendix A](./a-trxscan-cookbook.md)); without it they are in dipy's
 normalized units and only their contrast is meaningful.
 
 ## Truth peaks
 
 Separately from the scalar maps, `trxscan --truth-peaks` writes up to three fiber
 orientations per acquisition voxel, each a unit vector scaled by its share of the voxel's
-fiber mass, as a nine-volume image. Chapter 16 scores estimated peaks against them.
+fiber mass, as a nine-volume image. [Chapter 16](../04-modeling/16-fiber-orientation.md) scores estimated peaks against them.
 
 ## Loading the maps
 

@@ -1,10 +1,19 @@
 ---
-title: Tractography
-subtitle: Chapter 18
+title: "18. Tractography"
 kernelspec:
   name: python3
   display_name: Python 3
 ---
+
+:::{admonition} Simulated datasets in this chapter
+:class: note
+- **Built in this page:** a synthetic series on the packaged 3 mm volume, tracked against its known fiber orientations ([Appendix B](../appendices/b-data-manifest.md#app-b-package-data)).
+- **`ref-clean`** (pending): the artifact-free, noise-free reference series with its truth maps and true fiber orientations ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-ref-clean)).
+- **`ref-schemes`** (pending): the simulated brain under the 30-direction, 64-direction, HBCD, DSI, and CS-DSI schemes at matched scan time ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-ref-schemes)).
+- **`truth`** (pending): the 27 analytic ground-truth maps and the true fiber orientations ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-truth), [Appendix E](../appendices/e-truth-map-catalogue.md)).
+
+Pipeline-tier datasets are simulated offline by TRXScan ([Chapter 0.2](../00-frontmatter/the-simulated-datasets.md)) and are marked *pending* until their release; the figures that need them say so where they will appear.
+:::
 
 ## Learning goals
 
@@ -16,9 +25,6 @@ After this chapter you can:
 - evaluate a tractogram against a known orientation field and count the streamlines that
   end in the wrong tissue
 - state how the acquisition bounds what tractography can recover
-
-**Datasets used:** `ref-schemes`, `truth` (pending); the toy tier uses the 3 mm volume
-**Simulation tier:** toy + phantom
 
 ```{code-cell} python
 :tags: [hide-cell]
@@ -47,7 +53,7 @@ sphere = get_sphere(name="repulsion724")
 
 ## From orientations to streamlines
 
-Tractography turns the per-voxel fiber orientations of Chapter 16 into curves. Starting
+Tractography turns the per-voxel fiber orientations of [Chapter 16](./16-fiber-orientation.md) into curves. Starting
 from a seed point, a streamline is grown by stepping a fixed distance along the local
 orientation, re-evaluating the orientation at the new position, and repeating until a
 stopping rule applies {cite:p}`basser2000`. The decisions that shape the result:
@@ -69,7 +75,7 @@ stopping rule applies {cite:p}`basser2000`. The decisions that shape the result:
   density toward the seeded region.
 - **Filtering.** The density of streamlines does not measure the density of fibers.
   SIFT and SIFT2 {cite:p}`smith2015` weight or remove streamlines so that their density
-  matches the fiber density the ODFs imply; this is how the phantom's tractogram was
+  matches the fiber density the ODFs imply; this is how the simulated brain's tractogram was
   built.
 
 ## The synthetic volume
@@ -180,33 +186,33 @@ more, which is what allows it to pass through crossings and fanning regions in r
 at the price of more streamlines that wander into the wrong tissue and are rejected. The
 rejection rate is a useful summary of a dataset: it rises with noise, with poor
 orientation estimates, and with misregistration between the diffusion data and the tissue
-segmentation (Chapter 10).
+segmentation ([Chapter 10](../03-preprocessing/10-susceptibility-distortion.md)).
 
 ## How the acquisition bounds tractography
 
-Tractography compounds every earlier choice. Angular precision of the peaks (Chapter 16)
+Tractography compounds every earlier choice. Angular precision of the peaks ([Chapter 16](./16-fiber-orientation.md))
 sets how far a streamline drifts per step; voxel size sets which crossings are resolved at
 all and how well the segmentation aligns; distortion and motion residuals (Part III)
 misplace the fibers relative to the anatomy that ACT uses to accept them. The tractography
 challenge of {cite:t}`maierhein2017` showed that even with careful methods, tractograms
 contain many plausible-looking streamlines that do not exist, and that the acquisition
-sets the floor on that rate. The evaluation on the phantom, whose tractogram generated the
+sets the floor on that rate. The evaluation on the simulated datasets, whose tractogram generated the
 data, is the direct test.
 
-## Measure it: the phantom
+## Measure it: the simulated datasets
 
-:::{admonition} Phantom figure pending
+:::{admonition} Simulated dataset pending
 :class: note
 This section will track on the `ref-schemes` dataset and evaluate the result against the
 tractogram that generated it: bundle overlap and overreach, and the fraction of valid
 connections, for the 30-direction, 64-direction, and multi-shell schemes, with renders from
 the pipeline's TRXViz output. It will also compare SIFT2-weighted streamline density with
-the phantom's true fiber density.
+the simulated brain's true fiber density.
 :::
 
 ## What this implies for acquisition
 
-- **Tractography needs orientation estimates, so it needs the acquisition of Chapter 16**:
+- **Tractography needs orientation estimates, so it needs the acquisition of [Chapter 16](./16-fiber-orientation.md)**:
   b ≥ 2000 and 45 or more directions, multi-shell preferred.
 - **Resolution decides which crossings exist in the data at all.**
 - **The tissue segmentation is part of the tractography input**; distortion correction and

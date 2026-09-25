@@ -1,10 +1,18 @@
 ---
-title: Head motion, multiband, and slice dropout
-subtitle: Chapter 12
+title: "12. Head motion, multiband, and slice dropout"
 kernelspec:
   name: python3
   display_name: Python 3
 ---
+
+:::{admonition} Simulated datasets in this chapter
+:class: note
+- **Built in this page:** a single-shell synthetic series on the packaged 3 mm volume, moved and re-encoded volume by volume ([Appendix B](../appendices/b-data-manifest.md#app-b-package-data)).
+- **`motion-mb`** (pending): a measured head-motion trace re-simulated volume by volume, and multiband 3 with 10 % dropout events ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-motion-mb)).
+- **`truth`** (pending): the 27 analytic ground-truth maps and the true fiber orientations ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-truth), [Appendix E](../appendices/e-truth-map-catalogue.md)).
+
+Pipeline-tier datasets are simulated offline by TRXScan ([Chapter 0.2](../00-frontmatter/the-simulated-datasets.md)) and are marked *pending* until their release; the figures that need them say so where they will appear.
+:::
 
 ## Learning goals
 
@@ -17,9 +25,6 @@ After this chapter you can:
 - recognize slice dropout, explain why multiband spreads it over several slices, detect it
   from the model residuals, and replace it
 - report motion with the quality measures pipelines use
-
-**Datasets used:** `motion-mb`, `truth` (pending); the toy tier uses the 3 mm volume
-**Simulation tier:** toy + phantom
 
 ```{code-cell} python
 :tags: [hide-cell]
@@ -50,7 +55,7 @@ slice by slice within a few seconds. Head motion affects it on two time scales:
   direction relative to the tissue, so the b-vectors must be rotated by the same amount
   {cite:p}`leemans2009`.
 - **During the diffusion encoding of one slice.** The encoding gradients make the signal
-  phase proportional to displacement (Chapter 5). A small movement during the 40 ms
+  phase proportional to displacement ([Chapter 5](../02-diffusion-encoding/05-diffusion-encoding.md)). A small movement during the 40 ms
   between the pulses gives all spins in a slice a large, spatially varying phase, and the
   signal of that slice is partly or completely lost. This is **slice dropout**: a dark
   slice, or a dark band of slices, in one volume. It scales with b, so it is most frequent
@@ -58,16 +63,8 @@ slice by slice within a few seconds. Head motion affects it on two time scales:
   populations.
 
 **Multiband** acquisition excites several slices at once and separates them using the
-coils (Chapter 7). A movement during one excitation therefore affects all slices of that
+coils ([Chapter 7](../02-diffusion-encoding/07-acquisition-parameters.md)). A movement during one excitation therefore affects all slices of that
 group, spread across the brain at regular intervals, rather than one slice.
-
-## The phantom dataset
-
-The simulated dataset for this chapter is `motion-mb`: the phantom re-simulated at the head
-poses measured in a real subject, and a multiband acquisition with dropout events whose
-affected slices are recorded as ground truth, scored against `truth`. The simulator
-settings that produce it are listed under its name in [Appendix A](#app-a-datasets), and
-its files in Appendix B.
 
 ## The artifact-free reference
 
@@ -130,7 +127,7 @@ HTML(f'<img src="data:image/gif;base64,{gif_b64}" alt="axial slice of successive
 
 Each volume is registered rigidly to the first b=0 volume (six parameters: three rotations,
 three translations). For diffusion-weighted volumes, FSL eddy registers to a predicted
-image rather than to the b=0 (Chapter 11); the toy version registers to the b=0 directly.
+image rather than to the b=0 ([Chapter 11](./11-eddy-currents.md)); the toy version registers to the b=0 directly.
 The rotation recovered by the registration is then applied to the b-vector of that volume.
 
 ```{code-cell} python
@@ -255,12 +252,11 @@ count of outlier slices. Both should be inspected before any group analysis, bec
 motion correlates with age and with clinical status, and residual motion effects bias FA
 downward and MD upward in a way that can masquerade as a group difference.
 
-## Measure it: the phantom
+## Measure it: the simulated datasets
 
-:::{admonition} Phantom figure pending
+:::{admonition} Simulated dataset pending
 :class: note
-This section will load the `motion-mb` dataset, in which the phantom is re-simulated for
-each volume at the head pose measured in a real subject (sub-60501) and 10 % of the volumes
+This section will load the `motion-mb` dataset, in which every volume is simulated at the head pose measured in a real subject (sub-60501) and 10 % of the volumes
 carry a multiband dropout event, and score FSL eddy's motion estimates and outlier
 detection against the poses and the dropout TSV that TRXScan wrote.
 :::

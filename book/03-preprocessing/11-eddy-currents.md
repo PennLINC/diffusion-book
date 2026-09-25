@@ -1,10 +1,18 @@
 ---
-title: Eddy currents
-subtitle: Chapter 11
+title: "11. Eddy currents"
 kernelspec:
   name: python3
   display_name: Python 3
 ---
+
+:::{admonition} Simulated datasets in this chapter
+:class: note
+- **Built in this page:** two-shell synthetic series on the packaged 2 mm slice and 3 mm volume with a linear eddy model ([Appendix B](../appendices/b-data-manifest.md#app-b-package-data)).
+- **`eddy`** (pending): modeled and replayed eddy currents, geometric and phase ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-eddy)).
+- **`truth`** (pending): the 27 analytic ground-truth maps and the true fiber orientations ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-truth), [Appendix E](../appendices/e-truth-map-catalogue.md)).
+
+Pipeline-tier datasets are simulated offline by TRXScan ([Chapter 0.2](../00-frontmatter/the-simulated-datasets.md)) and are marked *pending* until their release; the figures that need them say so where they will appear.
+:::
 
 ## Learning goals
 
@@ -15,9 +23,6 @@ After this chapter you can:
 - correct them by registering the diffusion-weighted volumes and measure what remains
 - state why the b-vectors must be rotated with the registration
 - state which acquisition choices reduce eddy currents at the source
-
-**Datasets used:** `eddy`, `truth` (pending); the toy tier uses a linear eddy model
-**Simulation tier:** toy + phantom
 
 ```{code-cell} python
 :tags: [hide-cell]
@@ -40,7 +45,7 @@ The diffusion gradients are strong and switch quickly. A changing magnetic field
 currents in every conductor nearby, the cryostat, the gradient coil former, the RF shield,
 and those currents produce a magnetic field of their own that decays over tens of
 milliseconds. Part of it is still present during the EPI readout. Like any unwanted field
-during the readout, it displaces signal along the phase-encode axis (Chapter 10), but
+during the readout, it displaces signal along the phase-encode axis ([Chapter 10](./10-susceptibility-distortion.md)), but
 with two differences from the susceptibility field:
 
 - **It is different in every volume.** The eddy field is proportional to the diffusion
@@ -56,13 +61,6 @@ with one another. A voxel at the edge of the brain contains tissue in some volum
 background in others, and any fit across volumes reads that as a signal change. The
 errors concentrate at edges and along the phase-encode axis, and they are largest at the
 highest b-values.
-
-## The phantom dataset
-
-The simulated dataset for this chapter is `eddy`: a modeled eddy field, a measured
-per-volume field replayed from a real subject, and the eddy phase ramp in the complex
-output, scored against `truth`. The simulator settings that produce it are listed under its
-name in [Appendix A](#app-a-datasets), and its files in Appendix B.
 
 ## The artifact-free reference
 
@@ -159,7 +157,7 @@ axis. Two details decide the quality:
   the predictor and three rounds of prediction and registration.
 - **The b-vectors.** If the registration includes a rotation, the gradient direction in
   the head's frame has rotated too, and the b-vector table must be rotated with it
-  {cite:p}`leemans2009`. The eddy shear is not a rotation, but head motion (Chapter 12) is,
+  {cite:p}`leemans2009`. The eddy shear is not a rotation, but head motion ([Chapter 12](./12-motion-and-dropout.md)) is,
   and the two are estimated together.
 
 ```{code-cell} python
@@ -213,7 +211,7 @@ prediction did not pin down exactly.
 
 ## The phase view
 
-:::{admonition} Phantom figure pending
+:::{admonition} Simulated dataset pending
 :class: note
 This section will load the `eddy` dataset: the modeled field (`--eddy`, `--eddy-quad`), a
 measured per-volume field replayed from sub-60501, and the eddy phase ramp in the complex
@@ -223,7 +221,7 @@ is attempted. FSL eddy's output from the pipeline will be scored against the `tr
 
 ## What acquisition choices reduce it
 
-- **Twice-refocused spin echo** (Chapter 5) splits each diffusion lobe into two with
+- **Twice-refocused spin echo** ([Chapter 5](../02-diffusion-encoding/05-diffusion-encoding.md)) splits each diffusion lobe into two with
   opposite polarity so that the eddy fields cancel at the readout, at the cost of a longer
   TE. Many vendors offer it; most current high-b protocols use the single-refocused
   sequence and rely on correction.
