@@ -156,7 +156,7 @@ The fraction comes out close to the truth and the diffusivity exact; the residua
 the fraction is model mismatch, because the fit ties the extra-axonal radial diffusivity to
 the fraction (a tortuosity assumption) and the synthetic tissue does not obey that rule.
 
-## Degeneracy: what the data can and cannot decide
+## Degeneracy: what the sampling determines
 
 A multi-compartment fit has a landscape of solutions, and with too little data that
 landscape has a valley rather than a minimum: many combinations of fraction and
@@ -196,7 +196,8 @@ cbar = fig.colorbar(im, ax=axes, shrink=0.8, label="log10 cost")
 ```
 
 With one shell the cost is low along a whole curve: any fraction can be traded for a
-diffusivity, and the data cannot tell the combinations apart. The second shell narrows the
+diffusivity with no change in the fit, so the measurements do not distinguish between
+those combinations. The second shell narrows the
 valley; the third, at b = 3000, closes it around the true values (white dot). The model in
 this figure is the synthetic tissue's own, with the radial diffusivity known, so the only
 ambiguity is the one the sampling leaves; a model with more unknowns has a larger valley. This is the practical meaning of Table 6.1's requirement of two or more

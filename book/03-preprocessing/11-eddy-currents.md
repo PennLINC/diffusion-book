@@ -57,14 +57,12 @@ background in others, and any fit across volumes reads that as a signal change. 
 errors concentrate at edges and along the phase-encode axis, and they are largest at the
 highest b-values.
 
-## The TRXScan flags
+## The phantom dataset
 
-`--eddy` (linear) and `--eddy-quad` (quadratic) apply a modeled eddy field proportional to
-the diffusion gradient during the k-space simulation; b=0 volumes are exempt.
-`--eddy-trace` replays a measured per-volume field from a real subject's DIFFPREP
-confounds, which does not track the gradient direction as neatly as the model.
-`--eddy-phase` adds the eddy-current phase ramp to the complex output, which is invisible
-in the magnitude and diagnostic in the phase.
+The simulated dataset for this chapter is `eddy`: a modeled eddy field, a measured
+per-volume field replayed from a real subject, and the eddy phase ramp in the complex
+output, scored against `truth`. The simulator settings that produce it are listed under its
+name in [Appendix A](#app-a-datasets), and its files in Appendix B.
 
 ## The artifact-free reference
 
@@ -86,6 +84,44 @@ print(f"largest displacement in any volume: {np.abs(shifts).max():.1f} voxels")
 ```
 
 ## See it: volumes that do not line up
+
+The displacement is along the phase-encode axis, anterior-posterior, and it varies with
+position in all three directions: with the left-right coordinate for a gradient along that
+axis (a shear), with the anterior-posterior coordinate (a scale), and with the slice
+position for the gradient component along the slice axis, which shifts each slice by a
+different amount. The axial view shows the first two; the sagittal view shows the third, as
+a brain outline that is displaced by a different amount on every slice. Radiologists and
+quality-control tools look at sagittal reformats of diffusion-weighted volumes for this
+reason. The 3 mm volume shows both views of one volume whose gradient has a large
+slice-axis component:
+
+```{code-cell} python
+:tags: [hide-input]
+vol = phantoms.brain_volume()
+mask3 = vol["mask"]
+b_v, g_v = schemes.single_shell(2000, 6, n_b0=1)
+series3 = synth.synthetic_dwi(vol, b_v, g_v)
+shifts3 = synth.eddy_shift(b_v, g_v, mask3.shape, strength=0.06)  # twice the chapter's strength, for visibility at 3 mm
+v = 1 + int(np.argmax(np.abs(g_v[1:, 2])))  # the direction with the largest slice-axis component
+dist3 = synth.displace_along_pe(series3[..., v], shifts3[..., v])
+K, C = phantoms.VOLUME_VENTRICLE_SLICE, 26
+
+fig, axes = plt.subplots(1, 4, figsize=(12, 3.6))
+for ax, img_, m_, title in [
+    (axes[0], series3[:, :, K, v], mask3[:, :, K], "axial, undistorted"),
+    (axes[1], dist3[:, :, K], mask3[:, :, K], "axial, eddy-distorted: shear and scale"),
+    (axes[2], series3[:, C, :, v].T[::-1], mask3[:, C, :].T[::-1], "sagittal, undistorted"),
+    (axes[3], dist3[:, C, :].T[::-1], mask3[:, C, :].T[::-1], "sagittal, eddy-distorted: slice-dependent shift"),
+]:
+    ax.imshow(img_, cmap="gray", vmin=0, vmax=0.12)
+    ax.contour(m_, levels=[0.5], colors=[PALETTE[1]], linewidths=0.8)
+    ax.set_axis_off(); ax.set_title(title, fontsize=9)
+fig.tight_layout()
+print(f"gradient of volume {v}: ({g_v[v, 0]:+.2f}, {g_v[v, 1]:+.2f}, {g_v[v, 2]:+.2f}) in (anterior-posterior, left-right, slice); shift ranges from {shifts3[..., v][mask3].min():+.1f} to {shifts3[..., v][mask3].max():+.1f} voxels across the brain")
+```
+
+The rest of the chapter works on the single 2 mm slice, where the shear and scale are
+visible in the axial view and the correction can be scored voxel by voxel:
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -113,8 +149,9 @@ the transform is restricted to the shear, scale, and translation along the phase
 axis. Two details decide the quality:
 
 - **The reference.** Registering every volume to the b=0 image is simple but unreliable,
-  because a b = 2000 image and a b=0 image have different contrast, and the registration
-  mistakes contrast for geometry (on this synthetic series it makes the alignment worse).
+  because a b = 2000 image and a b=0 image have different contrast, and a similarity
+  metric responds to the contrast difference as if it were a geometric one (on this
+  synthetic series the result is a worse alignment than no correction).
   FSL eddy instead predicts what each volume should look like from all the others, using a
   Gaussian process over the sphere of directions, and registers each volume to its own
   prediction {cite:p}`andersson2016`. That is why eddy needs a full set of directions and

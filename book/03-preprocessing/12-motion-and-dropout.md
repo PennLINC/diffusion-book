@@ -61,14 +61,13 @@ slice by slice within a few seconds. Head motion affects it on two time scales:
 coils (Chapter 7). A movement during one excitation therefore affects all slices of that
 group, spread across the brain at regular intervals, rather than one slice.
 
-## The TRXScan flags
+## The phantom dataset
 
-`--motion <tsv>` replays a measured per-volume head trajectory: for each volume the
-tractogram and tissue maps are moved to that pose and the signal is re-simulated, so the
-fiber-gradient angles change correctly. `--mb 3 --dropout-rate 0.1` simulates a multiband
-acquisition in which 10 % of the diffusion-weighted volumes suffer a motion event during
-one shot, attenuating that shot's slices; the affected volumes, shots, and slices are
-written to a TSV as ground truth for outlier detection.
+The simulated dataset for this chapter is `motion-mb`: the phantom re-simulated at the head
+poses measured in a real subject, and a multiband acquisition with dropout events whose
+affected slices are recorded as ground truth, scored against `truth`. The simulator
+settings that produce it are listed under its name in [Appendix A](#app-a-datasets), and
+its files in Appendix B.
 
 ## The artifact-free reference
 
@@ -95,15 +94,36 @@ print(f"series {moved.shape}; volumes 5, 8, 11 moved")
 
 ## See it: between-volume motion
 
+The animation cycles through the diffusion-weighted volumes of the series as a viewer
+would scroll through them; the outline is the true brain edge. Three volumes jump.
+
 ```{code-cell} python
 :tags: [hide-input]
-fig, axes = plt.subplots(1, 4, figsize=(12, 3.2))
-show_image(axes[0], reference[:, :, K, 5], "volume 5, head still", vmin=0, vmax=0.2)
-for ax, v in zip(axes[1:], [5, 8, 11]):
-    ax.imshow(moved[:, :, K, v], cmap="gray", vmin=0, vmax=0.2)
-    ax.contour(mask[:, :, K], levels=[0.5], colors=[PALETTE[1]], linewidths=0.8)
-    ax.set_axis_off(); ax.set_title(f"volume {v}, moved")
-fig.tight_layout()
+import base64
+import os
+import tempfile
+from IPython.display import HTML
+from matplotlib.animation import FuncAnimation, PillowWriter
+
+fig, ax = plt.subplots(figsize=(3.6, 4.0))
+im = ax.imshow(moved[:, :, K, 2], cmap="gray", vmin=0, vmax=0.2)
+ax.contour(mask[:, :, K], levels=[0.5], colors=[PALETTE[1]], linewidths=0.8)
+ax.set_axis_off()
+label = ax.set_title("")
+moved_volumes = {v for v, (rot, tr) in enumerate(poses) if any(rot) or any(tr)}
+
+def frame(v):
+    im.set_data(moved[:, :, K, v])
+    label.set_text(f"volume {v}" + (" (head moved)" if v in moved_volumes else ""))
+    return im, label
+
+anim = FuncAnimation(fig, frame, frames=range(2, len(bvals)), interval=500)
+gif_path = os.path.join(tempfile.gettempdir(), "dwibook_motion.gif")
+anim.save(gif_path, writer=PillowWriter(fps=2))
+plt.close(fig)
+with open(gif_path, "rb") as f:
+    gif_b64 = base64.b64encode(f.read()).decode("ascii")
+HTML(f'<img src="data:image/gif;base64,{gif_b64}" alt="axial slice of successive diffusion-weighted volumes; three volumes are displaced" style="width: 320px;">')
 ```
 
 ## Correction step by step: registration and b-vector rotation

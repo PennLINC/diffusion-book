@@ -50,13 +50,12 @@ than the tissue has, and a voxel one ripple farther out shows a shallower one. T
 a striped pattern of over- and underestimated diffusivity along every CSF boundary, which
 propagates into FA and into every model fitted downstream.
 
-## The TRXScan flags
+## The phantom dataset
 
-TRXScan simulates the object on a finer grid than the acquisition (`--oversample 2`) and
-acquires only the nominal k-space band, so ringing arises exactly as it does on a scanner.
-With `--oversample 1` the object sits on the acquisition grid and there is no ringing, which
-provides the artifact-free reference. `--window hann|tukey|fermi` applies apodization at
-reconstruction (implementation plan item T1).
+The simulated dataset for this chapter is `gibbs`: the phantom acquired with ringing
+intrinsic to the acquisition, without it, and with apodization, scored against `truth`. The
+simulator settings that produce it are listed under its name in
+[Appendix A](#app-a-datasets), and its files in Appendix B.
 
 ## The artifact-free reference
 

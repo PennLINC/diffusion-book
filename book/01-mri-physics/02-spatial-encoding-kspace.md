@@ -74,7 +74,8 @@ fig.tight_layout()
 
 Most of the energy is at the center of k-space. The center encodes contrast and coarse
 shape; the periphery encodes edges and fine detail. Reconstructing from only one or the other
-shows the division:
+shows the division. In each pair below, the left panel is the part of k-space that was
+kept (the rest set to zero) and the right panel is the image reconstructed from it:
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -83,9 +84,11 @@ c = ny // 2
 low = np.zeros_like(ksp); low[c - 8 : c + 8, c - 8 : c + 8] = ksp[c - 8 : c + 8, c - 8 : c + 8]
 high = ksp - low
 
-fig, axes = plt.subplots(1, 2, figsize=(6, 3))
-show_image(axes[0], kspace.ifft2c(low), "central 16 × 16 samples only")
-show_image(axes[1], kspace.ifft2c(high), "everything except the center")
+fig, axes = plt.subplots(1, 4, figsize=(12, 3))
+show_kspace(axes[0], low, "kept: the central 16 × 16 samples")
+show_image(axes[1], kspace.ifft2c(low), "reconstructed from them")
+show_kspace(axes[2], high, "kept: everything except the center")
+show_image(axes[3], kspace.ifft2c(high), "reconstructed from that")
 fig.tight_layout()
 ```
 
@@ -107,10 +110,13 @@ characteristic failure:
 lowres = np.zeros_like(ksp); lowres[c - 16 : c + 16, c - 16 : c + 16] = ksp[c - 16 : c + 16, c - 16 : c + 16]
 every_other = np.where(kspace.regular_undersampling_mask(ny, nx, 2), ksp, 0)
 
-fig, axes = plt.subplots(1, 3, figsize=(9, 3))
-show_image(axes[0], img, "full sampling")
-show_image(axes[1], kspace.ifft2c(lowres), "outer k-space dropped: larger voxels")
-show_image(axes[2], kspace.ifft2c(every_other), "every other line dropped: FOV halved")
+fig, axes = plt.subplots(2, 3, figsize=(9, 6))
+show_kspace(axes[0, 0], ksp, "k-space: full sampling")
+show_kspace(axes[0, 1], lowres, "k-space: central 32 × 32 kept")
+show_kspace(axes[0, 2], every_other, "k-space: every other line kept")
+show_image(axes[1, 0], img, "image: full sampling")
+show_image(axes[1, 1], kspace.ifft2c(lowres), "image: larger voxels")
+show_image(axes[1, 2], kspace.ifft2c(every_other), "image: FOV halved, wrapped")
 fig.tight_layout()
 ```
 

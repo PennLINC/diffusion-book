@@ -6,6 +6,17 @@ kernelspec:
   display_name: Python 3
 ---
 
+:::{admonition} Why this chapter comes last among the artifacts
+:class: note
+Gradient nonlinearity is a fixed property of the scanner, like the receive coils and the
+gradient strength of Chapter 7, and could be introduced before the noise and motion of
+the preceding chapters. It is placed here because its corrections are the last ones
+applied: the geometric part is composed with the susceptibility, eddy, and motion
+corrections of Chapters 10 through 12 into one resampling, and the encoding part is
+handed to the model fits of Part IV. Reading it after those chapters keeps the order of
+the pipeline (Chapter 14) and the order of the book the same.
+:::
+
 ## Learning goals
 
 After this chapter you can:
@@ -56,14 +67,14 @@ Two things follow from one field:
    error survives the image unwarp, because unwarping moves voxels but does not change the
    gradient they were encoded with {cite:p}`bammer2003`.
 
-## The TRXScan flags
+## The phantom dataset
 
-`--gnl whole-body-80 | connectom-300 | <file.grad>` applies both effects from one synthetic
-coefficient set; `--gnl-scale` sets the severity, `--isocenter` places the magnet's origin,
-and `--gnl-no-warp` / `--gnl-no-encoding` switch off one effect so that each correction can
-be scored alone. The run writes the truth beside the data: the coefficient file in the
-Siemens format that gradunwarp, TORTOISE, and qsiprep read, the displacement field in mm,
-and the gradient-deviation image (nine volumes, the HCP layout).
+The simulated dataset for this chapter is `gnl`: the phantom on a whole-body and a
+Connectom-class gradient system, a severity sweep, and runs with only the spatial warp or
+only the encoding deviation, each written with its true coefficient file, displacement
+field, and gradient-deviation image, scored against `truth`. The simulator settings that
+produce it are listed under its name in [Appendix A](#app-a-datasets), and its files in
+Appendix B.
 
 ## The artifact-free reference
 

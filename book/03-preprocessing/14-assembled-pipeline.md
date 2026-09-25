@@ -180,7 +180,7 @@ after each step, and the error that returns if a step is skipped.
 
 ## What this implies for acquisition
 
-- **The pipeline can only correct what the acquisition allows it to see.** Reverse-polarity
+- **A pipeline can correct only what the acquisition recorded.** Reverse-polarity
   volumes, spread b=0 volumes, a full direction set, the phase, and the gradient
   coefficient file are acquisition-side decisions that determine which corrections are
   possible.

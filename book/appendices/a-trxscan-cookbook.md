@@ -57,7 +57,11 @@ print(f"acquisition voxel {d['voxel_mm']} mm; oversampling {d['oversample']}; {d
 print(f"tools: TRXScan branch {cfg['tools']['trxscan_branch']}; container image {cfg['tools']['qsiprep_image']}")
 ```
 
+(app-a-datasets)=
 ## Commands per dataset
+
+Each chapter of Part III names its dataset and points here. The description under each
+name is the dataset's purpose; the commands are the simulator runs that produce it.
 
 ```{code-cell} python
 :tags: [hide-input]

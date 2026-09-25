@@ -64,6 +64,11 @@ def test_eddy_shift_shapes_and_b0_exempt():
     assert s.shape == (128, 128, 7)
     assert np.allclose(s[..., 0], 0.0)
     assert np.abs(s[..., 1:]).max() > 0.5
+    s3 = synth.eddy_shift(bvals, bvecs, (62, 52, 51), strength=0.02)
+    assert s3.shape == (62, 52, 51, 7) and np.allclose(s3[..., 0], 0.0)
+    # the slice-axis gradient component gives a shift that changes from slice to slice
+    v = 1 + int(np.argmax(np.abs(bvecs[1:, 2])))
+    assert np.ptp(s3[31, 26, :, v]) > 0.1
 
 
 def test_motion_and_dropout_on_volume():

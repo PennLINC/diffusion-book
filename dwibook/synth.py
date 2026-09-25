@@ -337,7 +337,9 @@ def eddy_shift(bvals: np.ndarray, bvecs: np.ndarray, shape: tuple[int, ...], str
     The residual eddy field is proportional to the diffusion gradient. Its component along
     each axis produces, along the phase-encode axis: a shear (proportional to the column
     coordinate) for the gradient along columns, a scale (proportional to the row coordinate)
-    for the gradient along rows, and a translation for the gradient along slices.
+    for the gradient along rows, and, for the gradient along slices, a shift proportional to
+    the slice coordinate (a different translation on every slice). For a single 2-D slice the
+    slice coordinate is not available and the last term is a constant translation.
     ``strength`` is the shift in voxels per unit of ``(b/1000) * g`` per voxel of offset.
     Returns ``(*shape, n_volumes)``.
     """
@@ -348,6 +350,9 @@ def eddy_shift(bvals: np.ndarray, bvecs: np.ndarray, shape: tuple[int, ...], str
     w = strength * bvals / 1000.0
     shear = w * bvecs[:, 1]
     scale = w * bvecs[:, 0]
+    if len(shape) == 3:
+        z = coords[2] - (shape[2] - 1) / 2
+        return x[..., None] * shear + y[..., None] * scale + z[..., None] * (w * bvecs[:, 2])
     trans = 4.0 * w * bvecs[:, 2]
     return x[..., None] * shear + y[..., None] * scale + trans
 
@@ -373,9 +378,9 @@ def moving_series(
     """A series acquired while the head moves rigidly between volumes.
 
     For each volume the head is at ``poses[v] = (rotation_deg, translation_vox)``. The
-    scanner applies the gradient ``bvecs[v]`` in its own frame, so the rotated head sees it as
-    ``R.T @ g``; the volume's signal is computed with that direction and the image is then
-    rotated and translated. Returns the moved series and the b-vectors in the head's frame
+    scanner applies the gradient ``bvecs[v]`` in its own frame; in the rotated head's frame
+    that gradient is ``R.T @ g``, so the volume's signal is computed with that direction and
+    the image is then rotated and translated. Returns the moved series and the b-vectors in the head's frame
     (``R.T @ g`` per volume), which is what a fit must use once the images have been
     registered back: the b-vectors must be rotated with the registration
     {cite:p}`leemans2009`.

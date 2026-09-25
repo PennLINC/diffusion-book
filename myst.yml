@@ -44,6 +44,7 @@ project:
     - title: "Part III: Artifacts and preprocessing"
       children:
         - file: book/03-preprocessing/08-noise.md
+        - file: book/03-preprocessing/08-real-valued-dwi.md
         - file: book/03-preprocessing/09-gibbs-ringing.md
         - file: book/03-preprocessing/10-susceptibility-distortion.md
         - file: book/03-preprocessing/11-eddy-currents.md

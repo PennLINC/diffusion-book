@@ -21,7 +21,7 @@ Vectors are bold; a hat marks a unit vector.
 | TE, TR | echo time, repetition time | ms, s | 1, 7 |
 | $\mathbf{G}$, $G$ | gradient vector and amplitude | mT/m | 2, 5 |
 | $\mathbf{k}$, $k_x$, $k_y$ | spatial frequency; k-space coordinates | 1/mm | 2 |
-| $\Delta k$, $k_\max$ | k-space sampling interval and extent; FOV $= 1/\Delta k$, voxel $= 1/(2k_\max)$ | 1/mm | 2 |
+| $\Delta k$, $k_{\mathrm{max}}$ | k-space sampling interval and extent; FOV $= 1/\Delta k$, voxel $= 1/(2k_{\mathrm{max}})$ | 1/mm | 2 |
 | $N_x$, $N_y$ | matrix size along readout and phase-encode axes | – | 2 |
 | $\Delta t_\mathrm{esp}$ | echo spacing of the EPI train | ms | 2 |
 | TotalReadoutTime | duration of the EPI train, as recorded in the JSON sidecar | s | 2, 10 |

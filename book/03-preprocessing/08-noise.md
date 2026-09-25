@@ -49,19 +49,17 @@ The consequences for fitted quantities follow directly:
 - **Signal decay with b appears too shallow**, because the measured high-b values are too
   high. Fitted diffusivities come out too low.
 - **Anisotropy appears too high**, because the direction with the lowest true signal (along
-  the fibers) is raised most by the floor, and the tensor fit interprets the extra spread
-  between directions as anisotropy. In isotropic regions, noise creates anisotropy that is
-  not there.
+  the fibers) is raised most by the floor, and the extra spread between directions enters
+  the tensor fit as anisotropy. In isotropic regions, noise produces anisotropy that is not
+  there.
 - **Kurtosis and multi-compartment fits**, which read the curvature of the decay above
   b = 1500, are affected most, because the floor adds curvature of its own.
 
-## The TRXScan flags
+## The phantom dataset
 
-`--noise <variance>` adds complex Gaussian noise in k-space, so the magnitude output has the
-Rician floor and the phase output has the corresponding phase noise. `--coils 8 --accel 2`
-adds the multi-coil combination and the spatially varying noise of GRAPPA. `--noise-map`
-applies a spatially varying noise level and writes the true noise map alongside the data,
-the answer key for a denoiser's noise estimate.
+The simulated dataset for this chapter is `noise-sweep` (four noise levels and an 8-coil
+GRAPPA run), scored against `truth`. The simulator settings that produce it are listed
+under its name in [Appendix A](#app-a-datasets), and its files in Appendix B.
 
 ## The artifact-free reference
 
@@ -108,6 +106,50 @@ for b in [0, 1000, 2000, 3000]:
     v = shell(b)
     print(f"b = {b:>4}: WM SNR {clean[wm][:, v].mean() / sigma:5.1f}   GM SNR {clean[gm][:, v].mean() / sigma:5.1f}")
 ```
+
+## See it: the distribution of the noise
+
+The images show the effect; the distributions show the cause. The same noise realization is
+examined twice: as the real and imaginary components of the complex image, and as the
+magnitude. The residual is the noisy value minus the noise-free value, so a distribution
+centered on zero means no bias.
+
+```{code-cell} python
+:tags: [hide-input]
+complex_noisy = synth.add_complex_noise(clean, sigma, seed=0)
+v3 = shell(3000)
+wm_hi = wm  # white matter at b = 3000: SNR about 3
+background = ~vol["mask"][:, :, sl]
+a_true = clean[..., v3][wm_hi].mean()
+
+fig, axes = plt.subplots(1, 3, figsize=(11, 3.2))
+x = np.linspace(-4 * sigma, 4 * sigma, 300)
+gauss = np.exp(-x**2 / (2 * sigma**2)) / (sigma * np.sqrt(2 * np.pi))
+resid_c = (complex_noisy - clean)[..., v3][wm_hi]
+axes[0].hist(resid_c.real, bins=50, density=True, color=PALETTE[0], alpha=0.5, label="real part")
+axes[0].hist(resid_c.imag, bins=50, density=True, color=PALETTE[1], alpha=0.5, label="imaginary part")
+axes[0].plot(x, gauss, color="0.3", lw=1.5, label="Gaussian, mean 0")
+axes[0].set(title="complex data, WM at b = 3000: residual", xlabel="noisy − true"); axes[0].legend(fontsize=7)
+
+resid_m3 = (noisy - clean)[..., v3][wm_hi]
+resid_m0 = (noisy - clean)[..., shell(0)][wm_hi]
+axes[1].hist(resid_m0, bins=50, density=True, color=PALETTE[2], alpha=0.5, label=f"b = 0 (SNR {SNR0:.0f}): mean {resid_m0.mean() / sigma:+.2f} σ")
+axes[1].hist(resid_m3, bins=50, density=True, color=PALETTE[3], alpha=0.5, label=f"b = 3000 (SNR {a_true / sigma:.1f}): mean {resid_m3.mean() / sigma:+.2f} σ")
+axes[1].plot(x, gauss, color="0.3", lw=1.5, label="Gaussian, mean 0")
+axes[1].set(title="magnitude data, WM: residual", xlabel="noisy − true"); axes[1].legend(fontsize=7)
+
+m = np.linspace(0, 5 * sigma, 300)
+axes[2].hist(noisy[..., v3][background], bins=50, density=True, color=PALETTE[4], alpha=0.5, label="measured")
+axes[2].plot(m, kspace.noncentral_chi_pdf(m, 0.0, sigma, 1), color="0.3", lw=1.5, label=f"Rayleigh, mean {np.sqrt(np.pi / 2):.2f} σ")
+axes[2].set(title="magnitude data, background (no signal)", xlabel="magnitude"); axes[2].legend(fontsize=7)
+fig.tight_layout()
+```
+
+In the complex data the residual is Gaussian with zero mean at every signal level. In the
+magnitude data it is Gaussian with zero mean only where the signal is strong (b = 0); where
+the signal is comparable to the noise (b = 3000) it is skewed and its mean is positive, and
+where there is no signal it is the Rayleigh distribution with a mean of 1.25 σ. The
+positive mean is the bias that the rest of this chapter measures and removes.
 
 ## Measure it: the bias
 
@@ -157,6 +199,8 @@ channels is Gaussian with zero mean, so removing its random part leaves an unbia
 and the magnitude is taken afterward, from a series with far less noise
 {cite:p}`corderogrande2019`. The same MP-PCA can be applied by treating the real and
 imaginary parts as additional volumes. This requires that the phase was saved (Chapter 3).
+The next page describes the other use of the phase: correcting it so that the data can be
+kept as real values, in which case no floor arises in the first place.
 
 ```{code-cell} python
 :tags: [hide-input]

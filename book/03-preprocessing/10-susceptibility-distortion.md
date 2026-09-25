@@ -36,8 +36,8 @@ The static field is not uniform inside the head. Tissue, bone, and air have diff
 magnetic susceptibilities, and near the interfaces between them, above the sinuses, next to
 the ear canals, and at the temporal poles, the field deviates from its nominal value by up
 to a few hundred hertz at 3 T. Spins in those regions precess at a shifted frequency, and
-the scanner interprets a frequency shift as a position along the phase-encode axis
-(Chapter 2). The signal is placed at the wrong location.
+along the phase-encode axis frequency is what encodes position (Chapter 2), so the
+reconstruction places their signal at a shifted location.
 
 The size of the error is the frequency offset times the total readout time of the EPI train:
 
@@ -51,14 +51,12 @@ or is spread over several (stretching, dark), so the intensity is altered as wel
 geometry. Anatomical images acquired with conventional readouts do not show this, which is
 why diffusion data do not line up with the T1-weighted image without correction.
 
-## The TRXScan flags
+## The phantom dataset
 
-TRXScan takes a fieldmap in Hz and applies the displacement in k-space as part of the
-acquisition, so pile-up and stretching arise from the physics rather than from resampling.
-`--reverse-pe` flips the blip polarity, producing the second image of a blip-up/blip-down
-pair. `--gre-out` writes a synthetic gradient-echo fieldmap acquisition from the same field,
-in the BIDS `phasediff` or two-phase form, so that fieldmap-based correction can be run on
-the simulated data.
+The simulated dataset for this chapter is `sdc-pair`: blip-up/blip-down pairs of two
+phantoms, one with an atlas field and one with a measured field, plus synthetic
+gradient-echo fieldmaps, scored against `truth`. The simulator settings that produce it are
+listed under its name in [Appendix A](#app-a-datasets), and its files in Appendix B.
 
 ## The artifact-free reference
 
