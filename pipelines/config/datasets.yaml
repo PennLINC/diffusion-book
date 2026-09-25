@@ -28,6 +28,10 @@ phantoms:
     motion_ap: sub-60501/ses-01/dwi/sub-60501_ses-01_dir-AP_desc-confounds_timeseries.tsv
     motion_pa: sub-60501/ses-01/dwi/sub-60501_ses-01_dir-PA_desc-confounds_timeseries.tsv
 
+# Every dataset is a BIDS dataset: sub-<anatomy>/dwi/ holds one run per scheme x variant x
+# sweep point, named sub-<anatomy>[_acq-<label>]_dir-<AP|PA>_part-<mag|phase>_dwi; the acq label
+# is the scheme (when several), the variant name, and the sweep label, reduced to alphanumerics.
+# "{gre}" in a flag list expands to the run's sub-<anatomy>/fmap/ prefix.
 # Settings shared by every run unless a dataset overrides them.
 defaults:
   voxel_mm: 2.5
@@ -75,7 +79,7 @@ datasets:
   noise-sweep:
     phantom: sub-0001a
     description: four noise levels, single coil, plus one 8-coil GRAPPA-2 run for non-central chi noise
-    sweep: { flag: "--noise", values: ["5e-5", "2e-4", "8e-4", "3e-3"] }
+    sweep: { flag: "--noise", values: ["5e-5", "2e-4", "8e-4", "3e-3"], labels: [noise1, noise2, noise3, noise4] }
     extra_runs:
       - { name: coils8-r2, extra_flags: ["--noise", "2e-4", "--coils", "8", "--accel", "2"] }
   gibbs:
@@ -88,9 +92,9 @@ datasets:
   sdc-pair:
     phantom: [sub-0001a, sub-60501]
     description: AP/PA pairs with atlas and measured fieldmaps, plus synthetic GRE fieldmaps
-    variants:
-      - { name: ap, extra_flags: ["--gre-out", "{out}_gre", "--gre-res", "2.5"] }
-      - { name: pa, extra_flags: ["--reverse-pe"] }
+    variants:                       # named by phase-encode direction, not by an acq- label
+      - { dir: AP, extra_flags: ["--gre-out", "{gre}", "--gre-res", "2.5"] }
+      - { dir: PA, extra_flags: ["--reverse-pe"] }
     precompute: [topup]
   eddy:
     phantom: sub-60501
@@ -126,13 +130,13 @@ datasets:
     description: every artifact on, corrected end to end by qsiprep
     oversample: 2
     extra_flags: ["--noise", "2e-4", "--coils", "8", "--accel", "2", "--mb", "3", "--dropout-rate", "0.05",
-                  "--eddy", "0.02", "--eddy-phase", "1.7e-5", "--gnl", "whole-body-80", "--gre-out", "{out}_gre"]
+                  "--eddy", "0.02", "--eddy-phase", "1.7e-5", "--gnl", "whole-body-80", "--gre-out", "{gre}"]
     reverse_pe_pair: true
     precompute: [qsiprep]
   voxel-sweep:
     phantom: sub-0001a
     description: 1.5, 2.0, 2.5 and 3.0 mm at fixed scheme and noise
-    sweep: { key: voxel_mm, values: [1.5, 2.0, 2.5, 3.0] }
+    sweep: { key: voxel_mm, values: [1.5, 2.0, 2.5, 3.0], labels: [vox15, vox20, vox25, vox30] }
     extra_flags: ["--noise", "2e-4"]
   te-sweep:
     phantom: sub-0001a

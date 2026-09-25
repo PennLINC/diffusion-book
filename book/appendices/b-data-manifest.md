@@ -40,9 +40,10 @@ else:
 ## Planned datasets
 
 Until the release exists, the table lists what the pipeline configuration defines. Each dataset is described in [Appendix A](./a-trxscan-cookbook.md#app-a-datasets). Each
-row becomes a directory of BIDS files (`part-mag`, `part-phase`, `.bval`, `.bvec`, JSON
-sidecars), the truth outputs the run writes, the chapter's precomputed results, and a
-`provenance.json`.
+row becomes a BIDS dataset: one subject per source anatomy with a complex diffusion series
+per run (`part-mag`, `part-phase`, `.bval`, `.bvec`, JSON sidecars), the ground truth and
+the `provenance.json` in `derivatives/trxscan`, and the chapter's precomputed results in
+one derivative dataset per tool. Appendix A shows the file tree of each.
 
 ```{code-cell} python
 :tags: [hide-input]

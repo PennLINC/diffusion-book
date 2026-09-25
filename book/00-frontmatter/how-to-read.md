@@ -82,8 +82,9 @@ build against a local pipeline output instead, set `DWIBOOK_DATA` to its directo
 ## Reproducing the simulations
 
 [Appendix A](../appendices/a-trxscan-cookbook.md) lists the command line behind every dataset, generated from the pipeline's own
-configuration, and each downloaded dataset carries a `provenance.json` with the commands,
-the simulator version, and the container image that produced it. The pipeline itself is a
+configuration, and each downloaded dataset is a BIDS dataset that carries, in its
+`derivatives/trxscan` directory, a `provenance.json` with the commands, the simulator
+version, and the container image that produced it. The pipeline itself is a
 Snakemake workflow in the repository's `pipelines` directory; it requires the TRXScan
 binaries and the simulation inputs, which are distributed separately from the book.
 

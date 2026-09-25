@@ -33,7 +33,7 @@ def setting(ds_id, key):
 
 rule all:
     input:
-        expand(str(DATA / "{ds}" / "provenance.json"), ds=[d for d in DATASETS if not DATASETS[d].get("requires")]),
+        expand(str(DATA / "{ds}" / "derivatives" / "trxscan" / "provenance.json"), ds=[d for d in DATASETS if not DATASETS[d].get("requires")]),
 
 
 # Acquisition (+ optional oversampled simulation) grid for one phantom at one voxel size.
@@ -94,7 +94,9 @@ rule simulate:
     input:
         lambda w: rules.prepare_grid.output if False else [],
     output:
-        str(DATA / "{ds}" / "provenance.json"),
+        # BIDS layout per dataset (dwibook.cookbook.expected_files is the contract); TRXScan's
+        # ground-truth outputs are renamed into derivatives/trxscan, where the provenance lives.
+        str(DATA / "{ds}" / "derivatives" / "trxscan" / "provenance.json"),
     shell:
         """
         python scripts/run_dataset.py --config config/datasets.yaml --dataset {wildcards.ds} --out ../data

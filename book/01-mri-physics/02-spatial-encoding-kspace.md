@@ -61,6 +61,8 @@ consequences for image geometry and for the diffusion encoding are the subject o
 
 ## The Fourier relationship
 
+% Should the k-space images have axis labels? Do the axes represent frequencies?
+
 The images in this chapter are a synthetic b=0 slice of the simulated brain: the tissue
 fractions of one axial slice, weighted by proton density and T2 decay at the HBCD echo time
 ([Chapter 1](./01-spins-and-signal.md)). Its k-space is computed directly.
@@ -184,6 +186,8 @@ Three consequences of the long readout, each treated in its own chapter:
 
 ## Partial Fourier
 
+% Can you show what this looks like with figures? A full Fourier k-space image, a partial Fourier one, and reconstructed (image-space) images of each, at minimum.
+
 For an object with no phase, k-space is symmetric about its center, so half of the lines are
 redundant. Partial Fourier acquisitions skip a fraction of the lines on one side, typically
 acquiring 5/8 to 7/8 of them. The timings printed above show the two benefits: the readout is
@@ -233,12 +237,15 @@ ax2.set(xlabel="x (voxels)", ylabel="intensity", xlim=(20, 108), title="profile 
 ax2.legend()
 fig.tight_layout()
 ```
+% The brain image above is too small. It's hard to see the Gibbs ringing. Maybe also include a zoomed-in image that highlights the ringing.
 
 The ringing is small in absolute terms but it sits exactly where CSF meets tissue, and it
 changes with b-value because the CSF signal changes with b-value. Its effect on diffusion
 metrics at tissue borders, and the correction for it, are covered in [Chapter 9](../03-preprocessing/09-gibbs-ringing.md).
 
 ## Why diffusion MRI uses single-shot EPI
+
+% Maybe move the multi-shot EPI stuff to Part V (advanced) since it's uncommon.
 
 Splitting the lines of k-space over several excitations (multi-shot EPI) shortens each
 readout, reducing distortion and blur and allowing higher resolution. Diffusion encoding

@@ -60,7 +60,30 @@ print(f"tools: TRXScan branch {cfg['tools']['trxscan_branch']}; container image 
 (app-a-datasets)=
 ## The datasets
 
-Each chapter lists the datasets it uses in the box at its top and links here. For each dataset this section gives what is simulated and why, the chapters that use it, and the exact command lines, rendered from the pipeline configuration. The line *pipeline description* under each name is the one-line description the configuration file carries.
+Each chapter lists the datasets it uses in the box at its top and links here. For each dataset this section gives what is simulated and why, the chapters that use it, and the exact command lines, rendered from the pipeline configuration, followed by the files the dataset directory holds once the pipeline has run. The line *pipeline description* under each name is the one-line description the configuration file carries.
+
+Every dataset is a BIDS dataset. Each source anatomy is a subject (`sub-0001a`,
+`sub-60501`), and each simulation run is one complex diffusion series in its `dwi`
+directory: `part-mag` and `part-phase` images with their JSON sidecars, and the `.bval` and
+`.bvec` tables. The runs of a dataset differ by an `acq-` label, which names the scheme, the
+variant, or the sweep point (`acq-dsi257`, `acq-o2hann`, `acq-noise1`, `acq-te70`), and by
+the phase-encode direction `dir-AP` or `dir-PA`. A run that writes a synthetic gradient-echo
+fieldmap puts it in the subject's `fmap` directory as `magnitude1`, `magnitude2`, and
+`phasediff` images, linked to the series through `B0FieldIdentifier`.
+
+Everything the simulator knows beyond the images is a derivative. The `derivatives/trxscan`
+dataset holds the ground truth: the noise level (`desc-noise_dwimap`), the slices lost to
+dropout (`desc-dropout_dwi.tsv`), the true fiber orientations and the 27 truth maps of
+[Appendix E](./e-truth-map-catalogue.md) (`model-truth_param-<name>_dwimap`), and for
+gradient nonlinearity the coefficient file, the displacement fields as transforms between
+the true and apparent frames (`from-true_to-apparent` and its inverse, `xfm`), and the
+gradient deviation (`desc-graddev_dwimap`). It also carries the `provenance.json` with the
+exact command lines, the simulator commit, and the container tag. Results precomputed
+inside the QSIPrep container form one derivative dataset per tool (`derivatives/topup`,
+`derivatives/eddy`, and so on) with the same subject layout. The `truth` dataset holds only
+truth maps and is itself a derivative-type dataset. Files tagged *planned* wait on a
+simulator change from the implementation plan. The pipeline driver renames the simulator's
+outputs into this layout; the command lines show the prefixes it passes.
 
 (ds-ref-clean)=
 ### ref-clean
@@ -72,6 +95,13 @@ The baseline. The simulated brain sub-0001a under the HBCD scheme at 2.5 mm with
 ```{code-cell} python
 :tags: [hide-input]
 cookbook.print_commands(cfg, "ref-clean")
+```
+
+Expected files:
+
+```{code-cell} python
+:tags: [hide-input]
+cookbook.print_tree(cfg, "ref-clean")
 ```
 
 (ds-ref-schemes)=
@@ -86,6 +116,13 @@ The same anatomy under four schemes at matched scan time and modest noise: 30 di
 cookbook.print_commands(cfg, "ref-schemes")
 ```
 
+Expected files:
+
+```{code-cell} python
+:tags: [hide-input]
+cookbook.print_tree(cfg, "ref-schemes")
+```
+
 (ds-presets)=
 ### presets
 
@@ -96,6 +133,13 @@ The simulated brain sub-0001a under the HBCD scheme with each of the three tissu
 ```{code-cell} python
 :tags: [hide-input]
 cookbook.print_commands(cfg, "presets")
+```
+
+Expected files:
+
+```{code-cell} python
+:tags: [hide-input]
+cookbook.print_tree(cfg, "presets")
 ```
 
 (ds-slab-kspace)=
@@ -110,6 +154,13 @@ Five axial slices through the ventricles (slices 28 to 33) and the first twelve 
 cookbook.print_commands(cfg, "slab-kspace")
 ```
 
+Expected files:
+
+```{code-cell} python
+:tags: [hide-input]
+cookbook.print_tree(cfg, "slab-kspace")
+```
+
 (ds-noise-sweep)=
 ### noise-sweep
 
@@ -120,6 +171,13 @@ The simulated brain sub-0001a under the HBCD scheme at four k-space noise levels
 ```{code-cell} python
 :tags: [hide-input]
 cookbook.print_commands(cfg, "noise-sweep")
+```
+
+Expected files:
+
+```{code-cell} python
+:tags: [hide-input]
+cookbook.print_tree(cfg, "noise-sweep")
 ```
 
 (ds-gibbs)=
@@ -134,6 +192,13 @@ Three runs that differ only in how the object is rasterized and windowed. With `
 cookbook.print_commands(cfg, "gibbs")
 ```
 
+Expected files:
+
+```{code-cell} python
+:tags: [hide-input]
+cookbook.print_tree(cfg, "gibbs")
+```
+
 (ds-sdc-pair)=
 ### sdc-pair
 
@@ -144,6 +209,13 @@ Blip-up/blip-down pairs for two source anatomies: sub-0001a with a population-at
 ```{code-cell} python
 :tags: [hide-input]
 cookbook.print_commands(cfg, "sdc-pair")
+```
+
+Expected files:
+
+```{code-cell} python
+:tags: [hide-input]
+cookbook.print_tree(cfg, "sdc-pair")
 ```
 
 (ds-eddy)=
@@ -158,6 +230,13 @@ The simulated brain sub-60501 under the HBCD scheme with three eddy-current mode
 cookbook.print_commands(cfg, "eddy")
 ```
 
+Expected files:
+
+```{code-cell} python
+:tags: [hide-input]
+cookbook.print_tree(cfg, "eddy")
+```
+
 (ds-motion-mb)=
 ### motion-mb
 
@@ -168,6 +247,13 @@ Two runs from sub-60501. In the motion run the head pose measured in the real su
 ```{code-cell} python
 :tags: [hide-input]
 cookbook.print_commands(cfg, "motion-mb")
+```
+
+Expected files:
+
+```{code-cell} python
+:tags: [hide-input]
+cookbook.print_tree(cfg, "motion-mb")
 ```
 
 (ds-gnl)=
@@ -182,6 +268,13 @@ Gradient nonlinearity on sub-0001a, with the isocenter placed 20 mm anterior and
 cookbook.print_commands(cfg, "gnl")
 ```
 
+Expected files:
+
+```{code-cell} python
+:tags: [hide-input]
+cookbook.print_tree(cfg, "gnl")
+```
+
 (ds-kitchen-sink)=
 ### kitchen-sink
 
@@ -192,6 +285,13 @@ Every artifact at once, on sub-0001a: oversampling 2 (ringing), noise, eight coi
 ```{code-cell} python
 :tags: [hide-input]
 cookbook.print_commands(cfg, "kitchen-sink")
+```
+
+Expected files:
+
+```{code-cell} python
+:tags: [hide-input]
+cookbook.print_tree(cfg, "kitchen-sink")
 ```
 
 (ds-voxel-sweep)=
@@ -206,6 +306,13 @@ The simulated brain sub-0001a under the HBCD scheme at 1.5, 2.0, 2.5, and 3.0 mm
 cookbook.print_commands(cfg, "voxel-sweep")
 ```
 
+Expected files:
+
+```{code-cell} python
+:tags: [hide-input]
+cookbook.print_tree(cfg, "voxel-sweep")
+```
+
 (ds-te-sweep)=
 ### te-sweep
 
@@ -218,6 +325,13 @@ The simulated brain sub-0001a under the HBCD scheme at echo times of 70, 88, 110
 cookbook.print_commands(cfg, "te-sweep")
 ```
 
+Expected files:
+
+```{code-cell} python
+:tags: [hide-input]
+cookbook.print_tree(cfg, "te-sweep")
+```
+
 (ds-truth)=
 ### truth
 
@@ -228,6 +342,13 @@ The 27 analytic microstructure maps and the true fiber peaks for sub-0001a, eval
 ```{code-cell} python
 :tags: [hide-input]
 cookbook.print_commands(cfg, "truth")
+```
+
+Expected files:
+
+```{code-cell} python
+:tags: [hide-input]
+cookbook.print_tree(cfg, "truth")
 ```
 
 ## Regenerating a dataset
