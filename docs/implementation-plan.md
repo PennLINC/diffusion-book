@@ -232,6 +232,12 @@ and a Snakefile with the grid-preparation and truth rules. Remaining: `pipelines
 first `ref-clean` run end to end, the `data-v0.1` release, and the TRXScan `book` branch
 (T1–T3).
 
+**Front matter progress (2026-09-25).** Pages 0.1–0.3 are written: how to read and run the
+book (audience, the two tiers, local execution, reproduction, conventions), the phantom
+(inputs, what TRXScan simulates, the ground truth and its four limits, with the shipped
+tissue maps rendered), and the notation tables. The index status now describes the book as
+complete at the toy tier. Everything in edition 1 now waits only on the phantom tier.
+
 **Appendices progress (2026-09-25).** Appendix A (cookbook) and B (manifest) are generated at
 build time from `pipelines/config/datasets.yaml` and `dwibook/registry.txt` by the new
 `dwibook.cookbook` module, which expands every dataset entry into its `trxscan` command lines

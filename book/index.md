@@ -13,9 +13,12 @@ diffusion-MRI simulator that models the scanner from the diffusion signal throug
 to the reconstructed complex image, and the same phantom yields analytic ground-truth maps.
 
 :::{admonition} Status
-:class: warning
-This is a skeleton. Chapters exist as stubs with their learning goals and structure; content
-lands chapter by chapter. See the [implementation plan](https://github.com/PennLINC/diffusion-book/blob/main/docs/implementation-plan.md).
+:class: note
+All chapters and appendices are written and execute at the toy tier, on synthetic data
+built from the phantom's tissue maps with a known answer key. Sections marked *Phantom
+figure pending* await the first release of the full TRXScan simulations, which the
+offline pipeline is being built to produce. See the
+[implementation plan](https://github.com/PennLINC/diffusion-book/blob/main/docs/implementation-plan.md).
 :::
 
 ## What is in the book
