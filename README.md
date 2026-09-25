@@ -15,7 +15,10 @@ micromamba run -n dwibook myst start --execute         # live preview at http://
 micromamba run -n dwibook myst build --html --execute  # static site in _build/html
 ```
 
-Set `DWIBOOK_DATA=/path/to/data` to build against local pipeline output instead of the data
+Set `OMP_NUM_THREADS=1` (and the OpenBLAS/MKL equivalents) before building: the notebooks
+execute in parallel, and one BLAS thread per kernel keeps the build at about a minute
+instead of stalling for many minutes on thread oversubscription. Set
+`DWIBOOK_DATA=/path/to/data` to build against local pipeline output instead of the data
 release. The execution cache is keyed on notebook text only, so after editing anything in
 `dwibook/` delete `_build/execute` (or the cached outputs will silently reflect the old code). The offline data pipeline lives in [pipelines/](pipelines/README.md).
 

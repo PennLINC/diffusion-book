@@ -27,22 +27,48 @@ def shepp_logan(n: int = 128) -> np.ndarray:
     return resize(img, (n, n), anti_aliasing=True).astype(np.float64)
 
 
-@lru_cache(maxsize=1)
-def brain_slice() -> dict[str, np.ndarray]:
-    """One axial slice of the book's phantom as WM/GM/CSF tissue fractions, 128 x 128 at 2 mm.
-
-    The slice passes through the lateral ventricles and deep gray matter. Rows run anterior
-    (top) to posterior; columns follow radiological convention (image left = subject right).
-    The phase-encode axis of the simulated EPI acquisitions is the row axis (anterior-posterior),
-    as in the HBCD protocol. Keys: ``wm``, ``gm``, ``csf`` (fractions), ``mask`` (bool),
-    ``voxel_mm``, ``provenance``.
-    """
-    with np.load(_DATA / "brain_slice.npz") as f:
-        out = {k: f[k] for k in ("wm", "gm", "csf")}
+def _load_tissue(name: str) -> dict[str, np.ndarray]:
+    with np.load(_DATA / name) as f:
+        out = {k: f[k].astype(np.float32) for k in ("wm", "gm", "csf")}
         out["voxel_mm"] = float(f["voxel_mm"])
         out["provenance"] = str(f["provenance"])
     out["mask"] = (out["wm"] + out["gm"] + out["csf"]) > 0.5
     return out
+
+
+@lru_cache(maxsize=2)
+def brain_slice(mm: float = 2.0) -> dict[str, np.ndarray]:
+    """One axial slice of the book's phantom as WM/GM/CSF tissue fractions.
+
+    ``mm = 2`` (default) is 128 x 128 at 2 mm; ``mm = 1`` is the same slice at its native 1 mm,
+    256 x 256, used where an artifact must arise from the acquisition (Gibbs ringing). The
+    slice passes through the lateral ventricles and deep gray matter. Rows run anterior (top)
+    to posterior; columns follow radiological convention (image left = subject right). The
+    phase-encode axis of the simulated EPI acquisitions is the row axis (anterior-posterior),
+    as in the HBCD protocol. Keys: ``wm``, ``gm``, ``csf`` (fractions), ``mask`` (bool),
+    ``voxel_mm``, ``provenance``.
+    """
+    if mm == 2.0:
+        return _load_tissue("brain_slice.npz")
+    if mm == 1.0:
+        return _load_tissue("brain_slice_1mm.npz")
+    raise ValueError("brain_slice is available at 1 mm and 2 mm")
+
+
+@lru_cache(maxsize=1)
+def brain_volume() -> dict[str, np.ndarray]:
+    """The phantom's tissue fractions as a 3-D volume at 3 mm, ``(ny, nx, nz)`` = (62, 52, 51).
+
+    Axes are (anterior-posterior, radiological left-right, inferior-superior), so
+    ``vol[:, :, k]`` is an axial slice in the same orientation as :func:`brain_slice`. Slice
+    29 passes through the lateral ventricles. Used by the chapters that need slices: dropout,
+    multiband, and through-plane motion.
+    """
+    return _load_tissue("brain_volume.npz")
+
+
+#: Axial slice of :func:`brain_volume` through the lateral ventricles.
+VOLUME_VENTRICLE_SLICE = 29
 
 
 def brain_image(te_ms: float = presets.TE_HBCD_MS, preset: str = "adult") -> np.ndarray:

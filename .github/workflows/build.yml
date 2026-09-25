@@ -18,6 +18,11 @@ concurrency:
 env:
   # The GitHub Pages site lives under /<repo>/, which mystmd needs to know at build time.
   BASE_URL: /${{ github.event.repository.name }}
+  # Notebooks execute in parallel; one BLAS thread per kernel avoids oversubscription, which
+  # otherwise stalls the small-matrix loops (MP-PCA patches, registration) for many minutes.
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
 
 jobs:
   build:
