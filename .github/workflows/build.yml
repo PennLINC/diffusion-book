@@ -57,6 +57,10 @@ jobs:
         shell: bash -l {0}
         run: myst build --html --execute --ci
 
+      - name: Add click-to-enlarge images
+        shell: bash -l {0}
+        run: python tools/inject_static.py _build/html
+
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _build/html

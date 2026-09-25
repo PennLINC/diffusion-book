@@ -1,10 +1,14 @@
 ---
-title: Multi-diffusion-time DWI
-subtitle: Chapter 22
+title: "22. Multi-diffusion-time DWI"
 kernelspec:
   name: python3
   display_name: Python 3
 ---
+
+:::{admonition} Simulated datasets in this chapter
+:class: note
+- **Built in this page:** random walks in restricted geometries and single-voxel signals; no pipeline dataset can show diffusion-time dependence because every simulated compartment is Gaussian ([Appendix B](../appendices/b-data-manifest.md#app-b-package-data)).
+:::
 
 ## Learning goals
 
@@ -14,10 +18,7 @@ After this chapter you can:
   restricted and hindered tissue, and show it with a simulation
 - contrast pulsed-gradient and oscillating-gradient encoding
 - state why axon diameter mapping requires strong gradients
-- state why the phantom cannot show any of this
-
-**Datasets used:** none (toy tier); no phantom demonstration is possible with Gaussian compartments
-**Simulation tier:** toy
+- state why the simulated datasets cannot show any of this
 
 ```{code-cell} python
 :tags: [hide-cell]
@@ -32,7 +33,7 @@ set_style()
 
 ## Time-dependent diffusion
 
-Chapter 4 showed the mean squared displacement of molecules in free, hindered, and
+[Chapter 4](../02-diffusion-encoding/04-diffusion-in-tissue.md) showed the mean squared displacement of molecules in free, hindered, and
 restricted geometries: linear in time for free water, linear with a smaller slope for
 hindered water, and leveling off for restricted water. The apparent diffusion coefficient
 that a measurement reports is the mean squared displacement divided by the diffusion time,
@@ -47,9 +48,9 @@ never see the dependence. Acquisitions that vary it do.
 
 ## See it: ADC versus diffusion time
 
-The random walks of Chapter 4 provide the measurement directly: for each geometry, the
+The random walks of [Chapter 4](../02-diffusion-encoding/04-diffusion-in-tissue.md) provide the measurement directly: for each geometry, the
 displacement of every molecule after a time Δ is known, so the signal at a given q is the
-average of the encoding phase (Chapter 5), and the ADC follows from it.
+average of the encoding phase ([Chapter 5](../02-diffusion-encoding/05-diffusion-encoding.md)), and the ADC follows from it.
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -98,7 +99,7 @@ times of a few milliseconds or structures of many micrometers.
 
 The pulsed-gradient spin echo cannot reach short diffusion times: the pulse duration itself
 is tens of milliseconds at ordinary gradient strength, because the b-value depends on the
-duration cubed (Chapter 5). Oscillating-gradient spin echo (OGSE) replaces each pulse by a
+duration cubed ([Chapter 5](../02-diffusion-encoding/05-diffusion-encoding.md)). Oscillating-gradient spin echo (OGSE) replaces each pulse by a
 gradient waveform that oscillates at a chosen frequency; the effective diffusion time is
 then set by the oscillation period rather than by the pulse separation, and frequencies of
 50–200 Hz probe diffusion times of a few milliseconds {cite:p}`does2003`. The price is
@@ -110,7 +111,7 @@ weighting.
 
 The long-time limit of the signal across an impermeable cylinder depends only on its
 radius: the displacement distribution is the cylinder's cross-section, and the signal is
-its Fourier transform (Chapter 4). Measuring the radius therefore means measuring the
+its Fourier transform ([Chapter 4](../02-diffusion-encoding/04-diffusion-in-tissue.md)). Measuring the radius therefore means measuring the
 signal decay at high q, where cylinders of different radii differ. How high depends on the
 radius, and for the axons of the human brain, mostly below 2 µm in diameter, it is beyond
 what ordinary gradients reach:
@@ -144,16 +145,16 @@ compartments (tens to hundreds of milliseconds in gray matter, longer across mye
 axons), the compartments blend and their signals stop being separable, which is a further
 reason compartment models depend on the diffusion time. Exchange is measured by
 acquisitions that vary the time between two encodings (filter-exchange imaging); it is
-absent from the phantom.
+absent from the simulated brain.
 
-## Why the phantom cannot show this
+## Why the simulated datasets cannot show this
 
-The phantom's compartments are Gaussian: a stick, a tensor, and balls, with diffusivities
+The simulated brain's compartments are Gaussian: a stick, a tensor, and balls, with diffusivities
 that do not depend on time. Every diffusion-time-dependent effect in this chapter arises
-from barriers with a size, which the phantom does not have. A restricted compartment
+from barriers with a size, which the simulated brain does not have. A restricted compartment
 (implementation plan item T6) would add a cylinder with a radius and a time-dependent
 signal; until it exists, the toy random walks are the only simulation in this book that
-shows time dependence, and the phantom's ground truth for microstructure should be read as
+shows time dependence, and the simulated brain's ground truth for microstructure should be read as
 long-time-limit quantities.
 
 ## What this implies for acquisition

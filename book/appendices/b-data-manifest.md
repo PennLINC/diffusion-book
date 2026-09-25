@@ -39,24 +39,25 @@ else:
 
 ## Planned datasets
 
-Until the release exists, the table lists what the pipeline configuration defines. Each
+Until the release exists, the table lists what the pipeline configuration defines. Each dataset is described in [Appendix A](./a-trxscan-cookbook.md#app-a-datasets). Each
 row becomes a directory of BIDS files (`part-mag`, `part-phase`, `.bval`, `.bvec`, JSON
 sidecars), the truth outputs the run writes, the chapter's precomputed results, and a
 `provenance.json`.
 
 ```{code-cell} python
 :tags: [hide-input]
-print(f"{'dataset':<14} {'phantom(s)':<22} {'runs':>5}   description")
+print(f"{'dataset':<14} {'source anatomy':<22} {'runs':>5}   description")
 for ds_id, ds in cfg["datasets"].items():
     phantoms = ds["phantom"] if isinstance(ds["phantom"], str) else ", ".join(ds["phantom"])
     n_runs = len(cookbook.render_commands(cfg, ds_id))
     print(f"{ds_id:<14} {phantoms:<22} {n_runs:>5}   {ds['description'].strip()[:80]}")
 ```
 
+(app-b-package-data)=
 ## Package data
 
 Three files ship inside the `dwibook` package so that the toy tier of the book builds
-without any download: one axial slice of the phantom's tissue fractions at 2 mm
+without any download: one axial slice of the simulated brain's tissue fractions at 2 mm
 (`brain_slice.npz`), the same slice at 1 mm (`brain_slice_1mm.npz`), a 3 mm tissue volume
 (`brain_volume.npz`), and the HBCD gradient scheme (`schemes/hbcd_ap.bval`, `.bvec`). Each
 NPZ records its provenance:

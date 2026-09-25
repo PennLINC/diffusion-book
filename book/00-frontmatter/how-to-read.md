@@ -1,5 +1,5 @@
 ---
-title: How to read and run this book
+title: "0.1 How to read and run this book"
 subtitle: Executable cells, data, environment, reproduction
 kernelspec:
   name: python3
@@ -19,7 +19,7 @@ assumptions hold and where they do not.
 The chapters are meant to be read in order the first time. Part I covers how an image is
 made and reconstructed, Part II how diffusion is encoded and sampled, Part III what goes
 wrong and how it is fixed, Part IV what is fitted to the corrected data, and Part V what
-lies beyond a standard acquisition. Chapter 19 collects the requirements of everything
+lies beyond a standard acquisition. [Chapter 19](../04-modeling/19-what-your-data-allow.md) collects the requirements of everything
 before it into one decision table and is the page to return to.
 
 ## Executable cells
@@ -30,7 +30,8 @@ does not require reading the code, but the code is short and deliberately litera
 is the exact procedure behind each figure. Cells that only set up imports are hidden
 entirely.
 
-Each chapter follows one structure: *learning goals*, the physics, a *See it* section
+Each chapter opens with a box listing the simulated datasets it uses, with links to their
+descriptions in [Appendix A](../appendices/a-trxscan-cookbook.md#app-a-datasets). It then follows one structure: *learning goals*, the physics, a *See it* section
 that produces the figures, a *Measure it* section that reports a number against the known
 answer, *What this implies for acquisition*, and further reading. In Part III the middle
 sections follow the artifact template: the physics of the artifact, the simulator flags
@@ -43,19 +44,18 @@ The figures come from two sources, and every chapter says which:
 
 - **Toy tier.** Small simulations written in the page and run when the book is built: a
   spin's Bloch equations, the k-space of one brain slice, random walks, single-voxel
-  signal models, and synthetic diffusion series built from the phantom's tissue maps with
+  signal models, and synthetic diffusion series built from the simulated brain's tissue maps with
   a known fiber orientation in every voxel. They run in seconds and are the answer key for
   most of the book's measurements.
-- **Phantom tier.** Full simulations of the phantom (Chapter 0.2) by TRXScan, a
+- **Pipeline tier.** Full simulations of the same brain ([Chapter 0.2](./the-simulated-datasets.md)) by TRXScan, a
   diffusion-MRI simulator that models the acquisition from the diffusion signal through
   k-space to the reconstructed complex image, with the artifacts of a real scanner. These
   runs take minutes to hours, so they are made offline by a pipeline, versioned, and
-  downloaded by the pages that use them. Sections that depend on them are marked *Phantom
-  figure pending* until the corresponding dataset has been released.
+  downloaded by the pages that use them. Sections that depend on them are marked *Simulated dataset pending* until the corresponding dataset has been released.
 
-The toy tier is fully reproducible from the repository alone. The phantom tier is
-reproducible from the repository plus the simulator and the phantom inputs, which
-Appendix A documents command by command.
+The toy tier is fully reproducible from the repository alone. The pipeline tier is
+reproducible from the repository plus the simulator and the simulation inputs, which
+[Appendix A](../appendices/a-trxscan-cookbook.md) documents command by command.
 
 ## Running the book yourself
 
@@ -72,26 +72,26 @@ OMP_NUM_THREADS=1 micromamba run -n dwibook myst start --execute
 
 The last command serves the book at a local address and re-executes a page whenever it is
 edited. The chapters can also be opened as notebooks in JupyterLab, since each page is a
-MyST Markdown notebook. Appendix C lists the versions of every package the published
+MyST Markdown notebook. [Appendix C](../appendices/c-software-environment.md) lists the versions of every package the published
 build used.
 
-The phantom datasets are fetched on first use by the pages that need them and cached; to
+The pipeline-tier datasets are fetched on first use by the pages that need them and cached; to
 build against a local pipeline output instead, set `DWIBOOK_DATA` to its directory
-(Appendix B).
+([Appendix B](../appendices/b-data-manifest.md)).
 
 ## Reproducing the simulations
 
-Appendix A lists the command line behind every dataset, generated from the pipeline's own
+[Appendix A](../appendices/a-trxscan-cookbook.md) lists the command line behind every dataset, generated from the pipeline's own
 configuration, and each downloaded dataset carries a `provenance.json` with the commands,
 the simulator version, and the container image that produced it. The pipeline itself is a
 Snakemake workflow in the repository's `pipelines` directory; it requires the TRXScan
-binaries and the phantom inputs, which are distributed separately from the book.
+binaries and the simulation inputs, which are distributed separately from the book.
 
 ## Conventions
 
 - Spelling is American; the tissue colors are fixed throughout (white matter blue, gray
   matter orange, CSF aqua); difference maps use a diverging scale centered on zero.
-- Images of the phantom are axial slices with anterior at the top and, in the toy tier,
+- Images of the simulated brain are axial slices with anterior at the top and, in the toy tier,
   radiological orientation (image left is the subject's right). The phase-encode axis of
   every simulated acquisition is anterior-posterior, as in the reference protocol.
 - Units: b in s/mm², diffusivities in mm²/s (with 10⁻³ mm²/s = 1 µm²/ms), times in ms

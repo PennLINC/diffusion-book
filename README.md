@@ -1,7 +1,7 @@
 # diffusion-book
 Diffusion MRI executable book, built with Jupyter Book 2 (mystmd). Figures come from small
-in-notebook simulations and from pre-simulated TRXScan phantom data; every model fit is scored
-against the phantom's analytic ground truth.
+in-notebook simulations and from simulated datasets produced offline by TRXScan; every model fit is scored
+against the analytic ground truth of the same simulated brain.
 
 ## Quickstart
 
@@ -13,7 +13,12 @@ micromamba run -n dwibook pip install -e ".[test]"
 micromamba run -n dwibook pytest                       # helper-package unit tests
 micromamba run -n dwibook myst start --execute         # live preview at http://localhost:3000
 micromamba run -n dwibook myst build --html --execute  # static site in _build/html
+micromamba run -n dwibook python tools/inject_static.py # then add the image lightbox
 ```
+
+The theme cannot run page scripts, so click-to-enlarge images are added after the build:
+`tools/inject_static.py` copies `book/_static/lightbox.{css,js}` into `_build/html` and
+links them from every page. The CI workflow runs it before deploying.
 
 Set `OMP_NUM_THREADS=1` (and the OpenBLAS/MKL equivalents) before building: the notebooks
 execute in parallel, and one BLAS thread per kernel keeps the build at about a minute

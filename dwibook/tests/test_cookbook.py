@@ -3,7 +3,7 @@ from dwibook import cookbook
 
 def test_config_loads_and_lists_all_datasets():
     cfg = cookbook.load_config()
-    assert set(cfg["datasets"]) >= {"ref-clean", "ref-schemes", "noise-sweep", "gibbs", "sdc-pair", "eddy", "motion-mb", "gnl", "kitchen-sink", "voxel-sweep", "te-sweep", "truth"}
+    assert set(cfg["datasets"]) >= {"ref-clean", "ref-schemes", "noise-sweep", "gibbs", "sdc-pair", "eddy", "motion-mb", "gnl", "kitchen-sink", "voxel-sweep", "te-sweep", "truth", "presets"}
 
 
 def test_render_commands_expands_sweeps_variants_and_pairs():
@@ -18,6 +18,8 @@ def test_render_commands_expands_sweeps_variants_and_pairs():
     assert len(ks) == 2 and "--reverse-pe" in ks[1] and "--oversample 2" in ks[0]
     gnl = cookbook.render_commands(cfg, "gnl")
     assert sum("--gnl-no-warp" in c for c in gnl) == 1 and all("--isocenter 0,-20,-30" in c for c in gnl)
+    presets = cookbook.render_commands(cfg, "presets")
+    assert len(presets) == 3 and sum("--params neonatal" in c for c in presets) == 1 and all(c.count("--params") == 1 for c in presets)
     truth = cookbook.render_commands(cfg, "truth")
     assert len(truth) == 1 and truth[0].startswith("trxscan-microstructure")
 

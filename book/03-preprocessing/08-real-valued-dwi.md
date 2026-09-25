@@ -1,10 +1,18 @@
 ---
-title: Real-valued diffusion MRI
-subtitle: Chapter 8, continued
+title: "8b. Real-valued diffusion MRI"
 kernelspec:
   name: python3
   display_name: Python 3
 ---
+
+:::{admonition} Simulated datasets in this chapter
+:class: note
+- **Built in this page:** the synthetic series of [Chapter 8](./08-noise.md) with a simulated object phase ([Appendix B](../appendices/b-data-manifest.md#app-b-package-data)).
+- **`noise-sweep`** (pending): four noise levels with one coil, plus an 8-coil GRAPPA run ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-noise-sweep)).
+- **`truth`** (pending): the 27 analytic ground-truth maps and the true fiber orientations ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-truth), [Appendix E](../appendices/e-truth-map-catalogue.md)).
+
+Pipeline-tier datasets are simulated offline by TRXScan ([Chapter 0.2](../00-frontmatter/the-simulated-datasets.md)) and are marked *pending* until their release; the figures that need them say so where they will appear.
+:::
 
 ## Learning goals
 
@@ -13,9 +21,6 @@ After this chapter you can:
 - explain why a phase-corrected real-valued image has Gaussian noise with no floor
 - estimate and remove the background phase of a diffusion volume and take its real part
 - state what the approach requires, what it costs, and when it fails
-
-**Datasets used:** `noise-sweep` (pending); the toy tier uses the synthetic series of Chapter 8
-**Simulation tier:** toy + phantom
 
 ```{code-cell} python
 :tags: [hide-cell]
@@ -33,11 +38,11 @@ set_style()
 
 ## The idea
 
-The noise floor of Chapter 8 exists because the magnitude of a complex number is never
+The noise floor of [Chapter 8](./08-noise.md) exists because the magnitude of a complex number is never
 negative: noise that would have pushed a weak signal below zero is folded back up. The
 complex image has no such floor, but its signal does not lie along one axis: every voxel
 carries a phase from the field offset, the coils, the eddy currents, and motion during the
-encoding (Chapter 3), and that phase varies across the image and between volumes.
+encoding ([Chapter 3](../01-mri-physics/03-reconstruction.md)), and that phase varies across the image and between volumes.
 
 If the phase is smooth, it can be estimated and removed. Rotating each voxel's complex value
 by the negative of its estimated phase puts the signal on the real axis, and the real part
@@ -115,7 +120,7 @@ for label, s in [("magnitude", magnitude), ("real-valued", real_valued)]:
 
 The real-valued residual is Gaussian around zero at b = 3000, where the magnitude residual
 has a positive mean. Fits to real-valued data need one adjustment: values can be negative,
-so a fit to the logarithm of the signal (the linear tensor fit of Chapter 15) is not
+so a fit to the logarithm of the signal (the linear tensor fit of [Chapter 15](../04-modeling/15-signal-representations.md)) is not
 possible, and nonlinear fits to the signal itself are used instead.
 
 ## When it fails
@@ -124,19 +129,19 @@ possible, and nonlinear fits to the signal itself are used instead.
   motion phase, the true phase varies faster than the filter allows. The estimate is then
   wrong, part of the signal is rotated onto the imaginary axis and lost, and the real part
   is biased downward. A per-volume check of the imaginary residual shows where this happens.
-- **Partial Fourier.** The reconstruction already assumed a smooth phase (Chapter 3); the
+- **Partial Fourier.** The reconstruction already assumed a smooth phase ([Chapter 3](../01-mri-physics/03-reconstruction.md)); the
   two assumptions compound, and the phase estimate should be made after the partial-Fourier
   reconstruction, from the complex image it produced.
 - **Multi-coil combination.** The phase must survive the combination: a sensitivity-weighted
-  combination keeps it, a root-sum-of-squares discards it (Chapter 3).
+  combination keeps it, a root-sum-of-squares discards it ([Chapter 3](../01-mri-physics/03-reconstruction.md)).
 
-Real-valued conversion and complex-domain denoising (Chapter 8) address the same problem
+Real-valued conversion and complex-domain denoising ([Chapter 8](./08-noise.md)) address the same problem
 from two sides and are often combined: denoise the complex data, then phase-correct and take
 the real part.
 
-## Measure it: the phantom
+## Measure it: the simulated datasets
 
-:::{admonition} Phantom figure pending
+:::{admonition} Simulated dataset pending
 :class: note
 This section will apply the phase correction to the `noise-sweep` dataset, whose phase
 images carry the simulator's object phase and eddy-current phase ramp, and compare the
@@ -145,7 +150,7 @@ real-valued fits with the `truth` maps where the magnitude fits were biased.
 
 ## What this implies for acquisition
 
-- **Save the phase** (Chapter 3); nothing else at the scanner is required.
+- **Save the phase** ([Chapter 3](../01-mri-physics/03-reconstruction.md)); nothing else at the scanner is required.
 - **Prefer a combination that keeps the phase** if the coil combination is configurable.
 - **Keep partial Fourier moderate**, so that the phase assumption both reconstructions rely
   on holds.

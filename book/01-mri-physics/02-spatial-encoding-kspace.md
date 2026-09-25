@@ -1,10 +1,17 @@
 ---
-title: Spatial encoding and k-space
-subtitle: Chapter 2
+title: "2. Spatial encoding and k-space"
 kernelspec:
   name: python3
   display_name: Python 3
 ---
+
+:::{admonition} Simulated datasets in this chapter
+:class: note
+- **Built in this page:** the k-space of a synthetic b=0 slice built from the packaged tissue maps ([Appendix B](../appendices/b-data-manifest.md#app-b-package-data)).
+- **`slab-kspace`** (pending): a five-slice slab with its raw k-space exported: 8 coils, GRAPPA 2, partial Fourier 6/8 ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-slab-kspace)).
+
+Pipeline-tier datasets are simulated offline by TRXScan ([Chapter 0.2](../00-frontmatter/the-simulated-datasets.md)) and are marked *pending* until their release; the figures that need them say so where they will appear.
+:::
 
 ## Learning goals
 
@@ -18,9 +25,6 @@ After this chapter you can:
 - recognize Gibbs ringing and know where it comes from
 - explain why diffusion MRI uses single-shot EPI despite its drawbacks
 
-**Datasets used:** `slab-kspace` (pending)
-**Simulation tier:** toy + phantom
-
 ```{code-cell} python
 :tags: [hide-cell]
 import numpy as np
@@ -30,7 +34,7 @@ from dwibook import kspace, phantoms
 from dwibook.plotting import PALETTE, set_style, show_image, show_kspace
 
 set_style()
-img = phantoms.brain_image()  # synthetic b=0 slice of the phantom, adult preset, TE 88 ms
+img = phantoms.brain_image()  # synthetic b=0 slice of the simulated brain, adult preset, TE 88 ms
 mask = phantoms.brain_slice()["mask"]
 ```
 
@@ -40,7 +44,7 @@ A gradient coil adds a field that varies linearly with position, so spins at dif
 positions precess at different frequencies. Switching a gradient on for a short time gives
 every spin a phase that depends on its position along the gradient direction. The receiver
 records the sum of all spins in the slice as one complex number (the quadrature-demodulated
-signal of Chapter 1), and with a position-dependent phase applied that sum is one sample of
+signal of [Chapter 1](./01-spins-and-signal.md)), and with a position-dependent phase applied that sum is one sample of
 the Fourier transform of the image:
 
 $$s(\mathbf{k}) = \int \rho(\mathbf{r})\, e^{-2\pi i\, \mathbf{k}\cdot\mathbf{r}}\, d\mathbf{r}.$$
@@ -53,13 +57,13 @@ the same principle during excitation: a gradient along the slice direction makes
 resonant only within a slab.
 
 This chapter assumes the gradient fields are exactly linear. They are not, and the
-consequences for image geometry and for the diffusion encoding are the subject of Chapter 13.
+consequences for image geometry and for the diffusion encoding are the subject of [Chapter 13](../03-preprocessing/13-gradient-nonlinearity.md).
 
 ## The Fourier relationship
 
-The images in this chapter are a synthetic b=0 slice of the book's phantom: the tissue
+The images in this chapter are a synthetic b=0 slice of the simulated brain: the tissue
 fractions of one axial slice, weighted by proton density and T2 decay at the HBCD echo time
-(Chapter 1). Its k-space is computed directly.
+([Chapter 1](./01-spins-and-signal.md)). Its k-space is computed directly.
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -102,7 +106,7 @@ characteristic failure:
 - Stopping too close to the center gives large voxels and blurred edges, with ringing
   (below).
 - Sampling too coarsely for the size of the object makes the image wrap around on itself.
-  This is aliasing, and it is the effect that parallel imaging (Chapter 3) deliberately
+  This is aliasing, and it is the effect that parallel imaging ([Chapter 3](./03-reconstruction.md)) deliberately
   induces and then removes.
 
 ```{code-cell} python
@@ -170,13 +174,13 @@ Three consequences of the long readout, each treated in its own chapter:
 
 - The phase-encode direction is sampled slowly, about one line per millisecond, so a small
   frequency offset displaces signal a long way along that axis. An off-resonance of 100 Hz
-  moves signal by about ten voxels. This is susceptibility distortion (Chapter 10), and it is
+  moves signal by about ten voxels. This is susceptibility distortion ([Chapter 10](../03-preprocessing/10-susceptibility-distortion.md)), and it is
   why the phase-encode direction and readout time must be recorded in the image metadata.
 - Signal decays with T2* during the readout, so lines acquired late are weaker. The result is
   blurring along the phase-encode direction.
 - Odd and even lines are read in opposite directions. A timing mismatch between them
   produces a faint copy of the image shifted by half the field of view, the Nyquist ghost
-  (Chapter 14).
+  ([Chapter 14](../03-preprocessing/14-assembled-pipeline.md)).
 
 ## Partial Fourier
 
@@ -186,7 +190,7 @@ acquiring 5/8 to 7/8 of them. The timings printed above show the two benefits: t
 shorter, and the center of k-space is reached sooner, which shortens the minimum echo time.
 The cost is that real images do have phase (from field inhomogeneity, coil phase, eddy
 currents, and motion), so the symmetry is only approximate and the reconstruction has to
-estimate the phase from the acquired part (Chapter 3). In-plane acceleration is the other way
+estimate the phase from the acquired part ([Chapter 3](./03-reconstruction.md)). In-plane acceleration is the other way
 to shorten the readout: keep every $R$-th line and recover the missing ones using multiple
 receive coils.
 
@@ -232,7 +236,7 @@ fig.tight_layout()
 
 The ringing is small in absolute terms but it sits exactly where CSF meets tissue, and it
 changes with b-value because the CSF signal changes with b-value. Its effect on diffusion
-metrics at tissue borders, and the correction for it, are covered in Chapter 9.
+metrics at tissue borders, and the correction for it, are covered in [Chapter 9](../03-preprocessing/09-gibbs-ringing.md).
 
 ## Why diffusion MRI uses single-shot EPI
 
@@ -257,12 +261,12 @@ fig.tight_layout()
 ```
 
 Multi-shot diffusion imaging is possible with navigator echoes or with reconstructions that
-estimate the per-shot phase (Chapter 23), but the standard acquisition remains single-shot
+estimate the per-shot phase ([Chapter 23](../05-advanced/23-frontiers.md)), but the standard acquisition remains single-shot
 EPI. Its long readout is the origin of most of the artifacts corrected in Part III.
 
 ## Measure it: a TRXScan slice and its k-space
 
-:::{admonition} Phantom figure pending
+:::{admonition} Simulated dataset pending
 :class: note
 This section will load the `slab-kspace` dataset, show one acquired slice with the raw
 k-space TRXScan recorded for it, and derive the EPI timing from the BIDS JSON sidecar
@@ -275,9 +279,9 @@ simulator (implementation plan §4, item T2).
 - **Voxel size and FOV are k-space decisions.** Smaller voxels require more lines, a longer
   readout, and therefore more distortion and blur.
 - **Readout length drives the main EPI artifacts.** Partial Fourier and in-plane
-  acceleration both shorten it and both reduce the minimum TE. Chapter 7 discusses their costs.
+  acceleration both shorten it and both reduce the minimum TE. [Chapter 7](../02-diffusion-encoding/07-acquisition-parameters.md) discusses their costs.
 - **Ringing is a property of every acquisition**, not a malfunction. It is worst at CSF
-  boundaries and can be reduced after the fact (Chapter 9).
+  boundaries and can be reduced after the fact ([Chapter 9](../03-preprocessing/09-gibbs-ringing.md)).
 - **Single-shot EPI is a compromise** accepted so that diffusion encoding is robust to
   motion. The metadata that describe the readout, `PhaseEncodingDirection` and
   `TotalReadoutTime`, are required by the corrections in Part III and should be checked

@@ -1,20 +1,28 @@
 ---
-title: Gradient nonlinearity
-subtitle: Chapter 13
+title: "13. Gradient nonlinearity"
 kernelspec:
   name: python3
   display_name: Python 3
 ---
 
+:::{admonition} Simulated datasets in this chapter
+:class: note
+- **Built in this page:** a synthetic series on the packaged 2 mm slice with a radial gradient warp ([Appendix B](../appendices/b-data-manifest.md#app-b-package-data)).
+- **`gnl`** (pending): gradient nonlinearity on two gradient systems, a severity sweep, and warp-only and encoding-only runs, with the true displacement field and gradient deviation ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-gnl)).
+- **`truth`** (pending): the 27 analytic ground-truth maps and the true fiber orientations ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-truth), [Appendix E](../appendices/e-truth-map-catalogue.md)).
+
+Pipeline-tier datasets are simulated offline by TRXScan ([Chapter 0.2](../00-frontmatter/the-simulated-datasets.md)) and are marked *pending* until their release; the figures that need them say so where they will appear.
+:::
+
 :::{admonition} Why this chapter comes last among the artifacts
 :class: note
 Gradient nonlinearity is a fixed property of the scanner, like the receive coils and the
-gradient strength of Chapter 7, and could be introduced before the noise and motion of
+gradient strength of [Chapter 7](../02-diffusion-encoding/07-acquisition-parameters.md), and could be introduced before the noise and motion of
 the preceding chapters. It is placed here because its corrections are the last ones
 applied: the geometric part is composed with the susceptibility, eddy, and motion
-corrections of Chapters 10 through 12 into one resampling, and the encoding part is
+corrections of Chapters [10](./10-susceptibility-distortion.md) through [12](./12-motion-and-dropout.md) into one resampling, and the encoding part is
 handed to the model fits of Part IV. Reading it after those chapters keeps the order of
-the pipeline (Chapter 14) and the order of the book the same.
+the pipeline ([Chapter 14](./14-assembled-pipeline.md)) and the order of the book the same.
 :::
 
 ## Learning goals
@@ -27,9 +35,6 @@ After this chapter you can:
 - apply the geometric correction (gradwarp) and the encoding correction (a per-voxel
   b-matrix) and show that each removes a different error
 - state which acquisition choices reduce the problem
-
-**Datasets used:** `gnl`, `truth` (pending); the toy tier uses a radial warp
-**Simulation tier:** toy + phantom
 
 ```{code-cell} python
 :tags: [hide-cell]
@@ -45,7 +50,7 @@ set_style()
 ## The physics
 
 Spatial encoding assumes that each gradient coil produces a field that varies linearly
-with position (Chapter 2). A real coil does so only near the isocenter of the magnet.
+with position ([Chapter 2](../01-mri-physics/02-spatial-encoding-kspace.md)). A real coil does so only near the isocenter of the magnet.
 Farther out, the field falls away from the linear ramp, by a few percent at 10 cm from the
 isocenter on a whole-body system and more on head-only or high-performance gradient
 systems, where strength is bought at the expense of linearity. The deviation is a smooth,
@@ -66,15 +71,6 @@ Two things follow from one field:
    table are wrong by the local deviation of $b$, and fiber directions are rotated. This
    error survives the image unwarp, because unwarping moves voxels but does not change the
    gradient they were encoded with {cite:p}`bammer2003`.
-
-## The phantom dataset
-
-The simulated dataset for this chapter is `gnl`: the phantom on a whole-body and a
-Connectom-class gradient system, a severity sweep, and runs with only the spatial warp or
-only the encoding deviation, each written with its true coefficient file, displacement
-field, and gradient-deviation image, scored against `truth`. The simulator settings that
-produce it are listed under its name in [Appendix A](#app-a-datasets), and its files in
-Appendix B.
 
 ## The artifact-free reference
 
@@ -143,7 +139,7 @@ Jacobian to restore the intensity. The HCP pipelines do this with `gradunwarp`
 {cite:p}`glasser2013`; TORTOISE's `CreateNonlinearityDisplacementMap` produces the same
 field, and qsiprep applies it when given the coefficient file. The displacement is composed
 with the susceptibility and eddy corrections so that the data are resampled once
-(Chapter 14). Note that the anatomical images are warped by the same field and are
+([Chapter 14](./14-assembled-pipeline.md)). Note that the anatomical images are warped by the same field and are
 corrected on the scanner by default on most systems; the diffusion data usually are not.
 
 ```{code-cell} python
@@ -230,7 +226,7 @@ frontal white matter of this example, far larger than the group differences most
 report. The per-voxel b-matrix removes it. On the full pipeline a residual of several
 percent remains that has nothing to do with the encoding: it is the interpolation error of
 warping and unwarping the diffusion-weighted images at the edges of white matter, the same
-cost every resampling carries (Chapter 14). Neither correction is applied by most default
+cost every resampling carries ([Chapter 14](./14-assembled-pipeline.md)). Neither correction is applied by most default
 pipelines unless the coefficient file is provided.
 
 ## Where it sits in the pipeline
@@ -242,9 +238,9 @@ and the first thing the reconstruction consumes. Applying only gradwarp leaves t
 encoding error; applying only the b-matrix correction leaves the geometry wrong, which
 matters wherever the diffusion data meet an anatomical image or an atlas.
 
-## Measure it: the phantom
+## Measure it: the simulated datasets
 
-:::{admonition} Phantom figure pending
+:::{admonition} Simulated dataset pending
 :class: note
 This section will load the `gnl` dataset (whole-body and Connectom presets, a severity
 sweep, and warp-only and encoding-only runs) with the truth displacement field and
@@ -259,7 +255,7 @@ per-voxel fits against them.
 - **Obtain the coefficient file** for the scanner before the study. Without it neither
   correction can be applied, and it is not part of the standard export.
 - **Know the gradient system.** Head-insert and high-performance gradients are less linear
-  than whole-body gradients; the gain in TE (Chapter 5) comes with a larger correction.
+  than whole-body gradients; the gain in TE ([Chapter 5](../02-diffusion-encoding/05-diffusion-encoding.md)) comes with a larger correction.
 - **Do not compare uncorrected diffusivities across scanners** or across head positions.
 
 ## Further reading

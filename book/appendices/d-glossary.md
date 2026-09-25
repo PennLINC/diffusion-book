@@ -59,6 +59,7 @@ Terms as they are used in this book, with the chapter that introduces each.
 | SENSE | Parallel imaging in the image domain: aliased pixels are unfolded using coil sensitivities. | 3 |
 | Shell | A set of directions at one b-value. | 6 |
 | SIFT2 | Streamline weighting that makes streamline density consistent with the fiber ODFs. | 18 |
+| Simulated datasets | The toy-tier series built in the pages and the pipeline-tier series produced offline by TRXScan ([Appendix A](./a-trxscan-cookbook.md#app-a-datasets)). | 0.2 |
 | SNR | Signal-to-noise ratio, here the signal divided by the noise standard deviation of one channel. | 8 |
 | Spherical mean | The average of the signal over all directions of a shell; removes orientation effects. | 17 |
 | Spin echo | Refocusing of static dephasing by a 180° pulse; the basis of diffusion sequences. | 1 |
@@ -66,7 +67,7 @@ Terms as they are used in this book, with the chapter that introduces each.
 | T1, T2, T2* | Longitudinal relaxation time; transverse relaxation time; transverse decay including static inhomogeneity. | 1 |
 | TE, TR | Echo time; repetition time. | 1, 7 |
 | Tractography | Generation of streamlines from local fiber orientations. | 18 |
-| Truth maps | The 27 analytic microstructure maps TRXScan writes for the phantom (Appendix E). | 0.2 |
+| Truth maps | The 27 analytic microstructure maps TRXScan writes for the simulated brain ([Appendix E](./e-truth-map-catalogue.md)). | 0.2 |
 | Unringing | Removal of Gibbs ringing by sub-voxel shifts. | 9 |
 
 ```{code-cell} python

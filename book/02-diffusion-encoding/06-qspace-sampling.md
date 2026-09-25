@@ -1,10 +1,18 @@
 ---
-title: q-space sampling schemes
-subtitle: Chapter 6
+title: "6. q-space sampling schemes"
 kernelspec:
   name: python3
   display_name: Python 3
 ---
+
+:::{admonition} Simulated datasets in this chapter
+:class: note
+- **Built in this page:** single-voxel signals under each sampling scheme, generated in the page ([Appendix B](../appendices/b-data-manifest.md#app-b-package-data)).
+- **`ref-clean`** (pending): the artifact-free, noise-free reference series with its truth maps and true fiber orientations ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-ref-clean)).
+- **`ref-schemes`** (pending): the simulated brain under the 30-direction, 64-direction, HBCD, DSI, and CS-DSI schemes at matched scan time ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-ref-schemes)).
+
+Pipeline-tier datasets are simulated offline by TRXScan ([Chapter 0.2](../00-frontmatter/the-simulated-datasets.md)) and are marked *pending* until their release; the figures that need them say so where they will appear.
+:::
 
 ## Learning goals
 
@@ -16,9 +24,6 @@ After this chapter you can:
 - explain why the number and distribution of directions matter, with a measured example
 - estimate the scan time of a scheme
 - use Table 6.1 to match a scheme to an analysis
-
-**Datasets used:** `ref-schemes` (pending)
-**Simulation tier:** toy + phantom
 
 ```{code-cell} python
 :tags: [hide-cell]
@@ -39,7 +44,7 @@ Each diffusion-weighted volume applies one gradient direction at one b-value. Th
 all (direction, b-value) pairs in an acquisition is its sampling scheme. It is convenient to
 picture each measurement as a point in a three-dimensional space whose direction is the
 gradient direction and whose distance from the origin grows with the b-value; this is
-q-space, and the diffusion signal is a function defined on it (Chapter 4). A scheme is a
+q-space, and the diffusion signal is a function defined on it ([Chapter 4](./04-diffusion-in-tissue.md)). A scheme is a
 choice of where in q-space to take samples, and every model in Part IV needs a particular
 kind of coverage.
 
@@ -59,7 +64,7 @@ directions.
 - **Around 30 directions** gives a tensor fit whose precision no longer depends on how the
   fibers are oriented relative to the directions {cite:p}`jones2004`.
 - **60–90 directions at b ≥ 2000** resolves crossing fibers with the orientation models of
-  Chapter 16. Most white matter voxels contain more than one fiber orientation
+  [Chapter 16](../04-modeling/16-fiber-orientation.md). Most white matter voxels contain more than one fiber orientation
   {cite:p}`jeurissen2013`, which is the reason HARDI exists.
 
 A single shell provides the angular profile of the signal at one b-value. It does not
@@ -68,8 +73,8 @@ multi-compartment models) cannot be fit reliably.
 
 ## Multi-shell
 
-Several b-values, each with its own direction set. The HBCD scheme bundled with the
-phantom is one example (b = 500, 1000, 2000, 3000); the Human Connectome Project's
+Several b-values, each with its own direction set. The HBCD scheme of the reference
+protocol is one example (b = 500, 1000, 2000, 3000); the Human Connectome Project's
 1000/2000/3000 with 90 directions each is another. The shells sample the decay with b as
 well as the angular profile, which is what diffusion kurtosis, NODDI, multi-tissue
 spherical deconvolution, and MAP-MRI require. Two design details matter:
@@ -77,7 +82,7 @@ spherical deconvolution, and MAP-MRI require. Two design details matter:
 - **Directions should be spread across shells as well as within them**, so that the
   combined set covers the sphere uniformly {cite:p}`caruyer2013`.
 - **Shells should be interleaved in acquisition order** and b=0 volumes spread throughout,
-  so that motion or scanner drift affects all shells equally (Chapter 5).
+  so that motion or scanner drift affects all shells equally ([Chapter 5](./05-diffusion-encoding.md)).
 
 ## DSI
 
@@ -93,7 +98,7 @@ by an inverse Fourier transform, without a model. The grid extends to high b-val
 
 Compressed-sensing DSI acquires a random subset of the grid points, typically a quarter to
 a third of them, and reconstructs the displacement distribution with the sparsity prior
-introduced in Chapter 3, applied in q-space {cite:p}`menzel2011`. The same three
+introduced in [Chapter 3](../01-mri-physics/03-reconstruction.md), applied in q-space {cite:p}`menzel2011`. The same three
 requirements apply: the subset must be irregular, the distribution must be compressible in
 some basis, and the reconstruction is iterative. The result is DSI-like information in a
 multi-shell-like scan time.
@@ -101,8 +106,8 @@ multi-shell-like scan time.
 ## Free-form and multidimensional sampling
 
 The families above vary direction and b-value. Other acquisitions add further dimensions:
-several diffusion times (Chapter 22), several echo times (Chapter 20), or the shape of the
-encoding (b-tensor encoding, Chapter 23). Each adds sensitivity to a tissue property that
+several diffusion times ([Chapter 22](../05-advanced/22-multi-diffusion-time.md)), several echo times ([Chapter 20](../05-advanced/20-multi-te.md)), or the shape of the
+encoding (b-tensor encoding, [Chapter 23](../05-advanced/23-frontiers.md)). Each adds sensitivity to a tissue property that
 direction and b-value alone cannot separate.
 
 ## See it: the schemes
@@ -146,7 +151,7 @@ fig.tight_layout()
 ## Measure it: direction count and tensor precision
 
 How many directions does a tensor fit need? The simulation below builds the signal of one
-white matter voxel from the phantom's model (Chapter 5) for a fiber along a fixed axis, adds
+white matter voxel from the simulated brain's model ([Chapter 5](./05-diffusion-encoding.md)) for a fiber along a fixed axis, adds
 noise at SNR 20 on the b=0 image, fits the tensor with dipy, and repeats 400 times for each
 scheme. The spread of the fitted fractional anisotropy (FA) is the precision of the scheme.
 
@@ -202,7 +207,7 @@ for name, (b, v) in examples.items():
     print(f"{name:>40}: {len(b):3d} volumes, {schemes.scan_time_s(len(b), TR) / 60:4.1f} min")
 ```
 
-Reverse phase-encode acquisitions for distortion correction (Chapter 10) add either a few
+Reverse phase-encode acquisitions for distortion correction ([Chapter 10](../03-preprocessing/10-susceptibility-distortion.md)) add either a few
 b=0 volumes or a full second copy of the scheme.
 
 ## Table 6.1: scheme to model
@@ -221,14 +226,14 @@ b=0 volumes or a full second copy of the scheme.
 | Probabilistic tractography (fODF) | marginal | yes | yes | yes | yes |
 
 "Marginal" means the fit runs but its assumptions are strained or its precision is poor;
-Part IV shows each case on the phantom. Chapter 19 extends this table with acquisition
+Part IV shows each case on the simulated datasets. [Chapter 19](../04-modeling/19-what-your-data-allow.md) extends this table with acquisition
 parameters beyond the scheme.
 
-## Measure it: the phantom under five schemes
+## Measure it: the simulated datasets under five schemes
 
-:::{admonition} Phantom figure pending
+:::{admonition} Simulated dataset pending
 :class: note
-This section will load the `ref-schemes` dataset, the phantom simulated under the 30-direction,
+This section will load the `ref-schemes` dataset, the simulated brain under the 30-direction,
 64-direction, HBCD, DSI, and CS-DSI schemes at matched scan time, and show the same slice at
 matched b-values for each. Part IV fits every model of Table 6.1 to these data.
 :::
@@ -243,7 +248,7 @@ matched b-values for each. Part IV fits every model of Table 6.1 to these data.
 - **Full DSI is a strong-gradient, long-scan acquisition**; CS-DSI recovers most of it at a
   third of the volumes.
 - **Interleave shells and b=0 volumes** and spread directions across shells.
-- **Scan time is volumes times TR**; Chapter 7 shows what sets TR.
+- **Scan time is volumes times TR**; [Chapter 7](./07-acquisition-parameters.md) shows what sets TR.
 
 ## Further reading
 

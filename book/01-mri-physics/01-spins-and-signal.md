@@ -1,10 +1,17 @@
 ---
-title: Spins, precession, and the MR signal
-subtitle: Chapter 1
+title: "1. Spins, precession, and the MR signal"
 kernelspec:
   name: python3
   display_name: Python 3
 ---
+
+:::{admonition} Simulated datasets in this chapter
+:class: note
+- **Built in this page:** Bloch-equation simulations of single spins, and a synthetic b=0 slice built from the packaged tissue maps ([Appendix B](../appendices/b-data-manifest.md#app-b-package-data)).
+- **`presets`** (pending): b=0 volumes of the simulated brain under the adult, neonatal, and infant presets ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-presets)).
+
+Pipeline-tier datasets are simulated offline by TRXScan ([Chapter 0.2](../00-frontmatter/the-simulated-datasets.md)) and are marked *pending* until their release; the figures that need them say so where they will appear.
+:::
 
 ## Learning goals
 
@@ -14,11 +21,8 @@ After this chapter you can:
 - explain, from a simulation, why a spin echo recovers signal that a simple readout loses, and
   why diffusion MRI uses one
 - compute the b=0 signal of white matter, gray matter, and CSF at a given echo time using the
-  tissue parameters of the book's phantom
+  tissue parameters of the simulated brain
 - state the practical consequences of echo time and tissue T2 for diffusion data
-
-**Datasets used:** none (toy tier); the phantom comparison of the three presets is planned
-**Simulation tier:** toy
 
 ```{code-cell} python
 :tags: [hide-cell]
@@ -51,8 +55,8 @@ for name, b0 in presets.B0_T.items():
 The precession frequency depends on the local field. Any deviation of the field from $B_0$,
 whether from an imperfection of the magnet, from the susceptibility of tissue and air, or
 from a gradient applied on purpose, changes the frequency in proportion. This dependence is
-used deliberately to encode position (Chapter 2) and appears as an artifact when the field is
-inhomogeneous near air-filled sinuses (Chapter 10).
+used deliberately to encode position ([Chapter 2](./02-spatial-encoding-kspace.md)) and appears as an artifact when the field is
+inhomogeneous near air-filled sinuses ([Chapter 10](../03-preprocessing/10-susceptibility-distortion.md)).
 
 ## Excitation and relaxation
 
@@ -71,7 +75,7 @@ Two processes then return the magnetization to equilibrium:
   static field inhomogeneity. The inhomogeneity part is reversible, and the spin echo below
   reverses it.
 
-The tissue values used throughout this book are those of the phantom. The T2 values are
+The tissue values used throughout this book are those of the simulated brain. The T2 values are
 TRXScan's `adult` compartment preset. TRXScan does not model T1, so the T1 values are 3 T
 literature figures and appear only in this chapter's simulations.
 
@@ -121,7 +125,7 @@ angle is the precession phase relative to the reference.
 
 Two consequences follow. First, every sample the scanner records, and therefore every k-space
 value and every reconstructed voxel, is complex; the magnitude image is a derived quantity
-(Chapter 3). Second, which channel is called real and which imaginary is a convention, and a
+([Chapter 3](./03-reconstruction.md)). Second, which channel is called real and which imaginary is a convention, and a
 constant phase offset depends on the reference oscillator, cable lengths, and receiver
 electronics. The absolute phase of an image therefore has no physical meaning. Differences in
 phase, between voxels, between acquisitions, or between echoes, are what carry information.
@@ -161,8 +165,8 @@ fig.tight_layout()
 The magnitude decays with T2 regardless of the off-resonance; the phase advances linearly
 at the off-resonance frequency. That separation is what the rest of the book relies on: the
 magnitude carries the tissue signal, and the phase carries the frequency offset, which
-becomes a position (Chapter 2), a field map (Chapter 10), or an eddy-current signature
-(Chapter 11).
+becomes a position ([Chapter 2](./02-spatial-encoding-kspace.md)), a field map ([Chapter 10](../03-preprocessing/10-susceptibility-distortion.md)), or an eddy-current signature
+([Chapter 11](../03-preprocessing/11-eddy-currents.md)).
 
 ## Spin echo versus gradient echo
 
@@ -182,7 +186,7 @@ Diffusion MRI is built on the spin echo for two reasons:
    (60–100 ms). A T2*-weighted readout would retain very little signal at such times; a spin
    echo retains the T2-weighted fraction.
 2. The refocusing pulse reverses deterministic dephasing but not random dephasing. The
-   diffusion gradients (Chapter 5) impart a phase proportional to each spin's displacement.
+   diffusion gradients ([Chapter 5](../02-diffusion-encoding/05-diffusion-encoding.md)) impart a phase proportional to each spin's displacement.
    Spins that moved randomly during the encoding do not refocus, and the resulting signal
    loss is the diffusion contrast.
 
@@ -234,7 +238,7 @@ for preset, t2 in presets.T2_MS.items():
     print(f"{preset:>9} {s['WM']:6.2f} {s['GM']:6.2f} {s['CSF']:6.2f} {s['GM']/s['WM']:7.2f} {s['CSF']/s['WM']:7.2f}")
 ```
 
-The same relation applied voxel by voxel to the phantom's tissue fractions gives the synthetic
+The same relation applied voxel by voxel to the simulated brain's tissue fractions gives the synthetic
 b=0 images used in the next two chapters. The adult image is dark in tissue and bright in CSF;
 the neonatal image retains more tissue signal at the same TE.
 
@@ -264,23 +268,23 @@ Both presets give weak gray–white contrast at 88 ms. In the adult, both tissue
 T2 and are strongly attenuated; in the neonate, both have long T2 and are mildly attenuated.
 In both, CSF is far brighter than tissue. This matters for diffusion fitting because voxels
 at the edge of the ventricles and sulci contain a mixture of tissue and CSF, and the CSF
-contribution dominates the b=0 signal of the mixture (Chapter 17).
+contribution dominates the b=0 signal of the mixture ([Chapter 17](../04-modeling/17-microstructure-models.md)).
 
-:::{admonition} Phantom figure pending
+:::{admonition} Simulated dataset pending
 :class: note
-Simulated b=0 volumes of the full phantom under all three presets (dataset `presets`) will be
+Simulated b=0 volumes of the full simulated brain under all three presets (dataset `presets`) will be
 added when the offline pipeline produces them.
 :::
 
 ## What this implies for acquisition
 
 - **Echo time costs signal.** Each additional 10 ms of TE removes about 14 % of adult white
-  matter signal. The diffusion encoding sets the minimum TE (Chapter 5); stronger gradients
+  matter signal. The diffusion encoding sets the minimum TE ([Chapter 5](../02-diffusion-encoding/05-diffusion-encoding.md)); stronger gradients
   shorten it.
 - **CSF dominates long-TE b=0 images.** Partial-volume CSF does not decay while tissue does.
-  Fits at tissue–CSF boundaries need a free-water term (Chapter 17).
+  Fits at tissue–CSF boundaries need a free-water term ([Chapter 17](../04-modeling/17-microstructure-models.md)).
 - **TR and T1.** A short TR saturates long-T1 tissue, most of all CSF. TRXScan represents this
-  with a per-compartment b=0 scale rather than a T1 model; Chapter 7 uses it.
+  with a per-compartment b=0 scale rather than a T1 model; [Chapter 7](../02-diffusion-encoding/07-acquisition-parameters.md) uses it.
 - **Age changes the numbers.** Unmyelinated tissue has long T2, so the same protocol yields
   more tissue signal and different contrast in neonates. The presets exist for this.
 - **Field strength** raises the available magnetization and SNR, but shortens T2* and

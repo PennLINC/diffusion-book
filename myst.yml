@@ -28,7 +28,7 @@ project:
     - title: Front matter
       children:
         - file: book/00-frontmatter/how-to-read.md
-        - file: book/00-frontmatter/the-phantom.md
+        - file: book/00-frontmatter/the-simulated-datasets.md
         - file: book/00-frontmatter/notation.md
     - title: "Part I: MRI physics"
       children:
@@ -75,3 +75,6 @@ site:
   template: book-theme
   options:
     folders: true
+  # Click-to-enlarge images: the theme has no lightbox and does not execute scripts placed
+  # in its content slots, so tools/inject_static.py adds book/_static/lightbox.{css,js} to
+  # every built page after `myst build` (see the build script and the CI workflow).

@@ -65,7 +65,7 @@ def _phantoms_of(ds: dict[str, Any]) -> list[str]:
     return [p] if isinstance(p, str) else list(p)
 
 
-def _base_flags(cfg: dict[str, Any], ds: dict[str, Any], phantom: str, voxel: float, oversample: int) -> list[str]:
+def _base_flags(cfg: dict[str, Any], ds: dict[str, Any], phantom: str, voxel: float, oversample: int, params: str | None = None) -> list[str]:
     d = cfg["defaults"]
     grid = f"work/{phantom}/{voxel:g}mm"
     flags = [
@@ -73,7 +73,7 @@ def _base_flags(cfg: dict[str, Any], ds: dict[str, Any], phantom: str, voxel: fl
         f"--streamlines {cfg['phantoms'][phantom]['tract'].split('/')[-1]}",
         f"--weights {cfg['phantoms'][phantom]['weights']}",
         f"--subsample {ds.get('subsample', d['subsample'])}", f"--seed {ds.get('seed', d['seed'])}",
-        f"--params {ds.get('params', d['params'])}",
+        f"--params {params or ds.get('params', d['params'])}",
     ]
     if oversample > 1:
         flags += [f"--oversample {oversample}"] + [f"--sim-{k} {grid}/sim/{k}.nii.gz" for k in ("wm", "gm", "csf", "mask", "fmap")]
@@ -120,7 +120,7 @@ def render_commands(cfg: dict[str, Any], dataset_id: str) -> list[str]:
                     oversample = var.get("oversample", ds.get("oversample", d["oversample"]))
                     name_parts = [dataset_id, phantom] + ([scheme] if len(schemes) > 1 else []) + ([var["name"]] if var.get("name") else []) + ([f"{sweep.get('flag', sweep.get('key')).lstrip('-')}-{val}"] if sweep else [])
                     out = "data/" + dataset_id + "/" + "_".join(name_parts)
-                    flags = _base_flags(cfg, ds, phantom, voxel, oversample) + _scheme_flags(scheme)
+                    flags = _base_flags(cfg, ds, phantom, voxel, oversample, var.get("params")) + _scheme_flags(scheme)
                     flags += _fill(list(ds.get("extra_flags", d["extra_flags"])), pcfg, out)
                     flags += _fill(list(var.get("extra_flags", [])), pcfg, out)
                     if sweep and "flag" in sweep:
@@ -139,6 +139,16 @@ def render_commands(cfg: dict[str, Any], dataset_id: str) -> list[str]:
         if ds.get("truth"):
             cmds.append(f"trxscan-microstructure ... --subsample {d['subsample']} --seed {d['seed']} --out data/{dataset_id}/{phantom}_truth  # identical subset to the trxscan runs above")
     return cmds
+
+
+def print_commands(cfg: dict[str, Any], dataset_id: str) -> None:
+    """Print one dataset's configured description, prerequisites, and command lines."""
+    ds = cfg["datasets"][dataset_id]
+    print(f"pipeline description: {ds['description'].strip()}")
+    if ds.get("requires"):
+        print(f"waits on simulator items {', '.join(ds['requires'])}")
+    for cmd in render_commands(cfg, dataset_id):
+        print(cmd)
 
 
 def flags_used(cfg: dict[str, Any]) -> list[str]:

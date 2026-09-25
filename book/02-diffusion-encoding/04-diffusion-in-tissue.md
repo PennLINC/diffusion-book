@@ -1,10 +1,14 @@
 ---
-title: Diffusion in tissue
-subtitle: Chapter 4
+title: "4. Diffusion in tissue"
 kernelspec:
   name: python3
   display_name: Python 3
 ---
+
+:::{admonition} Simulated datasets in this chapter
+:class: note
+- **Built in this page:** random walks in free, hindered, and restricted geometries, and single-voxel compartment signals ([Appendix B](../appendices/b-data-manifest.md#app-b-package-data)).
+:::
 
 ## Learning goals
 
@@ -16,9 +20,6 @@ After this chapter you can:
   tissue show each
 - explain what the diffusion time changes
 - describe the displacement distribution that the diffusion MRI signal measures
-
-**Datasets used:** none (toy tier)
-**Simulation tier:** toy
 
 ```{code-cell} python
 :tags: [hide-cell]
@@ -125,7 +126,7 @@ diffusion time cannot distinguish restricted from free water, because the molecu
 yet reached the walls; a measurement at a long diffusion time can. In standard clinical
 diffusion MRI the diffusion time is fixed by the sequence, typically 30–50 ms, and the
 measured diffusion coefficient is an apparent one (ADC) that depends on that time.
-Chapter 22 covers acquisitions that vary it deliberately.
+[Chapter 22](../05-advanced/22-multi-diffusion-time.md) covers acquisitions that vary it deliberately.
 
 ## Compartments in brain tissue
 
@@ -143,7 +144,7 @@ the sum of their contributions:
 - **CSF** is free water, with the highest diffusion coefficient in the brain.
 - **Myelin water** has a very short T2 and contributes little at diffusion echo times.
 
-The phantom in this book represents these as TRXScan does: white matter as an intra-axonal
+The simulated brain in this book represents these as TRXScan does: white matter as an intra-axonal
 component with diffusion only along the fiber plus an extracellular component with reduced
 diffusion across it, gray matter as an isotropic component plus a slowly diffusing cell-body
 component, and CSF as free water. The numbers are those of the `adult` preset:
@@ -181,12 +182,12 @@ the probability that a molecule has moved by a given amount in a given time. For
 diffusion it is a Gaussian whose width grows with time; for restricted diffusion it is
 narrower and, at long times, bounded by the compartment size.
 
-The diffusion MRI signal is a measurement of this distribution. As Chapter 5 shows, the
+The diffusion MRI signal is a measurement of this distribution. As [Chapter 5](./05-diffusion-encoding.md) shows, the
 encoding gradients make the signal equal to the Fourier transform of the displacement
 distribution, evaluated at a spatial frequency set by the gradient strength and duration.
 Sampling the signal at one strength (one b-value) measures a single number, the apparent
 diffusion coefficient in that direction; sampling at many strengths and directions measures
-the distribution itself. That is the choice between the sampling schemes of Chapter 6.
+the distribution itself. That is the choice between the sampling schemes of [Chapter 6](./06-qspace-sampling.md).
 
 ## What this implies for acquisition
 

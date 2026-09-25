@@ -1,10 +1,14 @@
 ---
-title: Frontiers
-subtitle: Chapter 23
+title: "23. Frontiers"
 kernelspec:
   name: python3
   display_name: Python 3
 ---
+
+:::{admonition} Simulated datasets in this chapter
+:class: note
+- **Built in this page:** single-voxel signals generated in the page ([Appendix B](../appendices/b-data-manifest.md#app-b-package-data)).
+:::
 
 ## Learning goals
 
@@ -16,9 +20,6 @@ After this chapter you can:
 - explain, with a simulation, why b-tensor encoding separates microscopic anisotropy
   from orientation dispersion
 - state the role of simulation in validating the methods of this book
-
-**Datasets used:** none (toy tier)
-**Simulation tier:** toy
 
 ```{code-cell} python
 :tags: [hide-cell]
@@ -34,7 +35,7 @@ set_style()
 ## b-tensor encoding
 
 Every acquisition in this book applies its diffusion weighting along one direction per
-measurement. The pulse pair of Chapter 5 can be replaced by a gradient waveform that
+measurement. The pulse pair of [Chapter 5](../02-diffusion-encoding/05-diffusion-encoding.md) can be replaced by a gradient waveform that
 changes direction during the encoding, so that a single measurement weights diffusion
 along several axes at once. The weighting is then described by a tensor rather than a
 vector: linear encoding (one axis) is the conventional case, planar encoding weights two
@@ -47,7 +48,7 @@ conventional data confound. A voxel of coherent fibers and a voxel of dispersed 
 fibers with the same microscopic anisotropy give the same spherical-encoding signal;
 their linear-encoding signals, averaged over directions, differ from the spherical one by
 an amount that depends only on the microscopic anisotropy {cite:p}`lasic2014`. The tensor's
-FA (Chapter 15) falls in the dispersed voxel; the microscopic anisotropy does not.
+FA ([Chapter 15](../04-modeling/15-signal-representations.md)) falls in the dispersed voxel; the microscopic anisotropy does not.
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -56,7 +57,7 @@ dirs = schemes.electrostatic_directions(60)
 d_par, d_perp, _ = presets.ADULT_DIFFUSIVITY["WM_extra"]
 d_intra = presets.ADULT_DIFFUSIVITY["WM_intra"]
 f = presets.ADULT_FRACTIONS["WM_intra"]
-# a WM voxel = the phantom's stick + tensor; its trace does not depend on how the fibers are arranged
+# a WM voxel = the simulated brain's stick + tensor; its trace does not depend on how the fibers are arranged
 trace_mean = f * d_intra / 3 + (1 - f) * (d_par + 2 * d_perp) / 3
 spherical = np.exp(-b * trace_mean)
 
@@ -87,15 +88,15 @@ The three direction-averaged linear curves coincide, because the direction avera
 the arrangement, and all three lie above the spherical curve by the same margin, because
 the margin is set by the microscopic anisotropy alone. A tensor fit to any of the three
 voxels would give FA of 0.85, 0.4, and near zero; b-tensor encoding gives the same
-microscopic anisotropy for all three. Diffusion time (Chapter 22) and echo time (Chapter 20)
+microscopic anisotropy for all three. Diffusion time ([Chapter 22](./22-multi-diffusion-time.md)) and echo time ([Chapter 20](./20-multi-te.md))
 are the other dimensions being added to the encoding, and acquisitions that vary several at
-once, multidimensional diffusion MRI, are the current frontier of the field. The phantom's
+once, multidimensional diffusion MRI, are the current frontier of the field. The simulated brain's
 truth includes the b-tensor quantities (microscopic FA, isotropic and anisotropic kurtosis);
 simulating the acquisition (implementation plan item T7) would close that loop.
 
 ## Diffusion relaxometry
 
-Chapters 20 and 21 varied the echo time and added echoes. The general form is a joint
+Chapters [20](./20-multi-te.md) and [21](./21-multi-echo.md) varied the echo time and added echoes. The general form is a joint
 acquisition over b-value, direction, echo time, inversion time, and diffusion time, from
 which compartments are separated by every property at once. Such data support
 model-free analyses, correlation spectra of diffusivity against T2 or T1, that need no
@@ -104,22 +105,22 @@ number of dimensions sampled, and their design is an open problem.
 
 ## High-gradient systems
 
-Chapter 5 gave the echo-time cost of a b-value and Chapter 22 the q needed for axon
+[Chapter 5](../02-diffusion-encoding/05-diffusion-encoding.md) gave the echo-time cost of a b-value and [Chapter 22](./22-multi-diffusion-time.md) the q needed for axon
 diameters; both are set by gradient amplitude. Systems at 200–300 mT/m (the Connectom class)
 and head-only gradient inserts beyond that reach b = 10 000 at echo times that whole-body
 systems need for b = 3000, and reach the q where small axons begin to be distinguishable.
-Their nonlinearity is larger (Chapter 13), their peripheral nerve stimulation limits are
+Their nonlinearity is larger ([Chapter 13](../03-preprocessing/13-gradient-nonlinearity.md)), their peripheral nerve stimulation limits are
 reached sooner, and they exist in a handful of sites. The methods developed on them
 (diameter mapping, high-b compartment models) set expectations that standard hardware cannot
 meet, which is a recurring source of over-interpretation.
 
 ## Beyond single-shot EPI
 
-Chapter 2 explained why diffusion uses single-shot EPI and what it costs. Multi-shot EPI
+[Chapter 2](../01-mri-physics/02-spatial-encoding-kspace.md) explained why diffusion uses single-shot EPI and what it costs. Multi-shot EPI
 with navigator or self-navigated phase correction, spiral readouts, and reduced-FOV
 acquisitions each trade the robustness of single-shot for resolution or reduced distortion;
 they are established for the spinal cord and optic nerve and increasingly used for
-sub-millimeter brain imaging. Simultaneous multi-slice (Chapter 7) is now standard.
+sub-millimeter brain imaging. Simultaneous multi-slice ([Chapter 7](../02-diffusion-encoding/07-acquisition-parameters.md)) is now standard.
 Three-dimensional readouts, which sample k-space in segments over several excitations,
 remove the slice profile penalty at the cost of the same phase-consistency problem in
 three dimensions.
@@ -127,8 +128,8 @@ three dimensions.
 ## Learned reconstruction and denoising
 
 Neural networks trained on paired data now reconstruct images from undersampled k-space
-(extending compressed sensing, Chapter 3), denoise diffusion series (extending MP-PCA,
-Chapter 8), and predict full-quality microstructure maps from short protocols. The gains
+(extending compressed sensing, [Chapter 3](../01-mri-physics/03-reconstruction.md)), denoise diffusion series (extending MP-PCA,
+[Chapter 8](../03-preprocessing/08-noise.md)), and predict full-quality microstructure maps from short protocols. The gains
 are real and the caveats are the same as for every learned method: the output is only as
 general as the training data, and errors are plausible-looking rather than noisy, which
 makes them harder to detect than the artifacts of Part III. Simulation with a known ground
@@ -141,10 +142,10 @@ was possible is that the data were simulated. Real data have no ground truth; va
 against histology is possible for a few quantities in a few samples, and validation against
 other MRI methods only tests agreement. A simulator that models the acquisition from the
 diffusion signal through k-space to the reconstructed image, and that writes the analytic
-answer for the same phantom, allows a method to be scored on the quantity it claims to
+answer for the same simulated brain, allows a method to be scored on the quantity it claims to
 measure, under the artifacts it will meet, at the acquisition parameters of a specific
 protocol. The toy tier of this book did this with synthetic tissue on a single slice or a
-small volume; the phantom tier, when the pipeline delivers it, will do it with a full
+small volume; the pipeline tier, when the pipeline delivers it, will do it with a full
 tractogram, a realistic acquisition, and twenty-seven truth maps. The limits of the
 simulator are the limits of the validation, and this book has stated them where they
 apply: Gaussian compartments, no exchange, no diameters, a single diffusion time, one echo

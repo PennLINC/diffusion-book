@@ -1,10 +1,18 @@
 ---
-title: Gibbs ringing
-subtitle: Chapter 9
+title: "9. Gibbs ringing"
 kernelspec:
   name: python3
   display_name: Python 3
 ---
+
+:::{admonition} Simulated datasets in this chapter
+:class: note
+- **Built in this page:** a synthetic series on the packaged 1 mm slice, acquired at the k-space band of a 2 mm matrix ([Appendix B](../appendices/b-data-manifest.md#app-b-package-data)).
+- **`gibbs`** (pending): ringing intrinsic to the acquisition versus none, plus a Hann-apodized variant ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-gibbs)).
+- **`truth`** (pending): the 27 analytic ground-truth maps and the true fiber orientations ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-truth), [Appendix E](../appendices/e-truth-map-catalogue.md)).
+
+Pipeline-tier datasets are simulated offline by TRXScan ([Chapter 0.2](../00-frontmatter/the-simulated-datasets.md)) and are marked *pending* until their release; the figures that need them say so where they will appear.
+:::
 
 ## Learning goals
 
@@ -15,9 +23,6 @@ After this chapter you can:
 - show how the ringing changes with b-value and what that does to fitted diffusivities
 - apply sub-voxel-shift unringing and measure what it removes
 - compare correcting the ringing after the fact with apodizing at acquisition
-
-**Datasets used:** `gibbs`, `truth` (pending); the toy tier uses a synthetic series
-**Simulation tier:** toy + phantom
 
 ```{code-cell} python
 :tags: [hide-cell]
@@ -37,7 +42,7 @@ set_style()
 An acquisition samples k-space out to a finite frequency, and the image is reconstructed
 from that limited set. A sharp edge in the object needs all frequencies to be represented;
 with the high ones missing, the reconstruction overshoots on both sides of the edge by
-about 9 % of the step, with ripples that decay away from it (Chapter 2). The ripple spacing
+about 9 % of the step, with ripples that decay away from it ([Chapter 2](../01-mri-physics/02-spatial-encoding-kspace.md)). The ripple spacing
 is one voxel, so the artifact looks like fine stripes parallel to every sharp boundary.
 
 In the brain the sharpest boundary is between CSF and tissue. In diffusion data this
@@ -50,17 +55,10 @@ than the tissue has, and a voxel one ripple farther out shows a shallower one. T
 a striped pattern of over- and underestimated diffusivity along every CSF boundary, which
 propagates into FA and into every model fitted downstream.
 
-## The phantom dataset
-
-The simulated dataset for this chapter is `gibbs`: the phantom acquired with ringing
-intrinsic to the acquisition, without it, and with apodization, scored against `truth`. The
-simulator settings that produce it are listed under its name in
-[Appendix A](#app-a-datasets), and its files in Appendix B.
-
 ## The artifact-free reference
 
-The toy version follows the same design. The synthetic series is built on the 1 mm slice of
-the phantom, and the acquisition keeps only the k-space band of a 2 mm matrix. The reference
+The toy version follows the design of the `gibbs` dataset. The synthetic series is built on
+the packaged 1 mm slice, and the acquisition keeps only the k-space band of a 2 mm matrix. The reference
 is the same series block-averaged to 2 mm, which is what a ring-free 2 mm image of the object
 would be.
 
@@ -183,14 +181,14 @@ corners and where two boundaries are within a few voxels of each other. Apodizat
 the stripes too, but replaces them with a blur that biases every boundary voxel toward its
 neighbor, which the MD error shows as a systematic offset rather than a spread.
 
-## Measure it: the phantom
+## Measure it: the simulated datasets
 
-:::{admonition} Phantom figure pending
+:::{admonition} Simulated dataset pending
 :class: note
 This section will load the `gibbs` dataset (`--oversample 2` against `--oversample 1`, plus
 the Hann-windowed variant) and the `truth` maps, and repeat the rim measurements on the
 simulated acquisition, where the ringing also interacts with the partial-Fourier
-reconstruction of Chapter 3.
+reconstruction of [Chapter 3](../01-mri-physics/03-reconstruction.md).
 :::
 
 ## What acquisition choices reduce it

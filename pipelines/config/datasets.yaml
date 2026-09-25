@@ -57,6 +57,14 @@ datasets:
     schemes: [dti30, hardi64, hbcd, dsi257]
     extra_flags: ["--noise", "2e-4"]
     csdsi_subset: { of: dsi257, n_keep: 64, seed: 1 }
+  presets:
+    phantom: sub-0001a
+    description: the same anatomy under the adult, neonatal, and infant tissue presets; Chapter 1 compares their b=0 volumes
+    extra_flags: ["--noise", "2e-4"]
+    variants:
+      - { name: adult, params: adult }
+      - { name: neonatal, params: neonatal }
+      - { name: infant, params: infant }
   slab-kspace:
     phantom: sub-0001a
     description: five-slice slab with exported raw k-space, 8 coils, GRAPPA 2, partial Fourier 6/8
