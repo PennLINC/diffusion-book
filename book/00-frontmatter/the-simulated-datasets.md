@@ -69,11 +69,27 @@ fig.tight_layout()
 print(f"volume {vol['wm'].shape} at {vol['voxel_mm']:g} mm; {int(vol['mask'].sum())} brain voxels")
 ```
 
-:::{admonition} Simulated dataset pending
-:class: note
-The tractogram itself, rendered by the pipeline, and the full-resolution tissue maps will
-appear here with the first data release.
-:::
+The simulated brain itself is available to every page through the `trxscan` package. The
+full subject is a 280 MB download (the NIBS subject `sub-60501`, whose measured fieldmap and
+head-motion traces Chapters [10](../03-preprocessing/10-susceptibility-distortion.md) through
+[12](../03-preprocessing/12-motion-and-dropout.md) use), and a 20 MB slab of it, six axial
+slices through the ventricles with a 34,000-streamline subset, is what the live-tier cells
+use. Here are its tissue maps as the simulator sees them, regridded to the book's 2.5 mm
+acquisition and the twice-finer simulation grid:
+
+```{code-cell} python
+:tags: [hide-input]
+from dwibook import phantom as ph
+
+obj = ph.grid()
+k = ph.slice_index()
+fig, axes = plt.subplots(1, 4, figsize=(12, 3.2))
+for ax, name, title in zip(axes, ("wm", "gm", "csf"), ("white matter", "gray matter", "CSF")):
+    show_image(ax, np.rot90(obj.image(name).get_fdata()[:, :, k]), f"{title}, acquisition grid", kind="scalar", vmin=0, vmax=1)
+show_image(axes[3], np.rot90(obj.image("sim_fmap").get_fdata()[:, :, k]), "measured field (Hz), simulation grid", kind="diff", vmin=-80, vmax=80)
+fig.tight_layout()
+print(f"{ph.phantom().n_streamlines} streamlines; acquisition grid {obj.dims} at {obj.voxel_mm[0]:g} mm, simulation grid {obj.sim_dims}")
+```
 
 ## What TRXScan simulates
 
@@ -112,7 +128,7 @@ print(f"echo time {presets.TE_HBCD_MS:.0f} ms, total readout time {presets.READO
 
 ## The datasets
 
-Two kinds of simulated data appear in the book, and every chapter opens with a box that
+Three kinds of simulated data appear in the book, and every chapter opens with a box that
 lists which it uses.
 
 **Toy tier.** Small simulations written in the page and run when the book is built: a
@@ -124,6 +140,16 @@ orientations, fractions, and diffusivities are known exactly, and the reference 
 artifact chapter is the same series without the artifact. These run in seconds and are the
 answer key for most of the book's measurements. The packaged files are listed in
 [Appendix B](../appendices/b-data-manifest.md#app-b-package-data).
+
+(live-tier)=
+**Live tier.** One slice of the simulated brain, acquired in the page by TRXScan through
+its Python package (`pip install trxscan`): the acquisition stage is exactly per slice and
+the signal stage rasterizes only the streamlines that cross it, so a slice under the full
+76-volume protocol takes a few seconds, including the per-coil k-space and the readout
+timing. The slab the cells use is downloaded once (20 MB); `DWIBOOK_PHANTOM=sub-60501` runs
+the same cells on the full subject. Everything a live cell shows is bit-identical to the
+same slice of a pipeline-tier run, which is what makes the two tiers one simulator rather
+than two.
 
 **Pipeline tier.** Full TRXScan simulations of the brain, made offline by a Snakemake
 pipeline, versioned, and downloaded by the pages that use them. Each is a directory of

@@ -6,8 +6,9 @@
 # Book engine: Jupyter Book 2, i.e. mystmd (`myst start` for live preview, `myst build`).
 # mystmd needs Node >= 20; the system node in WSL is 18, so Node comes from conda-forge.
 #
-# Offline pipeline tools are NOT here: TRXScan (Rust, on the WSL PATH) and FSL/MRtrix/qsiprep
-# (via the pennlinc/qsiprep Docker image) are called from pipelines/, never at book build time.
+# TRXScan is a pip dependency (the `trxscan` wheel); notebooks simulate single slices of the
+# phantom live. FSL/MRtrix/qsiprep (via the pennlinc/qsiprep Docker image) are still called
+# only from pipelines/, never at book build time.
 name: dwibook
 channels:
   - conda-forge
@@ -33,6 +34,7 @@ dependencies:
   - nodejs>=20
   - pip:
       - mystmd            # jupyter-book 2 engine
+      - trxscan[dipy,trx,viz]>=0.1.0   # the simulator, called live on a slab of the phantom in notebooks
       - snakemake         # offline pipeline driver (runs in WSL; calls trxscan + docker)
       - sigpy             # compressed-sensing k-space reconstruction (Ch. 3)
       - cvxpy             # dipy's multi-tissue CSD and MAP-MRI positivity constraints (Ch. 15-16)

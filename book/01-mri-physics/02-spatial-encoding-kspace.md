@@ -8,8 +8,10 @@ kernelspec:
 :::{admonition} Simulated datasets in this chapter
 :class: note
 - **Built in this page:** the k-space of a synthetic b=0 slice built from the packaged tissue maps ([Appendix B](../appendices/b-data-manifest.md#app-b-package-data)).
+- **Simulated live in this page:** one slice of the simulated brain acquired by TRXScan with eight coils, GRAPPA 2 and partial Fourier, with the per-coil k-space it sampled and the timing of every line.
 - **`slab-kspace`** (pending): a five-slice slab with its raw k-space exported: 8 coils, GRAPPA 2, partial Fourier 6/8 ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-slab-kspace)).
 
+Live-tier figures simulate one slice of the simulated brain in the page through TRXScan's Python package ([Chapter 0.2](../00-frontmatter/the-simulated-datasets.md#live-tier)); they run in seconds at build time.
 Pipeline-tier datasets are simulated offline by TRXScan ([Chapter 0.2](../00-frontmatter/the-simulated-datasets.md)) and are marked *pending* until their release; the figures that need them say so where they will appear.
 :::
 
@@ -284,13 +286,57 @@ uncommon in practice and are described in [Chapter 23](../05-advanced/23-frontie
 
 ## Measure it: a TRXScan slice and its k-space
 
-:::{admonition} Simulated dataset pending
-:class: note
-This section will load the `slab-kspace` dataset, show one acquired slice with the raw
-k-space TRXScan recorded for it, and derive the EPI timing from the BIDS JSON sidecar
-(`EffectiveEchoSpacing`, `TotalReadoutTime`). It waits on the k-space export flag in the
-simulator (implementation plan §4, item T2).
-:::
+Everything above used a synthetic object and our own toy Fourier transform. Here the
+simulator acquires one slice of the phantom the way a scanner would: eight receive coils,
+GRAPPA 2, 6/8 partial Fourier, the HBCD readout, and it hands back the k-space it actually
+sampled for every coil, before any reconstruction.
+
+```{code-cell} python
+:tags: [hide-input]
+import trxscan as ts
+from dwibook import phantom as ph
+
+sim = ph.run(ph.gtab(3), ph.PROTO, ts.Artifacts(noise=2e-4, ghost=0.015, seed=1), kspace=True)
+k = sim.kspace
+print(f"acquired k-space {k.acquired.shape} (volume, slice, coil, ky, kx); "
+      f"{int(k.mask[:, 0].sum())} of {k.shape[0]} phase-encode lines sampled "
+      f"(partial Fourier {sim.protocol.partial_fourier:g}, GRAPPA {sim.protocol.accel})")
+fig, axes = plt.subplots(1, 4, figsize=(12, 3.2))
+show_kspace(axes[0], k.acquired[0, 0, 0], "coil 0, as acquired (b = 0)")
+show_kspace(axes[1], k.reconstructed[0, 0, 0], "coil 0, after GRAPPA and windowing")
+show_image(axes[2], np.rot90(k.combined[0, 0]), "combined complex image, magnitude")
+show_image(axes[3], ph.axial(sim.phase, 0), "phase (radians)", kind="phase")
+fig.tight_layout()
+```
+
+The un-acquired lines are exactly zero in the raw k-space: the block at one edge is the
+partial Fourier band and the alternate rows are the GRAPPA undersampling, which the reconstruction
+fills in from the eight coils' complementary spatial sensitivities before the inverse
+transform. The same object, once through the real readout, also tells us the timing of every
+line, which is what the BIDS sidecar summarizes:
+
+```{code-cell} python
+:tags: [hide-input]
+r = sim.readout
+print(f"{r.ny} phase-encode lines at {r.t_line_ms:.3f} ms each; first to last acquired line "
+      f"{r.total_readout_ms:.1f} ms (sidecar TotalReadoutTime {sim.sidecar['TotalReadoutTime'] * 1e3:.1f} ms); "
+      f"k-space centre reached {r.time_to_center_ms:.1f} ms into the train; TE {r.t_echo_ms:.0f} ms")
+fig, ax = plt.subplots(figsize=(7, 2.8))
+ax.plot(r.t_read_ms[r.ky_order], r.ky_order - r.ny // 2, ".-", color=PALETTE[0], ms=3, lw=0.8)
+acq = r.acquired_lines
+ax.plot(r.t_read_ms[acq], acq - r.ny // 2, "o", color=PALETTE[1], ms=3, label="acquired lines")
+ax.axhline(0, color="0.6", lw=0.8)
+ax.set(xlabel="time since the readout began (ms)", ylabel="$k_y$ line", title="the EPI train the simulator used, line by line")
+ax.legend(loc="lower right")
+fig.tight_layout()
+```
+
+The train walks from the top of k-space down, one line per echo spacing. Partial Fourier
+skips the first quarter of the lines, so the centre (where the echo forms and the contrast is
+decided) is reached that much sooner and the readout ends earlier; GRAPPA skips every second
+line outside the central calibration band. The simulator keeps the echo time you asked for,
+so the shorter path to the centre is a TE you may lower, not one it lowers for you. Chapter 3 reconstructs this k-space in Python and checks the result against
+what the simulator produced.
 
 ## What this implies for acquisition
 

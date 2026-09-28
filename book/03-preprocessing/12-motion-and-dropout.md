@@ -8,9 +8,11 @@ kernelspec:
 :::{admonition} Simulated datasets in this chapter
 :class: note
 - **Built in this page:** a single-shell synthetic series on the packaged 3 mm volume, moved and re-encoded volume by volume ([Appendix B](../appendices/b-data-manifest.md#app-b-package-data)).
+- **Simulated live in this page:** one slice of the simulated brain re-simulated at the head poses measured in the real subject, as a multiband-3 acquisition with dropout events.
 - **`motion-mb`** (pending): a measured head-motion trace re-simulated volume by volume, and multiband 3 with 10 % dropout events ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-motion-mb)).
 - **`truth`** (pending): the 27 analytic ground-truth maps and the true fiber orientations ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-truth), [Appendix E](../appendices/e-truth-map-catalogue.md)).
 
+Live-tier figures simulate one slice of the simulated brain in the page through TRXScan's Python package ([Chapter 0.2](../00-frontmatter/the-simulated-datasets.md#live-tier)); they run in seconds at build time.
 Pipeline-tier datasets are simulated offline by TRXScan ([Chapter 0.2](../00-frontmatter/the-simulated-datasets.md)) and are marked *pending* until their release; the figures that need them say so where they will appear.
 :::
 
@@ -252,14 +254,46 @@ count of outlier slices. Both should be inspected before any group analysis, bec
 motion correlates with age and with clinical status, and residual motion effects bias FA
 downward and MD upward in a way that can masquerade as a group difference.
 
-## Measure it: the simulated datasets
+## Measure it: one slice, simulated live
 
-:::{admonition} Simulated dataset pending
-:class: note
-This section will load the `motion-mb` dataset, in which every volume is simulated at the head pose measured in a real subject (sub-60501) and 10 % of the volumes
-carry a multiband dropout event, and score FSL eddy's motion estimates and outlier
-detection against the poses and the dropout TSV that TRXScan wrote.
-:::
+The simulator can move the head the way a real one moved. The phantom ships with the head
+motion that qsiprep estimated for its own subject, one rigid pose per volume; for each volume
+the streamlines and tissue maps are moved by that pose and the signal is re-simulated, so the
+fibre-to-gradient angles change as they do in a moving head, not just the image position.
+Multiband dropout events are added on top, and the simulator records which shots dropped.
+
+```{code-cell} python
+:tags: [hide-input]
+import trxscan as ts
+from dwibook import phantom as ph
+
+trace = ph.phantom().motion["AP"]
+g = ph.gtab(16)
+fig, ax = plt.subplots(1, 2, figsize=(9, 2.8))
+trace.plot(n_vol=g.bvals.size, ax=ax)
+fig.tight_layout()
+still = ph.run(g, ph.PROTO.replace(mb=3), ts.Artifacts(noise=2e-4, seed=1))
+moved = ph.run(g, ph.PROTO.replace(mb=3), ts.Artifacts(noise=2e-4, motion=trace, dropout=0.25, seed=1))
+print(f"{len(moved.dropout)} dropout events in {g.bvals.size} volumes: " + ", ".join(f"volume {d.volume} shot {d.shot} x{d.attenuation:.2f}" for d in moved.dropout))
+```
+
+```{code-cell} python
+:tags: [hide-input]
+fd = trace.framewise_displacement(g.bvals.size)
+worst = int(np.argmax(fd))
+fig, axes = plt.subplots(1, 3, figsize=(9.5, 3.2))
+show_image(axes[0], ph.axial(still.magnitude, worst), f"volume {worst}, still")
+show_image(axes[1], ph.axial(moved.magnitude, worst), f"volume {worst}, moved (FD {fd[worst]:.1f} mm)")
+show_image(axes[2], ph.axial(moved.magnitude, worst) - ph.axial(still.magnitude, worst), "difference", kind="diff")
+fig.tight_layout()
+```
+
+The difference image is not a pure shift: where the head rotated, the white matter signal
+changes because the fibres now make a different angle with the diffusion gradient. Motion
+correction can register the images back, but the b-vectors of a rotated volume must be
+rotated with it, which is why every pipeline reports the rotation it applied. The dropped
+shots are the ground truth an outlier detector is scored against; the offline `motion-mb`
+dataset runs the full 76-volume trace and FSL eddy on it.
 
 ## What acquisition choices reduce it
 

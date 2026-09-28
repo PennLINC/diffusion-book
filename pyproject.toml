@@ -19,6 +19,7 @@ dependencies = [
     "scikit-image",
     "pooch",
     "pyyaml",
+    "trxscan[dipy,trx]>=0.1",
 ]
 
 [project.optional-dependencies]
