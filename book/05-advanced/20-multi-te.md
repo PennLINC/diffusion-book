@@ -1,10 +1,18 @@
 ---
-title: Multi-TE diffusion MRI
-subtitle: Chapter 20
+title: "20. Multi-TE diffusion MRI"
 kernelspec:
   name: python3
   display_name: Python 3
 ---
+
+:::{admonition} Simulated datasets in this chapter
+:class: note
+- **Built in this page:** single-voxel signals with the compartment T2 values of the presets ([Appendix B](../appendices/b-data-manifest.md#app-b-package-data)).
+- **`te-sweep`** (pending): four echo times at fixed b ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-te-sweep)).
+- **`truth`** (pending): the 27 analytic ground-truth maps and the true fiber orientations ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-truth), [Appendix E](../appendices/e-truth-map-catalogue.md)).
+
+Pipeline-tier datasets are simulated offline by TRXScan ([Chapter 0.2](../00-frontmatter/the-simulated-datasets.md)) and are marked *pending* until their release; the figures that need them say so where they will appear.
+:::
 
 ## Learning goals
 
@@ -15,9 +23,6 @@ After this chapter you can:
 - fit a joint diffusion-relaxation model to data acquired at several echo times and
   recover compartment T2 values
 - state what a multi-TE acquisition costs and how to sample the (b, TE) plane
-
-**Datasets used:** `te-sweep`, `truth` (pending); the toy tier uses compartment T2 values
-**Simulation tier:** toy + phantom
 
 ```{code-cell} python
 :tags: [hide-cell]
@@ -33,7 +38,7 @@ set_style()
 
 ## Compartmental T2
 
-The tissue compartments of Chapter 17 differ not only in how water diffuses in them but in
+The tissue compartments of [Chapter 17](../04-modeling/17-microstructure-models.md) differ not only in how water diffuses in them but in
 how fast their signal decays with echo time. Intra-axonal water has a longer T2 than
 extracellular water in white matter (values of roughly 80–90 ms versus 50–60 ms at 3 T have
 been reported), and CSF has a T2 of seconds. A diffusion acquisition at a single echo time
@@ -43,16 +48,16 @@ consequence is visible when the same model is fitted to data acquired at differe
 times: the apparent intra-axonal fraction rises with TE, because the compartment with the
 longer T2 retains more of the signal {cite:p}`veraart2018`.
 
-The phantom assigns one T2 per tissue (68 ms for the white matter fiber compartment, 76 ms
+The simulated brain assigns one T2 per tissue (68 ms for the white matter fiber compartment, 76 ms
 for gray matter, 2000 ms for CSF), so in the simulator the TE dependence appears between
 tissues but not between the two white matter compartments. The toy demonstration below
 gives the intra-axonal stick a T2 of 90 ms and the extra-axonal tensor a T2 of 60 ms to show
-the within-tissue effect; both values are literature figures, not the phantom's.
+the within-tissue effect; both values are literature figures, not the simulated brain's.
 
 ## See it: the apparent fraction depends on TE
 
 A single white matter voxel is simulated at four echo times with the spherical-mean fit of
-Chapter 17, which knows nothing about T2:
+[Chapter 17](../04-modeling/17-microstructure-models.md), which knows nothing about T2:
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -72,7 +77,7 @@ The fitted fraction climbs by roughly a tenth across the range of echo times use
 practice. It sits above the volume fraction even at the shortest TE, for two reasons that
 add: at any TE the compartment with the longer T2 has already gained signal share, and the
 spherical-mean fit's tortuosity assumption does not match the synthetic tissue exactly
-(Chapter 17). The trend with TE is the relaxation effect alone. Two studies with different echo times therefore report different "neurite
+([Chapter 17](../04-modeling/17-microstructure-models.md)). The trend with TE is the relaxation effect alone. Two studies with different echo times therefore report different "neurite
 densities" for the same tissue, and a study that changes TE between scanners or protocol
 versions introduces an apparent change in microstructure.
 
@@ -136,9 +141,9 @@ signal, so the longest echo time sets the noise floor for the whole fit. Samplin
 strategies place more diffusion directions at short TE, where the signal is strong, and
 fewer at long TE, where the relaxation information lives.
 
-## Measure it: the phantom
+## Measure it: the simulated datasets
 
-:::{admonition} Phantom figure pending
+:::{admonition} Simulated dataset pending
 :class: note
 This section will load the `te-sweep` dataset (the HBCD scheme at four echo times, once the
 simulator accepts a per-run TE) and fit the joint model across tissues: the recovered T2
@@ -153,7 +158,7 @@ fitted fractions with the truth maps.
   with different TE compares different quantities.
 - **A multi-TE acquisition needs three or more echo times** spanning 60–130 ms and a
   multi-shell scheme at each; budget the SNR at the longest TE.
-- **The simulator's per-compartment T2** is what makes this measurable on the phantom; the
+- **The simulator's per-compartment T2** is what makes this measurable on the simulated datasets; the
   `te-sweep` dataset is the test.
 
 ## Further reading

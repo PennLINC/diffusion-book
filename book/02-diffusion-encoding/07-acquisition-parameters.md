@@ -1,10 +1,20 @@
 ---
-title: Acquisition parameter choices
-subtitle: Chapter 7
+title: "7. Acquisition parameter choices"
 kernelspec:
   name: python3
   display_name: Python 3
 ---
+
+:::{admonition} Simulated datasets in this chapter
+:class: note
+- **Built in this page:** a synthetic b=0 slice and single-voxel signal models built from the packaged tissue maps and presets ([Appendix B](../appendices/b-data-manifest.md#app-b-package-data)).
+- **`voxel-sweep`** (pending): 1.5, 2.0, 2.5, and 3.0 mm voxels at fixed scheme and noise ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-voxel-sweep)).
+- **`te-sweep`** (pending): four echo times at fixed b ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-te-sweep)).
+- **`gnl`** (pending): gradient nonlinearity on two gradient systems, a severity sweep, and warp-only and encoding-only runs, with the true displacement field and gradient deviation ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-gnl)).
+- **`ref-schemes`** (pending): the simulated brain under the 30-direction, 64-direction, HBCD, DSI, and CS-DSI schemes at matched scan time ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-ref-schemes)).
+
+Pipeline-tier datasets are simulated offline by TRXScan ([Chapter 0.2](../00-frontmatter/the-simulated-datasets.md)) and are marked *pending* until their release; the figures that need them say so where they will appear.
+:::
 
 ## Learning goals
 
@@ -16,9 +26,6 @@ After this chapter you can:
   and gradient hardware
 - estimate SNR, scan time, and distortion from a proposed protocol before it is run
 - design a diffusion protocol under a scan-time budget and justify each choice
-
-**Datasets used:** `voxel-sweep`, `te-sweep`, `ref-schemes` (all pending)
-**Simulation tier:** toy + phantom
 
 ```{code-cell} python
 :tags: [hide-cell]
@@ -37,9 +44,9 @@ do so before the protocol is run rather than after the data are found wanting.
 
 ## Echo time
 
-TE is set by the diffusion encoding (Chapter 5) and the readout (Chapter 2), and the
+TE is set by the diffusion encoding ([Chapter 5](./05-diffusion-encoding.md)) and the readout ([Chapter 2](../01-mri-physics/02-spatial-encoding-kspace.md)), and the
 scanner reports the minimum it can reach for a given b-value. Signal falls as
-$e^{-\mathrm{TE}/T_2}$ (Chapter 1). Each 10 ms of TE costs about 14 % of adult white matter
+$e^{-\mathrm{TE}/T_2}$ ([Chapter 1](../01-mri-physics/01-spins-and-signal.md)). Each 10 ms of TE costs about 14 % of adult white matter
 signal and 12 % of gray matter signal; CSF is unaffected. Shortening TE is the single most
 effective way to raise SNR, and the ways to do it are stronger gradients, partial Fourier,
 and in-plane acceleration.
@@ -81,7 +88,7 @@ fig.tight_layout()
 ```
 
 Seventy slices of 2 mm without multiband need a TR near 10 s; with multiband 3 it is about
-3.3 s. That factor goes directly into the scan time (Chapter 6) or, at fixed scan time, into
+3.3 s. That factor goes directly into the scan time ([Chapter 6](./06-qspace-sampling.md)) or, at fixed scan time, into
 the number of volumes.
 
 ## Voxel size
@@ -120,11 +127,11 @@ for f in [1, 2]:
 ```
 
 Resolution also determines what tractography can resolve: fibers that cross within a voxel
-are averaged, and the models of Chapter 16 recover them only if the voxel is small relative
+are averaged, and the models of [Chapter 16](../04-modeling/16-fiber-orientation.md) recover them only if the voxel is small relative
 to the bundle geometry. Most current protocols use 1.5–2 mm isotropic voxels as the
-compromise; the HBCD protocol of the phantom uses 1.7 mm.
+compromise; the HBCD protocol of the simulated brain uses 1.7 mm.
 
-:::{admonition} Phantom figure pending
+:::{admonition} Simulated dataset pending
 :class: note
 The `voxel-sweep` dataset (1.5, 2.0, 2.5, and 3.0 mm) will show the same slice of the
 simulated acquisition at each resolution, with matched noise, and the effect on FA at the
@@ -133,7 +140,7 @@ ventricle wall.
 
 ## b-values
 
-Chapter 5 gave the signal per tissue as a function of b. The choice of b-values is the
+[Chapter 5](./05-diffusion-encoding.md) gave the signal per tissue as a function of b. The choice of b-values is the
 choice of what to measure: b ≈ 1000 for tensor metrics, b = 2000–3000 for fiber orientation
 and multi-compartment models, higher only with strong gradients. The SNR of each shell
 follows from the b=0 SNR and the tissue decay:
@@ -146,13 +153,13 @@ for b in [0, 500, 1000, 2000, 3000]:
     print(f"  b = {b:>4}: WM {snr0 * signal.white_matter(b, 0.0):5.1f}   GM {snr0 * signal.gray_matter(b):5.1f}")
 ```
 
-At b = 3000 gray matter is at SNR 4, where the magnitude bias of Chapter 3 is a few percent
-and denoising (Chapter 8) becomes necessary rather than optional; along the fibers, white
+At b = 3000 gray matter is at SNR 4, where the magnitude bias of [Chapter 3](../01-mri-physics/03-reconstruction.md) is a few percent
+and denoising ([Chapter 8](../03-preprocessing/08-noise.md)) becomes necessary rather than optional; along the fibers, white
 matter is lower still.
 
 ## Number of directions and b=0 volumes
 
-Chapter 6 measured the effect of direction count on tensor precision: precision improves
+[Chapter 6](./06-qspace-sampling.md) measured the effect of direction count on tensor precision: precision improves
 with the square root of the number of volumes. The same applies to b=0 volumes, which
 normalize every diffusion-weighted volume; one b=0 volume per 10–15 diffusion-weighted
 volumes is the usual ratio, and they should be spread through the acquisition rather than
@@ -160,13 +167,13 @@ grouped at the start.
 
 ## Partial Fourier, multiband, and in-plane acceleration
 
-Three ways to shorten the acquisition, with different costs (Chapters 2 and 3):
+Three ways to shorten the acquisition, with different costs (Chapters [2](../01-mri-physics/02-spatial-encoding-kspace.md) and [3](../01-mri-physics/03-reconstruction.md)):
 
 | Option | What it shortens | Cost |
 |---|---|---|
 | Partial Fourier (6/8, 7/8) | EPI readout and TE | blurring along phase-encode; sensitive to rough phase |
 | In-plane acceleration (R = 2) | EPI readout and TE by R | noise up by more than √R; spatially varying |
-| Multiband (2–4) | TR by the factor | slice leakage; dropout affects several slices at once (Chapter 12) |
+| Multiband (2–4) | TR by the factor | slice leakage; dropout affects several slices at once ([Chapter 12](../03-preprocessing/12-motion-and-dropout.md)) |
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -184,7 +191,7 @@ so the next section is the same trade viewed from the artifact side.
 ## Phase-encode direction and readout time
 
 Off-resonance displaces signal along the phase-encode axis by the frequency offset times
-the total readout time (Chapter 2). Near the frontal sinuses and the ear canals the offset
+the total readout time ([Chapter 2](../01-mri-physics/02-spatial-encoding-kspace.md)). Near the frontal sinuses and the ear canals the offset
 reaches 100–200 Hz.
 
 ```{code-cell} python
@@ -198,32 +205,32 @@ for hz in [25, 50, 100, 200]:
 At the HBCD readout of 92 ms a 100 Hz offset moves signal nine voxels. Two acquisition
 choices limit the damage: shorten the readout (above), and acquire a second set of volumes
 with the opposite phase-encode polarity so that the distortion can be estimated and
-removed (Chapter 10). The polarity choice itself, anterior–posterior or posterior–anterior,
+removed ([Chapter 10](../03-preprocessing/10-susceptibility-distortion.md)). The polarity choice itself, anterior–posterior or posterior–anterior,
 decides whether frontal tissue is stretched or compressed; neither is better, but the choice
 must be recorded correctly in the metadata (`PhaseEncodingDirection`, `TotalReadoutTime`)
 or the correction will be applied backward.
 
 ## Gradient hardware
 
-Maximum gradient amplitude sets the minimum TE at a given b (Chapter 5): about 15 ms and
+Maximum gradient amplitude sets the minimum TE at a given b ([Chapter 5](./05-diffusion-encoding.md)): about 15 ms and
 20 % of white matter signal between 40 and 80 mT/m at b = 3000. Stronger gradients also
 bring larger deviations from linearity in the field they produce, which warp the image and
 alter the effective b-value and direction voxel by voxel, increasingly with distance from
-the isocenter. Chapter 13 covers the correction; the acquisition-side decisions are to
+the isocenter. [Chapter 13](../03-preprocessing/13-gradient-nonlinearity.md) covers the correction; the acquisition-side decisions are to
 position the head near the isocenter and to obtain the scanner's gradient coefficient
 file, without which the correction cannot be applied.
 
-:::{admonition} Phantom figure pending
+:::{admonition} Simulated dataset pending
 :class: note
-The `gnl` dataset (Chapter 13) includes the phantom simulated on an 80 mT/m whole-body and a
+The `gnl` dataset ([Chapter 13](../03-preprocessing/13-gradient-nonlinearity.md)) includes the simulated brain on an 80 mT/m whole-body and a
 300 mT/m system at the same b-value; the comparison will be shown here.
 :::
 
 ## Complex export and multi-echo options
 
 Saving the phase costs nothing at acquisition and enables complex-domain denoising and
-several diagnostics (Chapter 3). Most scanners can export it as a second image series.
-Multi-echo and multi-TE diffusion acquisitions (Chapters 20 and 21) add relaxation
+several diagnostics ([Chapter 3](../01-mri-physics/03-reconstruction.md)). Most scanners can export it as a second image series.
+Multi-echo and multi-TE diffusion acquisitions (Chapters [20](../05-advanced/20-multi-te.md) and [21](../05-advanced/21-multi-echo.md)) add relaxation
 information at the cost of TR or TE; they are choices for specific analyses rather than
 defaults.
 
@@ -251,8 +258,8 @@ The minimal version, with six reverse-polarity b=0 volumes for distortion correc
 under five minutes. The HBCD protocol instead acquires the full scheme in both polarities,
 which doubles the directions and averages the distortion correction over all volumes; it
 fits the ten-minute budget with time to spare for a fieldmap. Each line of the summary is a
-decision that a later chapter tests: the TE against Chapter 1, the readout against
-Chapter 10, multiband 3 against Chapter 12, and the SNR at b = 3000 against Chapter 8.
+decision that a later chapter tests: the TE against [Chapter 1](../01-mri-physics/01-spins-and-signal.md), the readout against
+[Chapter 10](../03-preprocessing/10-susceptibility-distortion.md), multiband 3 against [Chapter 12](../03-preprocessing/12-motion-and-dropout.md), and the SNR at b = 3000 against [Chapter 8](../03-preprocessing/08-noise.md).
 
 ## What this implies for acquisition
 

@@ -1,10 +1,14 @@
 ---
-title: Diffusion encoding
-subtitle: Chapter 5
+title: "5. Diffusion encoding"
 kernelspec:
   name: python3
   display_name: Python 3
 ---
+
+:::{admonition} Simulated datasets in this chapter
+:class: note
+- **Built in this page:** single-voxel compartment signals under the HBCD scheme, which ships with the book ([Appendix B](../appendices/b-data-manifest.md#app-b-package-data)).
+:::
 
 ## Learning goals
 
@@ -17,9 +21,6 @@ After this chapter you can:
 - compare the signal that white matter, gray matter, and CSF retain at the b-values used in
   practice
 - name the two side effects of strong diffusion gradients that later chapters correct
-
-**Datasets used:** none (toy tier); the HBCD scheme bundled with the phantom is used directly
-**Simulation tier:** toy
 
 ```{code-cell} python
 :tags: [hide-cell]
@@ -35,7 +36,7 @@ set_style()
 ## The pulsed-gradient spin echo
 
 Diffusion encoding adds two identical gradient pulses to the spin-echo sequence of
-Chapter 1, one on each side of the 180° pulse {cite:p}`stejskal1965`. The first pulse gives
+[Chapter 1](../01-mri-physics/01-spins-and-signal.md), one on each side of the 180° pulse {cite:p}`stejskal1965`. The first pulse gives
 every spin a phase proportional to its position along the gradient. The 180° pulse reverses
 that phase. The second pulse adds the same position-dependent phase again. A spin that did
 not move between the pulses ends with zero net phase. A spin that moved ends with a phase
@@ -85,11 +86,11 @@ exponentially with $b$:
 
 $$S(b) = S_0\, e^{-b D}.$$
 
-$S_0$ is the signal without diffusion weighting (the b=0 image of Chapter 1). With $D$ in
+$S_0$ is the signal without diffusion weighting (the b=0 image of [Chapter 1](../01-mri-physics/01-spins-and-signal.md)). With $D$ in
 mm²/s and $b$ in s/mm², the product $bD$ is dimensionless; at $b = 1000$ s/mm² free water
 ($D = 3 \times 10^{-3}$) retains $e^{-3} \approx 5$ % of its signal and white matter across the
 fibers ($D \approx 0.6 \times 10^{-3}$) retains about 55 %. The separation $\Delta$ is
-approximately the diffusion time of Chapter 4.
+approximately the diffusion time of [Chapter 4](./04-diffusion-in-tissue.md).
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -100,7 +101,7 @@ for g, d, D in [(40, 20, 40), (80, 14, 34), (300, 6, 26)]:
 ## Seeing the signal loss
 
 The simulation below applies the phase argument of the first section to 20 000 molecules
-whose displacements are drawn from the free-diffusion distribution of Chapter 4. The
+whose displacements are drawn from the free-diffusion distribution of [Chapter 4](./04-diffusion-in-tissue.md). The
 magnitude of the summed signal matches the exponential formula.
 
 ```{code-cell} python
@@ -125,7 +126,7 @@ fig.tight_layout()
 ## Signal versus b for brain tissue
 
 The exponential holds for a single freely diffusing pool. Tissue is a mixture of pools,
-and its signal is the sum of their decays. Using the phantom's compartments (Chapter 4):
+and its signal is the sum of their decays. Using the simulated brain's compartments ([Chapter 4](./04-diffusion-in-tissue.md)):
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -154,22 +155,22 @@ Several practical facts are visible here:
 - **Mixtures do not give straight lines on a log scale.** A single compartment would. The
   across-fiber white matter curve flattens because one of its compartments does not decay;
   the gray matter curve bends slightly because of its slowly diffusing component. This
-  curvature is what diffusion kurtosis and multi-compartment models (Chapter 15 and
-  Chapter 17) measure, and it is only visible above about b = 1500, which is why those
+  curvature is what diffusion kurtosis and multi-compartment models ([Chapter 15](../04-modeling/15-signal-representations.md) and
+  [Chapter 17](../04-modeling/17-microstructure-models.md)) measure, and it is only visible above about b = 1500, which is why those
   models need high b-values.
 - **Signal at high b is small for most tissue.** At b = 3000 gray matter retains about
   15 % of $S_0$ and white matter along the fibers less than 1 %. If the b=0 image has
   SNR 30, those measurements have SNR 4 and below 1, the range where the noise floor of
-  Chapter 3 biases the values. Only across-fiber white matter stays well above the floor.
+  [Chapter 3](../01-mri-physics/03-reconstruction.md) biases the values. Only across-fiber white matter stays well above the floor.
 
 ## The cost of a high b-value: echo time
 
 The b-value grows with the square of the gradient amplitude and roughly the cube of the
 pulse duration. On a given scanner the amplitude is fixed, so higher b-values require
-longer pulses, which push the echo out and cost signal through T2 decay (Chapter 1). The
+longer pulses, which push the echo out and cost signal through T2 decay ([Chapter 1](../01-mri-physics/01-spins-and-signal.md)). The
 function below computes the minimum echo time for a simplified sequence in which the
 two pulses sit directly against the 180° pulse and the EPI readout needs 23 ms to reach
-the center of k-space (a 6/8 partial Fourier readout of the HBCD protocol, Chapter 2).
+the center of k-space (a 6/8 partial Fourier readout of the HBCD protocol, [Chapter 2](../01-mri-physics/02-spatial-encoding-kspace.md)).
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -194,7 +195,7 @@ The difference between a 40 mT/m clinical system and an 80 mT/m research system 
 25 ms of echo time at b = 3000, which is 30 % of the white matter signal. A 300 mT/m system
 gains a similar amount again. This is the reason gradient strength is the headline
 specification of a diffusion scanner, and why high-b protocols on 80 mT/m hardware use
-echo times near 90 ms, the value the HBCD protocol and the phantom use.
+echo times near 90 ms, the value the HBCD protocol and the simulated brain use.
 
 ## Two side effects of strong gradients
 
@@ -204,22 +205,22 @@ treated in Part III; they are named here because they originate in the encoding.
 - **Eddy currents.** The changing gradient field induces currents in the scanner's
   conductive structures, which produce a slowly decaying field of their own. That field is
   still present during the EPI readout and distorts each diffusion-weighted image in a way
-  that depends on the gradient direction and strength (Chapter 11). A twice-refocused spin
+  that depends on the gradient direction and strength ([Chapter 11](../03-preprocessing/11-eddy-currents.md)). A twice-refocused spin
   echo, with two 180° pulses and four gradient lobes, cancels much of it at the cost of a
   longer echo time {cite:p}`reese2003`.
 - **Motion sensitivity.** The phase imparted by the pulses is proportional to displacement,
   so bulk motion of the head or pulsation of the brain during the 40 ms between the pulses
   produces a large, spatially varying phase. This is the reason single-shot readouts are
-  used (Chapter 2) and a cause of signal dropout in individual slices (Chapter 12).
+  used ([Chapter 2](../01-mri-physics/02-spatial-encoding-kspace.md)) and a cause of signal dropout in individual slices ([Chapter 12](../03-preprocessing/12-motion-and-dropout.md)).
 
 The pulse pair described here applies weighting along one direction per image. Newer
 acquisitions vary the gradient direction within one encoding to probe several directions
 at once (b-tensor encoding), which separates microscopic anisotropy from orientation
-dispersion; Chapter 15 and Chapter 23 describe what that adds.
+dispersion; [Chapter 15](../04-modeling/15-signal-representations.md) and [Chapter 23](../05-advanced/23-frontiers.md) describe what that adds.
 
-## The phantom's scheme
+## The reference scheme
 
-TRXScan's default protocol is the HBCD scheme bundled with the phantom. It has 75 volumes
+TRXScan's default protocol is the HBCD scheme bundled with the simulation inputs. It has 75 volumes
 per phase-encode direction:
 
 ```{code-cell} python
@@ -233,7 +234,7 @@ print(f"acquisition order of the first 20 volumes: {bvals[:20].astype(int).tolis
 The b=0 volumes are spread through the acquisition rather than collected at the start, and
 the shells are interleaved. Both choices make the scheme robust to motion and drift:
 if the subject moves halfway through, every shell is affected equally rather than one shell
-being lost. Chapter 6 covers the design of schemes like this one.
+being lost. [Chapter 6](./06-qspace-sampling.md) covers the design of schemes like this one.
 
 ## What this implies for acquisition
 

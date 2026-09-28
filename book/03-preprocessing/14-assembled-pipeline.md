@@ -1,10 +1,18 @@
 ---
-title: Remaining artifacts and the assembled pipeline
-subtitle: Chapter 14
+title: "14. Remaining artifacts and the assembled pipeline"
 kernelspec:
   name: python3
   display_name: Python 3
 ---
+
+:::{admonition} Simulated datasets in this chapter
+:class: note
+- **Built in this page:** a synthetic series on the packaged 2 mm slice with several artifacts applied together ([Appendix B](../appendices/b-data-manifest.md#app-b-package-data)).
+- **`kitchen-sink`** (pending): every artifact on at once, corrected end to end by QSIPrep ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-kitchen-sink)).
+- **`truth`** (pending): the 27 analytic ground-truth maps and the true fiber orientations ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-truth), [Appendix E](../appendices/e-truth-map-catalogue.md)).
+
+Pipeline-tier datasets are simulated offline by TRXScan ([Chapter 0.2](../00-frontmatter/the-simulated-datasets.md)) and are marked *pending* until their release; the figures that need them say so where they will appear.
+:::
 
 ## Learning goals
 
@@ -12,12 +20,9 @@ After this chapter you can:
 
 - recognize Nyquist ghosts, k-space spikes, and receive-field bias, and say what to do
   about each
-- order the preprocessing steps of Chapters 8 through 13 and justify the order
+- order the preprocessing steps of Chapters [8](./08-noise.md) through [13](./13-gradient-nonlinearity.md) and justify the order
 - explain why the geometric corrections must be composed into a single resampling
 - read a pipeline's quality report and decide whether a dataset is usable
-
-**Datasets used:** `kitchen-sink`, `truth` (pending); the toy tier uses the 2 mm slice
-**Simulation tier:** toy + phantom
 
 ```{code-cell} python
 :tags: [hide-cell]
@@ -34,7 +39,7 @@ mask = phantoms.brain_slice()["mask"]
 
 ## Nyquist ghosting
 
-EPI reads alternate lines of k-space in opposite directions (Chapter 2). Any difference
+EPI reads alternate lines of k-space in opposite directions ([Chapter 2](../01-mri-physics/02-spatial-encoding-kspace.md)). Any difference
 between the two, in timing, in eddy currents, or in the gradient waveform, gives the odd
 and even lines a relative phase or shift. In the image that appears as a faint copy of the
 object displaced by half the field of view along the phase-encode axis. Scanners calibrate
@@ -61,7 +66,7 @@ single spike appears as a stripe pattern (a "herringbone" or "corduroy" artifact
 the entire slice, with a spacing set by the spike's position in k-space. It affects only
 the volume and slice in which it occurred. With raw data the sample can be replaced; with
 magnitude images the slice is treated as an outlier and replaced from the model
-(Chapter 12), which is what the outlier detection of eddy and SHORELine does with it.
+([Chapter 12](./12-motion-and-dropout.md)), which is what the outlier detection of eddy and SHORELine does with it.
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -74,7 +79,7 @@ fig.tight_layout()
 
 ## Receive-field bias
 
-The sensitivity of the coil array varies smoothly across the head (Chapter 3), so the
+The sensitivity of the coil array varies smoothly across the head ([Chapter 3](../01-mri-physics/03-reconstruction.md)), so the
 images are brighter near the coils and darker in the center. This does not affect
 diffusion measures, which are ratios between volumes of the same voxel, but it affects
 everything that uses intensity across voxels: brain masking, tissue segmentation of the
@@ -87,13 +92,13 @@ pipeline does not matter.
 
 The corrections of the preceding chapters have an order, and the order is not arbitrary:
 
-1. **Denoising** (Chapter 8) first, because it relies on the noise being independent
+1. **Denoising** ([Chapter 8](./08-noise.md)) first, because it relies on the noise being independent
    between voxels and volumes, and every later step (interpolation, averaging) correlates
    it.
-2. **Unringing** (Chapter 9) second, because it operates on the acquired grid and the
+2. **Unringing** ([Chapter 9](./09-gibbs-ringing.md)) second, because it operates on the acquired grid and the
    ripple structure it relies on is destroyed by resampling.
-3. **The geometric corrections together**: susceptibility (Chapter 10), eddy currents and
-   motion (Chapters 11 and 12), and gradient nonlinearity (Chapter 13). Each is a
+3. **The geometric corrections together**: susceptibility ([Chapter 10](./10-susceptibility-distortion.md)), eddy currents and
+   motion (Chapters [11](./11-eddy-currents.md) and [12](./12-motion-and-dropout.md)), and gradient nonlinearity ([Chapter 13](./13-gradient-nonlinearity.md)). Each is a
    displacement field or a transform; they are composed into one map and the data are
    resampled once. Outlier detection and replacement happen inside this step, because
    the model that predicts each volume is fitted to the aligned data.
@@ -167,11 +172,11 @@ The measures are also covariates: motion and SNR differ systematically between g
 (children, patients) and can produce apparent group differences in every diffusion
 measure. Report them with the results.
 
-## Measure it: the phantom
+## Measure it: the simulated datasets
 
-:::{admonition} Phantom figure pending
+:::{admonition} Simulated dataset pending
 :class: note
-This section will load the `kitchen-sink` dataset, the phantom simulated with every
+This section will load the `kitchen-sink` dataset, the simulated brain with every
 artifact on (noise, ringing, distortion, eddy currents, multiband dropout, gradient
 nonlinearity, 8-coil GRAPPA), corrected end to end by qsiprep with the coefficient file,
 and score each stage of the pipeline against the `truth` maps: the error that remains

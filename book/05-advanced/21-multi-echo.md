@@ -1,10 +1,14 @@
 ---
-title: Multi-echo diffusion MRI
-subtitle: Chapter 21
+title: "21. Multi-echo diffusion MRI"
 kernelspec:
   name: python3
   display_name: Python 3
 ---
+
+:::{admonition} Simulated datasets in this chapter
+:class: note
+- **Built in this page:** a synthetic b=0 slice built from the packaged tissue maps, read out with several echoes in the page ([Appendix B](../appendices/b-data-manifest.md#app-b-package-data)).
+:::
 
 ## Learning goals
 
@@ -14,9 +18,6 @@ After this chapter you can:
   distortion
 - combine echoes and estimate T2* per voxel from a diffusion acquisition
 - state what multi-echo readouts add to a diffusion protocol and what they cost
-
-**Datasets used:** none (toy tier); a phantom demonstration awaits the multi-echo readout in the simulator
-**Simulation tier:** toy
 
 ```{code-cell} python
 :tags: [hide-cell]
@@ -31,7 +32,7 @@ set_style()
 
 ## Multi-echo readouts
 
-A single-shot EPI readout collects one image after the spin echo (Chapter 2). A multi-echo
+A single-shot EPI readout collects one image after the spin echo ([Chapter 2](../01-mri-physics/02-spatial-encoding-kspace.md)). A multi-echo
 readout repeats the EPI train two or three times after the same excitation, so that each
 volume comes with several images acquired at successive echo times, separated by the
 readout duration. The diffusion weighting is the same for all echoes, because the diffusion
@@ -39,7 +40,7 @@ gradients are played once, before the first readout. What differs is the transve
 between echoes: the later echoes are weighted by T2* decay accumulated since the spin echo,
 and their SNR is correspondingly lower.
 
-This is a different acquisition from the multi-TE one of Chapter 20. There, the spin-echo
+This is a different acquisition from the multi-TE one of [Chapter 20](./20-multi-te.md). There, the spin-echo
 time itself is varied between scans, and the compartments separate by T2. Here, the
 additional echoes are gradient echoes after one spin echo, and the decay between them is
 governed by T2*, which includes the field inhomogeneity that a spin echo refocuses only at
@@ -85,7 +86,7 @@ Three uses follow from having several echoes of every volume:
   diffusion scan.
 - **Recovery of signal dropout.** Signal lost in one echo to a motion event or an RF spike
   during that readout is present in the other echoes, so the volume can be repaired from
-  its own echoes rather than from the model prediction of Chapter 12.
+  its own echoes rather than from the model prediction of [Chapter 12](../03-preprocessing/12-motion-and-dropout.md).
 
 The synthetic slice demonstrates the T2* estimate from two echoes: tissue T2* values are
 assigned, noise is added to each echo, and T2* is estimated voxel by voxel from the ratio.
@@ -123,16 +124,16 @@ print(f"white matter: T2* estimate {np.nanmedian(t2s_est[wm]):.0f} ms (assigned 
 
 ## Distortion and SNR per echo
 
-Every echo is read with the same EPI train, so the susceptibility displacement (Chapter 10)
+Every echo is read with the same EPI train, so the susceptibility displacement ([Chapter 10](../03-preprocessing/10-susceptibility-distortion.md))
 is the same in all of them and one correction applies to all. What differs is the signal
 near air-tissue interfaces: the through-slice dephasing that causes signal loss in EPI grows
 with echo time, so the later echoes lose more signal above the sinuses and in the temporal
 poles than the first. A combination weighted by SNR handles this automatically, taking most
 of its signal from the first echo where the later ones are dark.
 
-## Measure it: the phantom
+## Measure it: the simulated datasets
 
-:::{admonition} Phantom figure pending
+:::{admonition} Simulated dataset pending
 :class: note
 The simulator's readout model is single-echo. A multi-echo readout (implementation plan
 item T5) would add per-echo k-space with T2* decay and dephasing between echoes; until it
@@ -142,15 +143,15 @@ exists, this chapter is toy-only.
 ## What this implies for acquisition
 
 - **Multi-echo readouts cost TR, not directions**: each extra echo adds a readout duration
-  per slice, which lengthens the minimum TR (Chapter 7).
+  per slice, which lengthens the minimum TR ([Chapter 7](../02-diffusion-encoding/07-acquisition-parameters.md)).
 - **Shorten the readout first** (partial Fourier, in-plane acceleration) so that the extra
   echoes arrive before the signal is gone.
 - **The gain is relaxometry and robustness**, not a large SNR increase; choose it when T2*
   per volume or dropout recovery is wanted.
-- **Do not confuse it with multi-TE**: varying the spin-echo time (Chapter 20) measures T2
+- **Do not confuse it with multi-TE**: varying the spin-echo time ([Chapter 20](./20-multi-te.md)) measures T2
   per compartment; extra gradient echoes measure T2* per voxel.
 
 ## Further reading
 
 Integrated diffusion-relaxometry acquisitions {cite:p}`hutter2018` and the EPI readout
-timing of Chapter 2.
+timing of [Chapter 2](../01-mri-physics/02-spatial-encoding-kspace.md).

@@ -1,10 +1,18 @@
 ---
-title: What your data allow
-subtitle: Chapter 19
+title: "19. What your data allow"
 kernelspec:
   name: python3
   display_name: Python 3
 ---
+
+:::{admonition} Simulated datasets in this chapter
+:class: note
+- **Built in this page:** sampling schemes evaluated from their b-values and direction counts, without images ([Appendix B](../appendices/b-data-manifest.md#app-b-package-data)).
+- **`ref-schemes`** (pending): the simulated brain under the 30-direction, 64-direction, HBCD, DSI, and CS-DSI schemes at matched scan time ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-ref-schemes)).
+- **`truth`** (pending): the 27 analytic ground-truth maps and the true fiber orientations ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-truth), [Appendix E](../appendices/e-truth-map-catalogue.md)).
+
+Pipeline-tier datasets are simulated offline by TRXScan ([Chapter 0.2](../00-frontmatter/the-simulated-datasets.md)) and are marked *pending* until their release; the figures that need them say so where they will appear.
+:::
 
 ## Learning goals
 
@@ -14,9 +22,6 @@ After this chapter you can:
   which are not possible
 - state what complex data add across the analysis chain and what they cost
 - work through a dataset you did not design and decide what to do with it
-
-**Datasets used:** `ref-schemes` (pending); the toy tier evaluates schemes from their b-values
-**Simulation tier:** toy + phantom
 
 ```{code-cell} python
 :tags: [hide-cell]
@@ -73,10 +78,10 @@ has no meaning. The table below collects the rules with the chapter that demonst
 
 Three chapters used the phase, and the case for saving it is now complete:
 
-- **Denoising without bias** (Chapter 8): the largest gain, and the one that reaches
+- **Denoising without bias** ([Chapter 8](../03-preprocessing/08-noise.md)): the largest gain, and the one that reaches
   every model fitted at high b, since the Rician floor biases exactly the volumes those
   models depend on.
-- **Diagnostics** (Chapters 11 and 12): the eddy-current and motion phase are visible per
+- **Diagnostics** (Chapters [11](../03-preprocessing/11-eddy-currents.md) and [12](../03-preprocessing/12-motion-and-dropout.md)): the eddy-current and motion phase are visible per
   volume before any correction.
 - **Averaging** repeated acquisitions without the floor.
 
@@ -110,12 +115,12 @@ models; track probabilistically with ACT. The remaining limits are the ones no p
 removes: the fixed diffusion time, the Gaussian assumptions of the models, and the
 resolution.
 
-## Measure it: the phantom
+## Measure it: the simulated datasets
 
-:::{admonition} Phantom figure pending
+:::{admonition} Simulated dataset pending
 :class: note
 This section will show every cell of the matrix on the `ref-schemes` dataset: the same
-phantom, five schemes, each model fitted where the rules allow, scored against the truth
+simulated brain, five schemes, each model fitted where the rules allow, scored against the truth
 maps, so that "marginal" is a number rather than a word.
 :::
 
@@ -125,7 +130,7 @@ maps, so that "marginal" is a number rather than a word.
   says "yes" to all of them is the protocol.
 - **Multi-shell with the top shell at b ≥ 2000, 45 or more directions there, reverse
   polarity, and the phase saved** supports every analysis in the table except DSI and
-  IVIM, at a scan time under ten minutes (Chapter 7).
+  IVIM, at a scan time under ten minutes ([Chapter 7](../02-diffusion-encoding/07-acquisition-parameters.md)).
 - **Record the metadata**: phase-encode direction, readout time, diffusion timing, and
   the gradient coefficient file.
 

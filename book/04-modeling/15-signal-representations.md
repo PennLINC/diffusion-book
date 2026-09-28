@@ -1,10 +1,19 @@
 ---
-title: Signal representations
-subtitle: Chapter 15
+title: "15. Signal representations"
 kernelspec:
   name: python3
   display_name: Python 3
 ---
+
+:::{admonition} Simulated datasets in this chapter
+:class: note
+- **Built in this page:** a synthetic multi-shell series built from the packaged tissue maps ([Appendix B](../appendices/b-data-manifest.md#app-b-package-data)).
+- **`ref-clean`** (pending): the artifact-free, noise-free reference series with its truth maps and true fiber orientations ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-ref-clean)).
+- **`ref-schemes`** (pending): the simulated brain under the 30-direction, 64-direction, HBCD, DSI, and CS-DSI schemes at matched scan time ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-ref-schemes)).
+- **`truth`** (pending): the 27 analytic ground-truth maps and the true fiber orientations ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-truth), [Appendix E](../appendices/e-truth-map-catalogue.md)).
+
+Pipeline-tier datasets are simulated offline by TRXScan ([Chapter 0.2](../00-frontmatter/the-simulated-datasets.md)) and are marked *pending* until their release; the figures that need them say so where they will appear.
+:::
 
 ## Learning goals
 
@@ -16,9 +25,6 @@ After this chapter you can:
   data fall short of it
 - choose a tensor fitting method and say when a robust one is needed
 - read the fitted maps against a known answer
-
-**Datasets used:** `ref-schemes`, `truth` (pending); the toy tier uses a synthetic multi-shell series
-**Simulation tier:** toy + phantom
 
 ```{code-cell} python
 :tags: [hide-cell]
@@ -46,7 +52,7 @@ representation** describes the measured signal as a function of b-value and dire
 no claim about the tissue: the diffusion tensor, the kurtosis tensor, and the propagator
 bases are representations. Their parameters (FA, MD, kurtosis, return-to-origin probability)
 are summaries of the signal that change with tissue but do not name a tissue property. A
-**biophysical model** (Chapter 17) assigns the signal to compartments with named
+**biophysical model** ([Chapter 17](./17-microstructure-models.md)) assigns the signal to compartments with named
 properties, such as an intra-axonal fraction, at the cost of assumptions that may not hold.
 Representations are the safer choice when the question is whether something differs;
 models are needed when the question is what differs.
@@ -56,7 +62,7 @@ models are needed when the question is what differs.
 The toy tier uses the 2 mm slice with a three-shell scheme (20, 20, and 30 directions at
 b = 1000, 2000, 3000, plus four b=0), noise at SNR 25 in white matter at b = 0, and the
 noise-free fit of the same scheme as the reference. The synthetic white matter is the
-phantom's two-compartment model, so it has curvature in its decay (Chapter 5) and the
+simulated brain's two-compartment model, so it has curvature in its decay ([Chapter 5](../02-diffusion-encoding/05-diffusion-encoding.md)) and the
 kurtosis and propagator representations have something to measure.
 
 ```{code-cell} python
@@ -78,13 +84,13 @@ print(f"{len(bvals)} volumes; shells {schemes.shells_of(bvals)}")
 The tensor represents the signal as a single Gaussian displacement distribution: an
 ellipsoid with three axes. Six parameters plus the b=0 signal describe it, so six
 directions at one b-value are the mathematical minimum and about 30 the practical one
-(Chapter 6). From the ellipsoid come the standard maps: **mean diffusivity** (MD, the
+([Chapter 6](../02-diffusion-encoding/06-qspace-sampling.md)). From the ellipsoid come the standard maps: **mean diffusivity** (MD, the
 average of the three axes), **fractional anisotropy** (FA, how elongated the ellipsoid is,
 from 0 to 1), axial and radial diffusivity, and the **principal direction**, the long axis,
 which tractography follows.
 
 The Gaussian assumption holds only at low b-value. Above about b = 1500 the curvature of
-the true decay (Chapter 5) violates it, and a tensor fitted to high-b data returns
+the true decay ([Chapter 5](../02-diffusion-encoding/05-diffusion-encoding.md)) violates it, and a tensor fitted to high-b data returns
 diffusivities that depend on which b-values were included:
 
 ```{code-cell} python
@@ -120,7 +126,7 @@ methods differ in how they weight the measurements and what they do with outlier
   accurate at low SNR, slower.
 - **RESTORE** {cite:p}`chang2005` down-weights measurements that disagree with the fit,
   which protects the tensor from dropout slices and spikes that were not caught upstream
-  (Chapter 12).
+  ([Chapter 12](../03-preprocessing/12-motion-and-dropout.md)).
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -153,7 +159,7 @@ is restricted or the voxel mixes compartments, so it is high in white matter and
 gray matter, and near zero in CSF.
 
 Fitting the curvature requires at least two non-zero shells, and the upper shell must be
-high enough for the curvature to be visible, in practice b = 2000–3000 (Chapter 5). A single
+high enough for the curvature to be visible, in practice b = 2000–3000 ([Chapter 5](../02-diffusion-encoding/05-diffusion-encoding.md)). A single
 shell cannot support the fit at all:
 
 ```{code-cell} python
@@ -180,13 +186,13 @@ fig.tight_layout()
 ```
 
 Kurtosis is a second-order quantity and inherits twice the noise sensitivity of the tensor;
-it is the representation most improved by denoising (Chapter 8) and most damaged by the
+it is the representation most improved by denoising ([Chapter 8](../03-preprocessing/08-noise.md)) and most damaged by the
 Rician floor, which adds curvature of its own at high b.
 
 ## Propagator representations: MAP-MRI
 
 Mean apparent propagator MRI {cite:p}`ozarslan2013` represents the full displacement
-distribution (Chapter 4) in a basis of functions, from which several scalar summaries are
+distribution ([Chapter 4](../02-diffusion-encoding/04-diffusion-in-tissue.md)) in a basis of functions, from which several scalar summaries are
 computed: the **return-to-origin probability** (RTOP, high where displacement is small,
 i.e. restricted), its axial and planar variants, the **mean squared displacement**, and
 **non-Gaussianity**. Because it represents the whole distribution it needs the whole
@@ -218,17 +224,17 @@ for label, keep in [("two shells", bvals <= 2000), ("three shells", bvals >= 0)]
 Every representation above reads the signal from a single-direction encoding. Encoding
 with several gradient directions inside one measurement (b-tensor encoding) provides a
 further representation, q-space trajectory imaging, whose parameters separate microscopic
-anisotropy from orientation dispersion, a distinction the tensor cannot make. The phantom's
+anisotropy from orientation dispersion, a distinction the tensor cannot make. The simulated brain's
 truth maps include these quantities, but the simulator does not yet produce b-tensor
-acquisitions, so this book states the idea (Chapter 23) without fitting it.
+acquisitions, so this book states the idea ([Chapter 23](../05-advanced/23-frontiers.md)) without fitting it.
 
-## Measure it: the phantom
+## Measure it: the simulated datasets
 
-:::{admonition} Phantom figure pending
+:::{admonition} Simulated dataset pending
 :class: note
 This section will fit the tensor, kurtosis, and MAP-MRI representations to the
 `ref-schemes` dataset (30-direction, 64-direction, HBCD, DSI, and CS-DSI schemes) and score
-each against the analytic `truth` maps TRXScan writes for the same phantom: FA, MD, AD, RD,
+each against the analytic `truth` maps TRXScan writes for the same simulated brain: FA, MD, AD, RD,
 MK, AK, RK, RTOP, RTAP, RTPP, MSD, and non-Gaussianity.
 :::
 

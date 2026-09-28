@@ -1,5 +1,5 @@
 ---
-title: Notation and units
+title: "0.3 Notation and units"
 kernelspec:
   name: python3
   display_name: Python 3
@@ -62,7 +62,7 @@ Vectors are bold; a hat marks a unit vector.
 | `.bval`, `.bvec` | FSL-layout gradient table: one row of b-values, three rows of unit-vector components |
 | `PhaseEncodingDirection`, `TotalReadoutTime` | sidecar fields that distortion correction reads |
 | AP, PA | anterior-posterior and posterior-anterior phase-encode polarities |
-| `part-mag_dwi.nii.gz` | the default TRXScan output name pattern (Appendix A) |
+| `part-mag_dwi.nii.gz` | the default TRXScan output name pattern ([Appendix A](../appendices/a-trxscan-cookbook.md)) |
 
 ## Conventions
 
@@ -71,7 +71,7 @@ Vectors are bold; a hat marks a unit vector.
   volume axis last.
 - b-vectors in the toy tier are expressed in the same `(row, column, slice)` frame as the
   arrays.
-- Unless stated otherwise, tissue parameters are the phantom's `adult` preset (Chapter 1):
+- Unless stated otherwise, tissue parameters are the simulated brain's `adult` preset ([Chapter 1](../01-mri-physics/01-spins-and-signal.md)):
   T2 of 68 ms (white matter), 76 ms (gray matter), 2000 ms (CSF); white matter
   intra-axonal fraction 0.55 with diffusivity 1.7 × 10⁻³ mm²/s, extra-axonal 1.7 and
   0.6 × 10⁻³, gray matter 0.85 × 10⁻³, CSF 3.0 × 10⁻³.

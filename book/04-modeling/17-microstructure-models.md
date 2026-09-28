@@ -1,10 +1,19 @@
 ---
-title: Biophysical microstructure models
-subtitle: Chapter 17
+title: "17. Biophysical microstructure models"
 kernelspec:
   name: python3
   display_name: Python 3
 ---
+
+:::{admonition} Simulated datasets in this chapter
+:class: note
+- **Built in this page:** a synthetic multi-shell series built from the packaged tissue maps, with known compartment fractions ([Appendix B](../appendices/b-data-manifest.md#app-b-package-data)).
+- **`ref-clean`** (pending): the artifact-free, noise-free reference series with its truth maps and true fiber orientations ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-ref-clean)).
+- **`ref-schemes`** (pending): the simulated brain under the 30-direction, 64-direction, HBCD, DSI, and CS-DSI schemes at matched scan time ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-ref-schemes)).
+- **`truth`** (pending): the 27 analytic ground-truth maps and the true fiber orientations ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-truth), [Appendix E](../appendices/e-truth-map-catalogue.md)).
+
+Pipeline-tier datasets are simulated offline by TRXScan ([Chapter 0.2](../00-frontmatter/the-simulated-datasets.md)) and are marked *pending* until their release; the figures that need them say so where they will appear.
+:::
 
 ## Learning goals
 
@@ -16,9 +25,6 @@ After this chapter you can:
   known answer
 - explain the degeneracy of multi-compartment fits and show what breaks it
 - separate model mismatch from sampling and noise effects
-
-**Datasets used:** `ref-schemes`, `truth` (pending); the toy tier uses the synthetic series
-**Simulation tier:** toy + phantom
 
 ```{code-cell} python
 :tags: [hide-cell]
@@ -77,7 +83,7 @@ The models in use differ in which of these they keep and which they fix:
 The synthetic white matter is itself a two-compartment model: an intra-axonal stick with
 fraction 0.55 and diffusivity 1.7 × 10⁻³ mm²/s, and an extra-axonal tensor with axial 1.7 and
 radial 0.6 × 10⁻³. Gray matter is two balls, CSF a free ball. The tissue fractions are
-known per voxel. This is the phantom's own model (Chapter 4), so the answer key is exact
+known per voxel. This is the simulated brain's own model ([Chapter 4](../02-diffusion-encoding/04-diffusion-in-tissue.md)), so the answer key is exact
 and the fits below measure model mismatch as much as noise.
 
 ```{code-cell} python
@@ -204,34 +210,34 @@ ambiguity is the one the sampling leaves; a model with more unknowns has a large
 shells for compartment models, and of the higher shell being high: the curvature of the
 decay is the only information that separates the parameters. The other ways to break the
 degeneracy add a different kind of information rather than more of the same: several
-diffusion times (Chapter 22), several echo times (Chapter 20), or b-tensor encoding
-(Chapter 23).
+diffusion times ([Chapter 22](../05-advanced/22-multi-diffusion-time.md)), several echo times ([Chapter 20](../05-advanced/20-multi-te.md)), or b-tensor encoding
+([Chapter 23](../05-advanced/23-frontiers.md)).
 
-## NODDI and ball-and-stick on the phantom
+## NODDI and ball-and-stick on the simulated datasets
 
 Neither is fitted here. NODDI's implementation (AMICO, or the original MATLAB toolbox) is
 an optional dependency of this book, and ball-and-stick's reference implementation is
 FSL's bedpostx, which the offline pipeline runs inside the QSIPrep image. Both will be
-scored on the phantom, where the truth includes NODDI-style ICVF, ODI, and ISOVF maps.
+scored on the simulated datasets, where the truth includes NODDI-style ICVF, ODI, and ISOVF maps.
 
-## Honest limits of a Gaussian phantom
+## Limits of Gaussian compartments
 
-The phantom's compartments are Gaussian: a stick, a tensor, and balls. Real tissue has
-finite axon diameters, exchange, and time-dependent diffusion (Chapter 4), none of which is
-in the phantom. A model that assumes restriction (a cylinder with a diameter) fits the
-phantom differently than it fits tissue, and its parameters on the phantom should not be
-read as validation of what they mean in vivo. The phantom is useful for a narrower
+The simulated brain's compartments are Gaussian: a stick, a tensor, and balls. Real tissue has
+finite axon diameters, exchange, and time-dependent diffusion ([Chapter 4](../02-diffusion-encoding/04-diffusion-in-tissue.md)), none of which is
+in the simulated brain. A model that assumes restriction (a cylinder with a diameter) fits the
+simulated brain differently than it fits tissue, and its parameters on simulated data should not be
+read as validation of what they mean in vivo. The simulated brain is useful for a narrower
 question: given a model, how much of its error comes from the sampling scheme and the noise
 as opposed to the model itself. The fits above separate the two by comparing against a
 known answer at several schemes.
 
-## Measure it: the phantom
+## Measure it: the simulated datasets
 
-:::{admonition} Phantom figure pending
+:::{admonition} Simulated dataset pending
 :class: note
 This section will fit the free-water, spherical-mean, NODDI (AMICO), and ball-and-stick
 (bedpostx) models to the `ref-schemes` dataset and score them against the `truth` maps
-`icvf`, `odi`, `isovf`, and the phantom's known compartment fractions, scheme by scheme.
+`icvf`, `odi`, `isovf`, and the simulated brain's known compartment fractions, scheme by scheme.
 :::
 
 ## What this implies for acquisition

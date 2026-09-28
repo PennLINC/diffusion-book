@@ -1,10 +1,18 @@
 ---
-title: Thermal noise
-subtitle: Chapter 8
+title: "8. Thermal noise"
 kernelspec:
   name: python3
   display_name: Python 3
 ---
+
+:::{admonition} Simulated datasets in this chapter
+:class: note
+- **Built in this page:** a synthetic diffusion series on a 16-slice block of the packaged 3 mm volume, with a fiber orientation assigned to every white matter voxel ([Appendix B](../appendices/b-data-manifest.md#app-b-package-data)).
+- **`noise-sweep`** (pending): four noise levels with one coil, plus an 8-coil GRAPPA run ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-noise-sweep)).
+- **`truth`** (pending): the 27 analytic ground-truth maps and the true fiber orientations ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-truth), [Appendix E](../appendices/e-truth-map-catalogue.md)).
+
+Pipeline-tier datasets are simulated offline by TRXScan ([Chapter 0.2](../00-frontmatter/the-simulated-datasets.md)) and are marked *pending* until their release; the figures that need them say so where they will appear.
+:::
 
 ## Learning goals
 
@@ -15,9 +23,6 @@ After this chapter you can:
 - explain how the noise floor biases high-b signal and the diffusion measures derived from it
 - apply MP-PCA denoising to magnitude and to complex data and measure what each removes
 - state which acquisition choices reduce noise at the source
-
-**Datasets used:** `noise-sweep`, `truth` (pending); the toy tier uses a synthetic series
-**Simulation tier:** toy + phantom
 
 ```{code-cell} python
 :tags: [hide-cell]
@@ -37,12 +42,12 @@ set_style()
 
 Thermal noise from the subject and the receive electronics enters every k-space sample as
 independent Gaussian noise. In the complex image it is still Gaussian with zero mean. The
-magnitude operation changes that (Chapter 3): where the signal is weak relative to the noise,
+magnitude operation changes that ([Chapter 3](../01-mri-physics/03-reconstruction.md)): where the signal is weak relative to the noise,
 the magnitude is biased upward toward a floor, and the distribution is Rician for a single
 coil and non-central chi after a root-sum-of-squares combination.
 
 In diffusion MRI the weak-signal case is not an edge case. At b = 3000 gray matter retains
-about 15 % of its b=0 signal and white matter along the fibers less than 1 % (Chapter 5).
+about 15 % of its b=0 signal and white matter along the fibers less than 1 % ([Chapter 5](../02-diffusion-encoding/05-diffusion-encoding.md)).
 Those volumes sit at SNR 1–4, where the floor is a substantial fraction of the measurement.
 The consequences for fitted quantities follow directly:
 
@@ -55,15 +60,9 @@ The consequences for fitted quantities follow directly:
 - **Kurtosis and multi-compartment fits**, which read the curvature of the decay above
   b = 1500, are affected most, because the floor adds curvature of its own.
 
-## The phantom dataset
-
-The simulated dataset for this chapter is `noise-sweep` (four noise levels and an 8-coil
-GRAPPA run), scored against `truth`. The simulator settings that produce it are listed
-under its name in [Appendix A](#app-a-datasets), and its files in Appendix B.
-
 ## The artifact-free reference
 
-The toy demonstrations use a synthetic series built from the phantom's tissue fractions on
+The toy demonstrations use a synthetic series built from the simulated brain's tissue fractions on
 a 16-slice block of the 3 mm volume, with fibers oriented along the local white matter
 boundary (see `dwibook.synth`). The scheme is a reduced multi-shell: 3 b=0, 12 directions
 each at b = 1000, 2000, and 3000. The noise-free series is the reference against which every
@@ -198,7 +197,7 @@ Denoising in the **complex domain** avoids the floor: the noise in the real and 
 channels is Gaussian with zero mean, so removing its random part leaves an unbiased signal,
 and the magnitude is taken afterward, from a series with far less noise
 {cite:p}`corderogrande2019`. The same MP-PCA can be applied by treating the real and
-imaginary parts as additional volumes. This requires that the phase was saved (Chapter 3).
+imaginary parts as additional volumes. This requires that the phase was saved ([Chapter 3](../01-mri-physics/03-reconstruction.md)).
 The next page describes the other use of the phase: correcting it so that the data can be
 kept as real values, in which case no floor arises in the first place.
 
@@ -254,9 +253,9 @@ Gray matter is where noise-induced anisotropy shows: its true FA is near zero, a
 fit of noisy data overestimates it. Denoising reduces the spread of the errors in both
 tissues; only the complex-domain version also removes the bias.
 
-## Measure it: the phantom
+## Measure it: the simulated datasets
 
-:::{admonition} Phantom figure pending
+:::{admonition} Simulated dataset pending
 :class: note
 This section will load the `noise-sweep` dataset (four noise levels, plus an 8-coil GRAPPA
 run) and the `truth` maps, repeat the measurements above on the simulated acquisition, and
@@ -265,7 +264,7 @@ compare MP-PCA's noise estimate with the noise map TRXScan wrote.
 
 ## What acquisition choices reduce it
 
-- **Shorter TE** is the largest lever on SNR (Chapter 7); gradient strength, partial
+- **Shorter TE** is the largest lever on SNR ([Chapter 7](../02-diffusion-encoding/07-acquisition-parameters.md)); gradient strength, partial
   Fourier, and in-plane acceleration all shorten it.
 - **Larger voxels** raise SNR in proportion to their volume, at the cost of partial volume.
 - **Fewer coils do not help**; the floor rises with coil count but so does SNR. Save the

@@ -1,10 +1,18 @@
 ---
-title: Susceptibility distortion
-subtitle: Chapter 10
+title: "10. Susceptibility distortion"
 kernelspec:
   name: python3
   display_name: Python 3
 ---
+
+:::{admonition} Simulated datasets in this chapter
+:class: note
+- **Built in this page:** a synthetic series on the packaged 2 mm slice with a synthetic field ([Appendix B](../appendices/b-data-manifest.md#app-b-package-data)).
+- **`sdc-pair`** (pending): AP/PA pairs for two source anatomies, one with an atlas field and one with a measured field, plus synthetic gradient-echo fieldmaps ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-sdc-pair)).
+- **`truth`** (pending): the 27 analytic ground-truth maps and the true fiber orientations ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-truth), [Appendix E](../appendices/e-truth-map-catalogue.md)).
+
+Pipeline-tier datasets are simulated offline by TRXScan ([Chapter 0.2](../00-frontmatter/the-simulated-datasets.md)) and are marked *pending* until their release; the figures that need them say so where they will appear.
+:::
 
 ## Learning goals
 
@@ -15,9 +23,6 @@ After this chapter you can:
 - correct the distortion when the field is known and explain how it is estimated when it
   is not
 - state which acquisition choices reduce it and which metadata the correction requires
-
-**Datasets used:** `sdc-pair`, `truth` (pending); the toy tier uses a synthetic field
-**Simulation tier:** toy + phantom
 
 ```{code-cell} python
 :tags: [hide-cell]
@@ -36,7 +41,7 @@ The static field is not uniform inside the head. Tissue, bone, and air have diff
 magnetic susceptibilities, and near the interfaces between them, above the sinuses, next to
 the ear canals, and at the temporal poles, the field deviates from its nominal value by up
 to a few hundred hertz at 3 T. Spins in those regions precess at a shifted frequency, and
-along the phase-encode axis frequency is what encodes position (Chapter 2), so the
+along the phase-encode axis frequency is what encodes position ([Chapter 2](../01-mri-physics/02-spatial-encoding-kspace.md)), so the
 reconstruction places their signal at a shifted location.
 
 The size of the error is the frequency offset times the total readout time of the EPI train:
@@ -50,13 +55,6 @@ neighboring voxels, signal from several true locations lands in one voxel (pile-
 or is spread over several (stretching, dark), so the intensity is altered as well as the
 geometry. Anatomical images acquired with conventional readouts do not show this, which is
 why diffusion data do not line up with the T1-weighted image without correction.
-
-## The phantom dataset
-
-The simulated dataset for this chapter is `sdc-pair`: blip-up/blip-down pairs of two
-phantoms, one with an atlas field and one with a measured field, plus synthetic
-gradient-echo fieldmaps, scored against `truth`. The simulator settings that produce it are
-listed under its name in [Appendix A](#app-a-datasets), and its files in Appendix B.
 
 ## The artifact-free reference
 
@@ -175,14 +173,14 @@ for label, m in fits.items():
     print(f"{label:>14}: FA error in WM {np.abs(m['fa'] - ref_fit['fa'])[t['wm'] > 0.9].mean():.3f}")
 ```
 
-Two caveats limit that reassurance. Eddy currents (Chapter 11) add a displacement that
+Two caveats limit that reassurance. Eddy currents ([Chapter 11](./11-eddy-currents.md)) add a displacement that
 differs per volume, which a correction estimated from the b=0 images does not remove.
 And any analysis that compares the diffusion data with another image, an atlas, a
 segmentation, a tractography target, depends on the geometry being right.
 
-## Measure it: the phantom
+## Measure it: the simulated datasets
 
-:::{admonition} Phantom figure pending
+:::{admonition} Simulated dataset pending
 :class: note
 This section will load the `sdc-pair` dataset (AP/PA pairs with the atlas field for
 sub-0001a and the measured field for sub-60501, plus synthetic GRE fieldmaps) and the
@@ -193,7 +191,7 @@ outputs, and compare the estimated field with the field TRXScan used.
 ## What acquisition choices reduce it
 
 - **Shorten the readout.** The displacement is proportional to the total readout time, so
-  partial Fourier and in-plane acceleration reduce it directly (Chapter 7).
+  partial Fourier and in-plane acceleration reduce it directly ([Chapter 7](../02-diffusion-encoding/07-acquisition-parameters.md)).
 - **Acquire the opposite polarity.** A few b=0 volumes with reversed blips are enough for
   topup; a full second copy of the scheme also doubles the directions.
 - **Record the metadata.** `PhaseEncodingDirection` and `TotalReadoutTime` in the JSON

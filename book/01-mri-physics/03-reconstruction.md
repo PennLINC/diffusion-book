@@ -1,10 +1,17 @@
 ---
-title: Image reconstruction from k-space
-subtitle: Chapter 3
+title: "3. Image reconstruction from k-space"
 kernelspec:
   name: python3
   display_name: Python 3
 ---
+
+:::{admonition} Simulated datasets in this chapter
+:class: note
+- **Built in this page:** the k-space of a synthetic b=0 slice, with simulated coil sensitivities, undersampling, and partial Fourier ([Appendix B](../appendices/b-data-manifest.md#app-b-package-data)).
+- **`slab-kspace`** (pending): a five-slice slab with its raw k-space exported: 8 coils, GRAPPA 2, partial Fourier 6/8 ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-slab-kspace)).
+
+Pipeline-tier datasets are simulated offline by TRXScan ([Chapter 0.2](../00-frontmatter/the-simulated-datasets.md)) and are marked *pending* until their release; the figures that need them say so where they will appear.
+:::
 
 ## Learning goals
 
@@ -18,9 +25,6 @@ After this chapter you can:
 - recognize what compressed sensing requires
 - describe the noise in a magnitude image, and state how large the resulting bias is at the
   signal levels typical of high b-value diffusion data
-
-**Datasets used:** `slab-kspace` (pending)
-**Simulation tier:** toy + phantom
 
 ```{code-cell} python
 :tags: [hide-cell]
@@ -42,13 +46,13 @@ img = obj * np.exp(1j * phantoms.brain_phase())  # the same slice with a smooth 
 For a fully sampled Cartesian acquisition the reconstruction is an inverse Fourier
 transform, and its result is a complex number in every voxel, because every k-space sample is
 complex to begin with: it is the pair of quadrature-demodulated receiver channels described
-in Chapter 1. The magnitude is the image that is normally viewed and analyzed. The phase is
+in [Chapter 1](./01-spins-and-signal.md). The magnitude is the image that is normally viewed and analyzed. The phase is
 measured relative to the receiver's reference, so a constant offset is arbitrary; its spatial
 and temporal variations are not. The phase is usually discarded. In diffusion MRI the
 phase carries information that is used later in this book: the static field offset
-(Chapter 10), the eddy-current phase that changes with each diffusion direction
-(Chapter 11), and the phase acquired through motion during the diffusion encoding
-(Chapter 12). Saving only the magnitude removes all of it.
+([Chapter 10](../03-preprocessing/10-susceptibility-distortion.md)), the eddy-current phase that changes with each diffusion direction
+([Chapter 11](../03-preprocessing/11-eddy-currents.md)), and the phase acquired through motion during the diffusion encoding
+([Chapter 12](../03-preprocessing/12-motion-and-dropout.md)). Saving only the magnitude removes all of it.
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -100,7 +104,7 @@ fig.tight_layout()
 
 Because each coil views the object from a different position, the set of coil images
 contains spatial information that can substitute for some of the phase-encode lines.
-Acquiring only every $R$-th line shortens the EPI readout by a factor of $R$ (Chapter 2). The
+Acquiring only every $R$-th line shortens the EPI readout by a factor of $R$ ([Chapter 2](./02-spatial-encoding-kspace.md)). The
 raw result is an image folded over on itself $R$ times, in every coil. Two families of
 reconstruction unfold it:
 
@@ -110,7 +114,7 @@ reconstruction unfold it:
 - **GRAPPA** works in k-space and does not need sensitivity maps. A block of fully sampled
   central lines (the autocalibration signal, ACS) is used to learn how each missing line can
   be predicted from neighboring acquired lines across all coils; the learned weights are then
-  applied throughout k-space. TRXScan simulates GRAPPA with 24 ACS lines, so the phantom data
+  applied throughout k-space. TRXScan simulates GRAPPA with 24 ACS lines, so the simulated brain data
   in later chapters went through this reconstruction.
 
 ```{code-cell} python
@@ -158,7 +162,7 @@ quickly with the coil geometry of a head array.
 
 ## Partial Fourier reconstruction
 
-A partial-Fourier acquisition (Chapter 2) skips the lines whose mirror images were acquired.
+A partial-Fourier acquisition ([Chapter 2](./02-spatial-encoding-kspace.md)) skips the lines whose mirror images were acquired.
 The reconstruction supplies them, and the methods differ in what they assume about the
 image phase:
 
@@ -239,7 +243,7 @@ visible; the residual blockiness comes from that choice, and production methods 
 transforms. In diffusion MRI, compressed sensing in k-space is used mainly for multi-shot
 and 3-D readouts, since single-shot EPI already collects all of k-space in one pass. The more
 common use is in q-space: sampling diffusion directions and b-values sparsely and
-reconstructing with a sparsity prior, which is CS-DSI (Chapter 6).
+reconstructing with a sparsity prior, which is CS-DSI ([Chapter 6](../02-diffusion-encoding/06-qspace-sampling.md)).
 
 ## Noise in magnitude images
 
@@ -297,12 +301,12 @@ for s in [0.5, 1, 2, 3, 5, 10]:
 
 Diffusion-weighted images at high b-value routinely have SNR between 1 and 3. Their
 magnitudes are therefore biased upward, the signal appears to decay less with b than it
-does, and fitted diffusivities come out too low. Chapter 8 measures this on the phantom and
+does, and fitted diffusivities come out too low. [Chapter 8](../03-preprocessing/08-noise.md) measures this on the simulated datasets and
 shows what denoising in the complex domain and noise-aware fitting do about it.
 
 ## See it and measure it: the TRXScan slab
 
-:::{admonition} Phantom figure pending
+:::{admonition} Simulated dataset pending
 :class: note
 This section will load the `slab-kspace` dataset (8 coils, GRAPPA R = 2, partial Fourier
 6/8, exported raw k-space), apply the GRAPPA, partial-Fourier, and coil-combination steps
@@ -319,14 +323,14 @@ Gaussian with zero mean. Keeping the complex image, which BIDS supports as `part
 
 - **Denoising in the complex domain** operates on Gaussian noise without a floor, so the
   low-SNR high-b volumes that matter most for microstructure can be denoised without bias
-  (Chapter 8).
+  ([Chapter 8](../03-preprocessing/08-noise.md)).
 - **Averaging** repeated acquisitions in the complex domain reduces noise toward zero;
   averaging magnitudes converges to the noise floor instead.
 - **The phase is diagnostic.** Eddy-current and motion-related phase can be inspected per
-  volume before any correction is attempted (Chapters 11 and 12).
+  volume before any correction is attempted (Chapters [11](../03-preprocessing/11-eddy-currents.md) and [12](../03-preprocessing/12-motion-and-dropout.md)).
 
 The costs are twice the storage, a phase image that wraps and is not interpretable without
-a reference, and a preprocessing pipeline that accepts complex input. Chapter 19 collects
+a reference, and a preprocessing pipeline that accepts complex input. [Chapter 19](../04-modeling/19-what-your-data-allow.md) collects
 what complex data provide across the whole analysis chain.
 
 ## What this implies for acquisition

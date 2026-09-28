@@ -59,10 +59,26 @@ def show_image(ax, img: np.ndarray, title: str | None = None, kind: str = "magni
         ax.set_title(title)
 
 
-def show_kspace(ax, ksp: np.ndarray, title: str | None = None):
-    """Display k-space as log magnitude (the only way to see anything beyond the center)."""
-    ax.imshow(np.log1p(np.abs(ksp) / (np.abs(ksp).max() + 1e-12) * 1e3), cmap="magma")
-    ax.set_axis_off()
+def show_kspace(ax, ksp: np.ndarray, title: str | None = None, voxel_mm: float | None = None, phase: bool = False):
+    """Display k-space as log magnitude (the only way to see anything beyond the center).
+
+    With ``voxel_mm`` the axes are labeled in spatial frequency: the outermost sample sits at
+    k_max = 1 / (2 voxel) cycles per mm, with k_x horizontal and k_y (phase encode) vertical.
+    With ``phase=True`` the phase is shown instead of the magnitude.
+    """
+    if phase:
+        data, cmap = np.angle(ksp), "twilight"
+    else:
+        data, cmap = np.log1p(np.abs(ksp) / (np.abs(ksp).max() + 1e-12) * 1e3), "magma"
+    if voxel_mm is None:
+        ax.imshow(data, cmap=cmap)
+        ax.set_axis_off()
+    else:
+        ny, nx = ksp.shape[-2:]
+        kx, ky = 1 / (2 * voxel_mm), 1 / (2 * voxel_mm)
+        ax.imshow(data, cmap=cmap, extent=(-kx, kx * (nx - 2) / nx, ky * (ny - 2) / ny, -ky))
+        ax.set(xlabel="$k_x$ (cycles/mm)", ylabel="$k_y$ (cycles/mm)")
+        ax.grid(False)
     if title:
         ax.set_title(title)
 

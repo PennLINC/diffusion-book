@@ -1,10 +1,19 @@
 ---
-title: Fiber orientation estimation
-subtitle: Chapter 16
+title: "16. Fiber orientation estimation"
 kernelspec:
   name: python3
   display_name: Python 3
 ---
+
+:::{admonition} Simulated datasets in this chapter
+:class: note
+- **Built in this page:** a synthetic series with a fiber crossing built from the packaged tissue maps ([Appendix B](../appendices/b-data-manifest.md#app-b-package-data)).
+- **`ref-clean`** (pending): the artifact-free, noise-free reference series with its truth maps and true fiber orientations ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-ref-clean)).
+- **`ref-schemes`** (pending): the simulated brain under the 30-direction, 64-direction, HBCD, DSI, and CS-DSI schemes at matched scan time ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-ref-schemes)).
+- **`truth`** (pending): the 27 analytic ground-truth maps and the true fiber orientations ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-truth), [Appendix E](../appendices/e-truth-map-catalogue.md)).
+
+Pipeline-tier datasets are simulated offline by TRXScan ([Chapter 0.2](../00-frontmatter/the-simulated-datasets.md)) and are marked *pending* until their release; the figures that need them say so where they will appear.
+:::
 
 ## Learning goals
 
@@ -16,9 +25,6 @@ After this chapter you can:
   and extract peaks
 - score peak directions and peak counts against a known answer
 - state what each method needs from the sampling scheme
-
-**Datasets used:** `ref-schemes`, `truth` (pending); the toy tier uses a synthetic crossing
-**Simulation tier:** toy + phantom
 
 ```{code-cell} python
 :tags: [hide-cell]
@@ -97,7 +103,7 @@ print(f"white matter voxels with one fiber population: {single.sum()}, with two:
   {cite:p}`aganj2010` corrects the normalization. It needs 60 or more directions at
   b ≥ 2000 to resolve crossings, and its peaks are broad.
 - **Diffusion spectrum imaging** {cite:p}`wedeen2005` reconstructs the displacement
-  distribution by an inverse Fourier transform of the Cartesian q-space grid (Chapter 6)
+  distribution by an inverse Fourier transform of the Cartesian q-space grid ([Chapter 6](../02-diffusion-encoding/06-qspace-sampling.md))
   and projects it to a diffusion ODF. Model-free, at the cost of the grid acquisition.
 - **Constrained spherical deconvolution** (CSD) {cite:p}`tournier2007` estimates the
   fiber ODF from one shell by deconvolving a response function measured in
@@ -142,7 +148,7 @@ results["multi-tissue CSD, 3 shells"] = peaks(MultiShellDeconvModel(gtab, msmt_r
 print("peak extraction done for", list(results))
 ```
 
-DSI needs its own acquisition, the 257-point grid of Chapter 6. The toy tier simulates it
+DSI needs its own acquisition, the 257-point grid of [Chapter 6](../02-diffusion-encoding/06-qspace-sampling.md). The toy tier simulates it
 on the same slice (257 volumes, same noise level) and reconstructs it with dipy's DSI model.
 
 ```{code-cell} python
@@ -201,7 +207,7 @@ and a larger angular error. The multi-tissue fit and q-ball find most of them; b
 limited here by the 30 directions per shell, which cap the harmonic order at 6, and the
 multi-tissue fit also spends part of that angular resolution on separating three tissues.
 CSD at b = 1000 misses a third of the crossings, and the peaks it reports are off by
-15°, because the angular contrast of the signal is low at that b-value (Chapter 5): the
+15°, because the angular contrast of the signal is low at that b-value ([Chapter 5](../02-diffusion-encoding/05-diffusion-encoding.md)): the
 shell is fine for a tensor and inadequate for deconvolution. False peaks in single-fiber
 white matter are the other failure mode; at this SNR none of the methods produced them, but
 they appear at lower SNR and in gray matter and CSF partial volume, which is what the
@@ -236,14 +242,14 @@ fig.tight_layout()
 | DSI | Cartesian grid, b to 4000+ | 200–500 | model-free; long scan; strong gradients |
 | CS-DSI | random subset of the grid | ~60–100 | needs the compressed-sensing reconstruction (not in dipy) |
 
-## Measure it: the phantom
+## Measure it: the simulated datasets
 
-:::{admonition} Phantom figure pending
+:::{admonition} Simulated dataset pending
 :class: note
 This section will run the same reconstructions on the `ref-schemes` dataset and score them
 against the truth peaks TRXScan writes with `--truth-peaks` (up to three orientations per
 voxel with their mass fractions), and against the `gfa` and `qa` truth maps, on the real
-crossing geometry of the phantom's tractogram.
+crossing geometry of the simulated brain's tractogram.
 :::
 
 ## What this implies for acquisition

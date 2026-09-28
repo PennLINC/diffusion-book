@@ -1,10 +1,12 @@
 """TRXScan ground truth: the 27 analytic microstructure maps and the truth peaks (Part IV).
 
-``trxscan-microstructure`` writes ``<prefix>_<name>.nii.gz`` for each name in
-:data:`TRUTH_MAPS`, using dipy's conventions (it is validated against dipy at 1e-8), so a
-dipy fit of the simulated data can be compared to these maps directly. ``trxscan
---truth-peaks`` writes a 9-volume image of up to three peak vectors per voxel, each scaled by
-its mass fraction.
+``trxscan-microstructure`` writes one map per name in :data:`TRUTH_MAPS`, using dipy's
+conventions (it is validated against dipy at 1e-8), so a dipy fit of the simulated data can
+be compared to these maps directly. ``trxscan --truth-peaks`` writes a 9-volume image of up
+to three peak vectors per voxel, each scaled by its mass fraction. The pipeline stores both
+under BIDS derivative names, ``<sub>_model-truth_param-<name>_dwimap.nii.gz``, in the
+``derivatives/trxscan`` dataset of a simulated dataset or at the top level of the
+``truth`` dataset.
 """
 
 from __future__ import annotations
@@ -24,16 +26,43 @@ TRUTH_MAPS: dict[str, tuple[str, ...]] = {
 }
 ALL_TRUTH_MAPS: tuple[str, ...] = tuple(n for names in TRUTH_MAPS.values() for n in names)
 
+#: Where a simulated dataset keeps its truth maps; the ``truth`` dataset keeps them at its root.
+TRUTH_PIPELINE = "derivatives/trxscan"
 
-def load_truth(ds: Dataset, prefix: str, names: tuple[str, ...] | None = None) -> dict[str, np.ndarray]:
-    """Load truth maps ``<prefix>_<name>.nii.gz`` from a dataset into a ``{name: array}`` dict."""
+
+def param_label(name: str) -> str:
+    """The BIDS ``param-`` label of a truth-map name (``k_bulk`` becomes ``kbulk``)."""
+    return name.replace("_", "")
+
+
+def truth_filename(sub: str, name: str) -> str:
+    """File name of one truth map: ``<sub>_model-truth_param-<label>_dwimap.nii.gz``."""
+    return f"{sub}_model-truth_param-{param_label(name)}_dwimap.nii.gz"
+
+
+def truth_file(ds: Dataset, sub: str, name: str) -> str:
+    """Path inside ``ds`` of one truth map, in ``derivatives/trxscan`` or at the dataset root."""
+    rel = f"{sub}/dwi/{truth_filename(sub, name)}"
+    for root in (TRUTH_PIPELINE, ""):
+        candidate = f"{root}/{rel}" if root else rel
+        if (ds.path / candidate).exists():
+            return candidate
+    raise FileNotFoundError(f"truth map {name!r} for {sub} not found in dataset {ds.id!r} at {ds.path}")
+
+
+def load_truth(ds: Dataset, sub: str, names: tuple[str, ...] | None = None) -> dict[str, np.ndarray]:
+    """Load the truth maps of one subject from a dataset into a ``{name: array}`` dict."""
     names = names or ALL_TRUTH_MAPS
-    return {n: ds.volume(f"{prefix}_{n}.nii.gz") for n in names}
+    return {n: ds.volume(truth_file(ds, sub, n)) for n in names}
 
 
-def load_truth_peaks(ds: Dataset, name: str) -> np.ndarray:
-    """Truth peaks as ``(x, y, z, 3 peaks, 3)``; the vector norm is the peak's mass fraction."""
-    v = ds.volume(name)
+def load_truth_peaks(ds: Dataset, entities: str) -> np.ndarray:
+    """Truth peaks of one run (``entities`` like ``sub-0001a_acq-hbcd_dir-AP``) as ``(x, y, z, 3 peaks, 3)``.
+
+    The vector norm is the peak's mass fraction.
+    """
+    sub = entities.split("_")[0]
+    v = ds.volume(f"{TRUTH_PIPELINE}/{sub}/dwi/{entities}_model-truth_param-peaks_dwimap.nii.gz")
     if v.shape[-1] != 9:
         raise ValueError(f"expected a 9-volume peaks image, got shape {v.shape}")
     return v.reshape(*v.shape[:3], 3, 3)
