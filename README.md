@@ -20,6 +20,11 @@ The theme cannot run page scripts, so click-to-enlarge images are added after th
 `tools/inject_static.py` copies `book/_static/lightbox.{css,js}` into `_build/html` and
 links them from every page. The CI workflow runs it before deploying.
 
+The live-tier cells simulate one slice of the simulated brain with the `trxscan` package
+(a dependency of `dwibook`); the 20 MB `slab` bundle is downloaded once into the pooch cache.
+Set `TRXSCAN_DATA=/path/to/trxscan-phantoms` to use a local copy, and
+`DWIBOOK_PHANTOM=sub-60501` to run those cells on the full subject.
+
 Set `OMP_NUM_THREADS=1` (and the OpenBLAS/MKL equivalents) before building: the notebooks
 execute in parallel, and one BLAS thread per kernel keeps the build at about a minute
 instead of stalling for many minutes on thread oversubscription. Set

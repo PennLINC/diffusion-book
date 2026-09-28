@@ -8,9 +8,11 @@ kernelspec:
 :::{admonition} Simulated datasets in this chapter
 :class: note
 - **Built in this page:** the synthetic series of [Chapter 8](./08-noise.md) with a simulated object phase ([Appendix B](../appendices/b-data-manifest.md#app-b-package-data)).
+- **Simulated live in this page:** one slice of the simulated brain under the full HBCD scheme, with the simulator's object phase and eddy-current phase ramp, phase-corrected and scored against its noise-free run.
 - **`noise-sweep`** (pending): four noise levels with one coil, plus an 8-coil GRAPPA run ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-noise-sweep)).
 - **`truth`** (pending): the 27 analytic ground-truth maps and the true fiber orientations ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-truth), [Appendix E](../appendices/e-truth-map-catalogue.md)).
 
+Live-tier figures simulate one slice of the simulated brain in the page through TRXScan's Python package ([Chapter 0.2](../00-frontmatter/the-simulated-datasets.md#live-tier)); they run in seconds at build time.
 Pipeline-tier datasets are simulated offline by TRXScan ([Chapter 0.2](../00-frontmatter/the-simulated-datasets.md)) and are marked *pending* until their release; the figures that need them say so where they will appear.
 :::
 
@@ -139,14 +141,52 @@ Real-valued conversion and complex-domain denoising ([Chapter 8](./08-noise.md))
 from two sides and are often combined: denoise the complex data, then phase-correct and take
 the real part.
 
-## Measure it: the simulated datasets
+## Measure it: one slice, simulated live
 
-:::{admonition} Simulated dataset pending
-:class: note
-This section will apply the phase correction to the `noise-sweep` dataset, whose phase
-images carry the simulator's object phase and eddy-current phase ramp, and compare the
-real-valued fits with the `truth` maps where the magnitude fits were biased.
-:::
+The simulator writes complex data with the phase a scanner would give it: the object phase
+model calibrated on real HBCD scans, plus an eddy-current phase ramp that changes with the
+diffusion direction. The same phase correction as above, applied to one simulated slice under
+the full 76-volume protocol, is scored against the noise-free run of the same slice.
+
+```{code-cell} python
+:tags: [hide-input]
+import trxscan as ts
+from dwibook import phantom as ph
+
+g = ph.gtab()
+art = ts.Artifacts(eddy_phase=1.7e-5, seed=1)                      # the phase ramp a 3 T HBCD scan shows
+noisy = ph.run(g, ph.PROTO, art.replace(noise=3.0), kspace=False)   # k-space noise for an SNR of about 3 in WM at b = 3000
+clean = ph.run(g, ph.PROTO, art, kspace=False)
+cplx = noisy.complex                                                # (nx, ny, 1, n_vol) complex64
+mag_sim = np.abs(cplx)
+real_sim = phase_correct(cplx, width_vox=2.0)
+ref = clean.magnitude.get_fdata()
+obj = ph.grid()
+k = ph.slice_index()
+wm_sim = obj.image("wm").get_fdata()[:, :, k] > 0.9
+b = np.where(g.b0s_mask, 0.0, g.bvals)   # the protocol's b0 volumes carry a small nominal b
+v3 = np.flatnonzero(np.isclose(b, 3000, atol=50))[0]
+fig, axes = plt.subplots(1, 4, figsize=(12, 3.2))
+axes[0].imshow(np.rot90(np.where(obj.image("mask").get_fdata()[:, :, k] > 0, noisy.phase.get_fdata()[:, :, 0, v3], np.nan)), cmap="twilight", vmin=-np.pi, vmax=np.pi); axes[0].set_axis_off(); axes[0].set_title("simulated phase, b = 3000")
+show_image(axes[1], ph.axial(mag_sim, v3), "magnitude")
+show_image(axes[2], ph.axial(real_sim, v3), "phase-corrected real part")
+show_image(axes[3], ph.axial(real_sim, v3) - ph.axial(ref, v3), "real part minus noise-free", kind="diff")
+fig.tight_layout()
+print("mean signal error in white matter, relative to the noise-free signal at that b:")
+for label, s in [("magnitude", mag_sim), ("real-valued", real_sim)]:
+    print(f"  {label:>12}", end="")
+    for bb in [0, 1000, 2000, 3000]:
+        v = np.isclose(b, bb, atol=50)
+        err = (s[:, :, 0, :][..., v] - ref[:, :, 0, :][..., v])[wm_sim]
+        print(f"   b={bb}: {100 * err.mean() / ref[:, :, 0, :][..., v][wm_sim].mean():+5.1f} %", end="")
+    print()
+```
+
+The simulated phase is smooth inside the head, so the two-voxel filter recovers it and the
+real-valued error at b = 3000 sits near zero where the magnitude is biased upward. The
+remaining differences are the Rician-free noise itself and the voxels at the brain edge,
+where the filter averages phase across the boundary; the eddy-current ramp, which varies
+from volume to volume, is handled because the phase is estimated per volume.
 
 ## What this implies for acquisition
 

@@ -8,9 +8,11 @@ kernelspec:
 :::{admonition} Simulated datasets in this chapter
 :class: note
 - **Built in this page:** a synthetic series on the packaged 1 mm slice, acquired at the k-space band of a 2 mm matrix ([Appendix B](../appendices/b-data-manifest.md#app-b-package-data)).
+- **Simulated live in this page:** one slice of the simulated brain acquired with the object oversampled (ringing intrinsic), on the acquisition grid (no ringing), and with a Hann window.
 - **`gibbs`** (pending): ringing intrinsic to the acquisition versus none, plus a Hann-apodized variant ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-gibbs)).
 - **`truth`** (pending): the 27 analytic ground-truth maps and the true fiber orientations ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-truth), [Appendix E](../appendices/e-truth-map-catalogue.md)).
 
+Live-tier figures simulate one slice of the simulated brain in the page through TRXScan's Python package ([Chapter 0.2](../00-frontmatter/the-simulated-datasets.md#live-tier)); they run in seconds at build time.
 Pipeline-tier datasets are simulated offline by TRXScan ([Chapter 0.2](../00-frontmatter/the-simulated-datasets.md)) and are marked *pending* until their release; the figures that need them say so where they will appear.
 :::
 
@@ -181,15 +183,47 @@ corners and where two boundaries are within a few voxels of each other. Apodizat
 the stripes too, but replaces them with a blur that biases every boundary voxel toward its
 neighbor, which the MD error shows as a systematic offset rather than a spread.
 
-## Measure it: the simulated datasets
+## Measure it: one slice, simulated live
 
-:::{admonition} Simulated dataset pending
-:class: note
-This section will load the `gibbs` dataset (`--oversample 2` against `--oversample 1`, plus
-the Hann-windowed variant) and the `truth` maps, and repeat the rim measurements on the
-simulated acquisition, where the ringing also interacts with the partial-Fourier
-reconstruction of [Chapter 3](../01-mri-physics/03-reconstruction.md).
-:::
+On the simulated acquisition the ringing is intrinsic: the object is simulated on a grid
+twice as fine as the acquisition matrix and only the acquired band of its k-space is kept, so
+every tissue boundary rings the way a real one does. Simulating the same slice with the
+object placed directly on the acquisition matrix (no oversampling) gives the ringing-free
+reference, and a Hann window at reconstruction gives the apodized alternative.
+
+```{code-cell} python
+:tags: [hide-input]
+import trxscan as ts
+from dwibook import phantom as ph
+
+g = ph.gtab(1)  # the b = 0 volume is where CSF is brightest and the ringing largest
+clean = ts.Artifacts(seed=1)
+ringing = ph.run(g, ph.PROTO, clean)
+noring = ph.run(g, ph.PROTO.replace(oversample=1), clean)
+hann = ph.run(g, ph.PROTO, clean.replace(window="hann"))
+a, b, c = (ph.axial(s.magnitude, 0) for s in (ringing, noring, hann))
+fig, axes = plt.subplots(1, 4, figsize=(12, 3.2))
+show_image(axes[0], a, "acquired (oversampled object)")
+show_image(axes[1], b, "object on the acquisition grid")
+show_image(axes[2], (a - b), "difference: the ringing", kind="diff", vmin=-0.1 * a.max(), vmax=0.1 * a.max())
+show_image(axes[3], c, "Hann-apodized reconstruction")
+fig.tight_layout()
+```
+
+```{code-cell} python
+:tags: [hide-input]
+csf = b > 0.7 * np.percentile(b[b > 0], 99)  # the brightest tissue at b = 0 is CSF
+rim = ndimage.binary_dilation(csf, iterations=2) & ~csf & (b > 0.05 * b.max())  # the tissue ring around it
+for label, img in [("acquired", a), ("Hann apodized", c)]:
+    rel = (img - b)[rim] / b[rim].mean()
+    print(f"{label:>14}: deviation from the ringing-free image in the {int(rim.sum())} voxels around CSF: "
+          f"{rel.mean():+.3f} ± {rel.std():.3f} of their mean intensity")
+```
+
+The difference image is the ringing alone: stripes parallel to every CSF boundary, largest
+at the ventricles. Apodization removes the stripes and replaces them with a blur, exactly as
+on the synthetic series above; the numbers are smaller than in the toy case because the
+phantom's 2.5 mm voxels already average over the sharpest edges.
 
 ## What acquisition choices reduce it
 

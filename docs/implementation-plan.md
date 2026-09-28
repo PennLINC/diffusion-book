@@ -102,6 +102,19 @@ Design rules:
 - **Truth is a first-class input.** `dwibook.truth` exposes the 27 maps and truth peaks with the
   dipy conventions TRXScan validated against, so "fit vs. truth" is one function call per chapter.
 
+## 3b. Update 2026-09-28: a live tier on the Python package
+
+TRXScan ships as the `trxscan` wheel (pyo3; `TRXScan/python/`, on PyPI since 0.1.0), which
+adds a third tier between toy and pipeline: notebooks simulate **one slice of the simulated
+brain live** at build time through `dwibook.phantom` (`run(...)`, a few seconds per cell on
+the 20 MB `slab` bundle hosted at `PennLINC/trxscan-phantoms`, or the full NIBS subject
+`sub-60501` with `DWIBOOK_PHANTOM`). Chapters 0.2, 2, 8b, 9 and 12 have live sections; the
+others still wait on the pipeline tier. The Python API already provides items T1–T3 of §4
+(`Protocol` fields, `kspace=True`, `Artifacts(te_per_volume=)`), so the pipeline can produce
+`slab-kspace`, `gibbs` (Hann) and `te-sweep` whenever its driver is written against it; the
+CLI grew the matching `--pf-mode scanner` default. The pipeline configuration and Appendix A
+keep their CLI form and `sub-0001a`. `--eddy-trace` has no simulator counterpart.
+
 ## 4. TRXScan and mrsim-acq work items
 
 What the book needs that the simulator does not expose today. Ordered by how many chapters

@@ -38,15 +38,19 @@ sections follow the artifact template: the physics of the artifact, the simulato
 that produce it, the artifact-free reference, the correction step by step, the residual
 against truth, and the acquisition choices that reduce it.
 
-## Two kinds of simulation
+## Three kinds of simulation
 
-The figures come from two sources, and every chapter says which:
+The figures come from three sources, and every chapter says which:
 
 - **Toy tier.** Small simulations written in the page and run when the book is built: a
   spin's Bloch equations, the k-space of one brain slice, random walks, single-voxel
   signal models, and synthetic diffusion series built from the simulated brain's tissue maps with
   a known fiber orientation in every voxel. They run in seconds and are the answer key for
   most of the book's measurements.
+- **Live tier.** One slice of the simulated brain, acquired in the page by TRXScan
+  through its Python package in a few seconds ([Chapter 0.2](./the-simulated-datasets.md#live-tier)):
+  real k-space, real readout timing, real artifacts, on a 20 MB slab of the phantom that
+  is downloaded once.
 - **Pipeline tier.** Full simulations of the same brain ([Chapter 0.2](./the-simulated-datasets.md)) by TRXScan, a
   diffusion-MRI simulator that models the acquisition from the diffusion signal through
   k-space to the reconstructed complex image, with the artifacts of a real scanner. These
