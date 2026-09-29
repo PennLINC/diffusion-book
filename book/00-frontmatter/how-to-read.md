@@ -16,11 +16,61 @@ can be done about it. Every artifact is shown on simulated data whose correct an
 known, every correction is scored against that answer, and every model is fitted where its
 assumptions hold and where they do not.
 
-The chapters are meant to be read in order the first time. Part I covers how an image is
-made and reconstructed, Part II how diffusion is encoded and sampled, Part III what goes
-wrong and how it is fixed, Part IV what is fitted to the corrected data, and Part V what
-lies beyond a standard acquisition. [Chapter 19](../04-modeling/19-what-your-data-allow.md) collects the requirements of everything
-before it into one decision table and is the page to return to.
+```{code-cell} python
+:tags: [hide-cell]
+import matplotlib.pyplot as plt
+from matplotlib.patches import FancyBboxPatch
+
+from dwibook.plotting import INK, PALETTE, set_style
+
+set_style()
+```
+
+The chapters are meant to be read in order the first time, because each step of the chain
+below depends on the one before it. Part I covers how an image is made and reconstructed,
+Part II how diffusion is encoded and sampled, Part III what goes wrong and how it is fixed,
+Part IV what is fitted to the corrected data, and Part V what lies beyond a standard
+acquisition.
+
+```{code-cell} python
+:tags: [hide-input]
+steps = [  # (part, label, chapters)
+    ("I", "protons give\na signal", "Ch 1"),
+    ("I", "gradients encode\nposition (k-space)", "Ch 2"),
+    ("I", "k-space becomes\nan image", "Ch 3"),
+    ("II", "water diffuses\nin tissue", "Ch 4"),
+    ("II", "diffusion weighting\nand its sampling", "Ch 5–7"),
+    ("III", "artifacts, and\nhow to correct them", "Ch 8–14"),
+    ("IV", "models turn the\nimages into maps", "Ch 15–19"),
+    ("V", "beyond a standard\nacquisition", "Ch 20–23"),
+]
+parts = {"I": "how an image is made", "II": "how diffusion is measured", "III": "what goes wrong",
+         "IV": "what is fitted", "V": "further"}
+colors = dict(zip(parts, PALETTE[:5]))
+W, GAP = 1.45, 0.28
+fig, ax = plt.subplots(figsize=(13.2, 2.6))
+ax.set(xlim=(-0.05, len(steps) * (W + GAP) - GAP + 0.05), ylim=(0, 2.25))
+ax.set_axis_off()
+xs = [i * (W + GAP) for i in range(len(steps))]
+for i, (x, (part, label, ch)) in enumerate(zip(xs, steps)):
+    c = colors[part]
+    ax.add_patch(FancyBboxPatch((x, 0.35), W, 1.05, boxstyle="round,pad=0.02,rounding_size=0.1", fc=c + "22", ec=c, lw=1.4))
+    ax.text(x + W / 2, 1.02, label, ha="center", va="center", fontsize=8.6, color=INK["primary"], linespacing=1.25)
+    ax.text(x + W / 2, 0.52, ch, ha="center", va="center", fontsize=8, color=INK["secondary"])
+    if i:
+        ax.annotate("", xy=(x, 0.875), xytext=(x - GAP, 0.875),
+                    arrowprops=dict(arrowstyle="-|>", color=INK["secondary"], lw=1.2, shrinkA=0, shrinkB=0))
+for part, desc in parts.items():
+    idx = [i for i, s in enumerate(steps) if s[0] == part]
+    x0, x1 = xs[idx[0]], xs[idx[-1]] + W
+    ax.plot([x0, x1], [1.62, 1.62], color=colors[part], lw=2.5, solid_capstyle="butt")
+    ax.text((x0 + x1) / 2, 1.72, f"Part {part}\n{desc}", ha="center", va="bottom", fontsize=8.6, color=INK["primary"], linespacing=1.2)
+fig.tight_layout()
+```
+
+Each box is one step from the scanner to a finished map, and the arrows give the order in
+which the book takes them. [Chapter 19](../04-modeling/19-what-your-data-allow.md) collects the requirements of everything before it into
+one decision table and is the page to return to.
 
 ## Executable cells
 
@@ -40,22 +90,16 @@ against truth, and the acquisition choices that reduce it.
 
 ## Three kinds of simulation
 
-The figures come from three sources, and every chapter says which:
+The figures come from three sources, and every chapter says which.
+[Chapter 0.2](./the-simulated-datasets.md) describes each in full.
 
-- **Toy tier.** Small simulations written in the page and run when the book is built: a
-  spin's Bloch equations, the k-space of one brain slice, random walks, single-voxel
-  signal models, and synthetic diffusion series built from the simulated brain's tissue maps with
-  a known fiber orientation in every voxel. They run in seconds and are the answer key for
-  most of the book's measurements.
-- **Live tier.** One slice of the simulated brain, acquired in the page by TRXScan
-  through its Python package in a few seconds ([Chapter 0.2](./the-simulated-datasets.md#live-tier)):
-  real k-space, real readout timing, real artifacts, on a 20 MB slab of the simulated brain
-  that is downloaded once.
-- **Pipeline tier.** Full simulations of the same brain ([Chapter 0.2](./the-simulated-datasets.md)) by TRXScan, a
-  diffusion-MRI simulator that models the acquisition from the diffusion signal through
-  k-space to the reconstructed complex image, with the artifacts of a real scanner. These
-  runs take minutes to hours, so they are made offline by a pipeline, versioned, and
-  downloaded by the pages that use them. Sections that depend on them are marked *Simulated dataset pending* until the corresponding dataset has been released.
+- **Toy tier.** Small simulations written in the page, which run in seconds when the book
+  is built.
+- **Live tier.** One slice of the simulated brain, acquired in the page by the TRXScan
+  simulator in a few seconds ([Chapter 0.2](./the-simulated-datasets.md#live-tier)).
+- **Pipeline tier.** Full simulations of the same brain by TRXScan, made offline and
+  downloaded by the pages that use them. Sections that depend on one are marked
+  *Simulated dataset pending* until it has been released.
 
 The toy tier is fully reproducible from the repository alone. The pipeline tier is
 reproducible from the repository plus the simulator and the simulation inputs, which
@@ -93,6 +137,10 @@ Snakemake workflow in the repository's `pipelines` directory; it requires the TR
 binaries and the simulation inputs, which are distributed separately from the book.
 
 ## Conventions
+
+This section is reference material. It uses terms such as phase-encode axis and b-value
+that Chapters 2 through 5 define, and it will make sense by the end of
+[Chapter 5](../02-diffusion-encoding/05-diffusion-encoding.md); come back to it then.
 
 - Spelling is American; the tissue colors are fixed throughout (white matter blue, gray
   matter orange, CSF aqua); difference maps use a diverging scale centered on zero.

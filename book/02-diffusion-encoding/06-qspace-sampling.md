@@ -108,8 +108,17 @@ tensor imaging (DTI), typically b = 1000 s/mm² with 6 to 64 directions plus b=0
 of high angular resolution diffusion imaging (HARDI), typically b = 2000–3000 with 60 or more
 directions.
 
-- **Six directions** is the mathematical minimum for a tensor fit. It is never used in
-  practice because every measurement then influences the result with no redundancy.
+The model these schemes were designed for is the *diffusion tensor*, the simplest
+description of direction-dependent diffusion. It pictures the diffusivity in every
+direction as an ellipsoid, long along the direction in which water moves most easily and
+short across it ([Chapter 15](../04-modeling/15-signal-representations.md) fits it). An ellipsoid in three dimensions takes six numbers to
+pin down: three for the lengths of its axes and three for the angles that orient it. Each
+diffusion-weighted direction, divided by the b=0 image, gives one equation in those six
+unknowns. That count sets the first rule below.
+
+- **Six directions** is the mathematical minimum for a tensor fit: six equations for six
+  unknowns. It is never used in practice because every measurement then influences the
+  result with no redundancy, so noise in any one volume passes straight into the tensor.
 - **Around 30 directions** gives a tensor fit whose precision no longer depends on how the
   fibers are oriented relative to the directions {cite:p}`jones2004`.
 - **60–90 directions at b ≥ 2000** resolves crossing fibers with the orientation models of
@@ -222,33 +231,75 @@ Two design details matter:
 - **Directions should be spread across shells as well as within them**, so that the
   combined set covers the sphere uniformly {cite:p}`caruyer2013`.
 - **Shells should be interleaved in acquisition order** and b=0 volumes spread throughout,
-  so that motion or scanner drift affects all shells equally ([Chapter 5](./05-diffusion-encoding.md)).
+  so that motion or scanner drift affects all shells equally ([Chapter 5](./05-diffusion-encoding.md)). Not every protocol
+  does this: the HBCD reference scheme spreads its b=0 volumes through the series (about
+  one in every eight volumes) but acquires the shells in blocks of increasing b, so motion
+  late in the scan falls mostly on the b = 3000 shell.
 
 ## DSI
 
 Diffusion spectrum imaging samples q-space on a Cartesian grid, typically all lattice
 points within a sphere: 257 points for a radius of 4 grid units, 515 for a radius of 5
-{cite:p}`wedeen2005`. Because the signal is the Fourier transform of the displacement
-distribution, a grid of samples allows that distribution to be reconstructed directly
-by an inverse Fourier transform, without a model. The grid extends to high b-values (often
+{cite:p}`wedeen2005`. The idea is the one behind image reconstruction in [Chapter 2](../01-mri-physics/02-spatial-encoding-kspace.md). There,
+each k-space sample is one stripe-pattern component of the image, and a full grid of
+samples is turned back into the image by an inverse Fourier transform. Here, each q-space
+sample is one component of the *displacement distribution* (also called the propagator):
+the probability that a water molecule moved a given distance in a given direction during
+the diffusion time. A full grid of q-space samples is turned back into that distribution
+the same way, with no model of the tissue. The grid extends to high b-values (often
 4000–8000 s/mm²) and needs a strong gradient system. The cost is the number of volumes:
 257 volumes at a TR of 4 s is 17 minutes.
+
+The figure shows the idea in two dimensions, for one plane through q-space and a single
+fiber running at 30° (dashed line). On the left, the grid of samples, each colored by the
+signal of the fiber voxel: bright across the fiber, dark along it. On the right, the
+inverse Fourier transform of that grid. Look at the direction of the elongation: the
+signal pattern is stretched *across* the fiber, and the displacement distribution is
+stretched *along* it, because water moves farther along the axons than across them.
+
+```{code-cell} python
+:tags: [hide-input]
+R_GRID, B_EDGE, ANGLE = 5, 5000.0, 30.0      # grid radius (points), b at the grid edge, fiber angle
+k = np.arange(-R_GRID, R_GRID + 1)
+qy, qx = np.meshgrid(k, k, indexing="ij")
+r = np.hypot(qx, qy)
+inside = r <= R_GRID
+b_grid = B_EDGE * (r / R_GRID) ** 2                    # b grows with the square of the distance
+ux = np.divide(qx, r, out=np.zeros_like(r), where=r > 0)
+uy = np.divide(qy, r, out=np.zeros_like(r), where=r > 0)
+fib = np.array([np.cos(np.deg2rad(ANGLE)), np.sin(np.deg2rad(ANGLE))])
+s_grid = signal.white_matter(b_grid, ux * fib[0] + uy * fib[1])
+
+n_pad, c = 64, 32                                      # zero-pad and taper the edge before the transform
+taper = np.where(inside, 0.5 * (1 + np.cos(np.pi * r / (R_GRID + 1))), 0)
+padded = np.zeros((n_pad, n_pad))
+padded[c - R_GRID:c + R_GRID + 1, c - R_GRID:c + R_GRID + 1] = s_grid * taper
+prop = np.clip(np.real(np.fft.fftshift(np.fft.ifft2(np.fft.ifftshift(padded)))), 0, None)
+
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 3.8))
+sc = ax1.scatter(qx[inside], qy[inside], c=s_grid[inside], s=70, cmap="magma", vmin=0, vmax=1, edgecolors=INK["grid"])
+ax1.plot([-R_GRID * fib[0], R_GRID * fib[0]], [-R_GRID * fib[1], R_GRID * fib[1]], color=INK["secondary"], ls="--", lw=1)
+ax1.set(aspect="equal", xlabel="$q_x$ (grid steps)", ylabel="$q_y$ (grid steps)",
+        title=f"q-space grid, b = 0 to {B_EDGE:.0f}\ncolored by signal")
+fig.colorbar(sc, ax=ax1, shrink=0.8, label="S / S₀")
+half = 12
+ax2.imshow(prop[c - half:c + half + 1, c - half:c + half + 1], cmap="magma", extent=(-half, half, half, -half), origin="upper")
+ax2.plot([-half * fib[0], half * fib[0]], [-half * fib[1], half * fib[1]], color="white", ls="--", lw=1)
+ax2.set(xlabel="displacement x (relative units)", ylabel="displacement y", title="inverse Fourier transform:\ndisplacement distribution")
+ax2.invert_yaxis(); ax2.grid(False)
+fig.tight_layout()
+```
 
 ## CS-DSI
 
 Compressed-sensing DSI acquires a random subset of the grid points, typically a quarter to
-a third of them, and reconstructs the displacement distribution with the sparsity prior
-introduced in [Chapter 3](../01-mri-physics/03-reconstruction.md), applied in q-space {cite:p}`menzel2011`. The same three
-requirements apply: the subset must be irregular, the distribution must be compressible in
-some basis, and the reconstruction is iterative. The result is DSI-like information in a
-multi-shell-like scan time.
-
-## Free-form and multidimensional sampling
-
-The families above vary direction and b-value. Other acquisitions add further dimensions:
-several diffusion times ([Chapter 22](../05-advanced/22-multi-diffusion-time.md)), several echo times ([Chapter 20](../05-advanced/20-multi-te.md)), or the shape of the
-encoding (b-tensor encoding, [Chapter 23](../05-advanced/23-frontiers.md)). Each adds sensitivity to a tissue property that
-direction and b-value alone cannot separate.
+a third of them, and fills in the rest during reconstruction {cite:p}`menzel2011`. The
+fill-in rests on an assumption, the sparsity prior of [Chapter 3](../01-mri-physics/03-reconstruction.md): the displacement
+distribution is smooth and simple enough that a few numbers in a suitable basis describe
+it, so the reconstruction looks for the simplest distribution that agrees with the samples
+that were measured. The same three requirements apply as in [Chapter 3](../01-mri-physics/03-reconstruction.md): the subset must be
+irregular, the distribution must be compressible in some basis, and the reconstruction is
+iterative. The result is DSI-like information in a multi-shell-like scan time.
 
 ## See it: the schemes
 
@@ -292,13 +343,21 @@ q_dsi = np.sqrt(b_dsi)[:, None] * v_dsi
 plane = np.abs(q_dsi[:, 2]) < 1e-6
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(7, 3.5), sharex=True, sharey=True)
 ax1.scatter(q_dsi[plane, 0], q_dsi[plane, 1], s=14)
-ax1.set(title="DSI grid, plane through the origin", aspect="equal", xlabel="$q_x$", ylabel="$q_y$")
+ax1.set(title="DSI grid, plane through the origin", aspect="equal",
+        xlabel="$q_x$, drawn as $\\sqrt{b}$ (√(s/mm²))", ylabel="$q_y$, drawn as $\\sqrt{b}$")
 kept = np.zeros(len(b_dsi), bool); kept[cs_idx] = True
 ax2.scatter(q_dsi[plane & ~kept, 0], q_dsi[plane & ~kept, 1], s=14, color="0.85", label="not acquired")
 ax2.scatter(q_dsi[plane & kept, 0], q_dsi[plane & kept, 1], s=14, label="acquired")
-ax2.set(title="CS-DSI subset, same plane", aspect="equal", xlabel="$q_x$"); ax2.legend(fontsize=7)
+ax2.set(title="CS-DSI subset, same plane", aspect="equal", xlabel="$q_x$, drawn as $\\sqrt{b}$ (√(s/mm²))"); ax2.legend(fontsize=7)
 fig.tight_layout()
 ```
+
+## Free-form and multidimensional sampling
+
+The families above vary direction and b-value. Other acquisitions add further dimensions:
+several diffusion times ([Chapter 22](../05-advanced/22-multi-diffusion-time.md)), several echo times ([Chapter 20](../05-advanced/20-multi-te.md)), or the shape of the
+encoding (b-tensor encoding, [Chapter 23](../05-advanced/23-frontiers.md)). Each adds sensitivity to a tissue property that
+direction and b-value alone cannot separate.
 
 ## Measure it: direction count and tensor precision
 
@@ -332,28 +391,109 @@ ax.set(ylabel="fitted FA", title=f"FA of one WM voxel, SNR {SNR:.0f} at b = 0, {
 fig.tight_layout()
 for n, fa in results.items():
     print(f"{n:>2} directions: FA {fa.mean():.3f} ± {fa.std():.3f}   (noise-free value {fa_true:.3f})")
+
+# gray matter: no true anisotropy at all
+b_gm, v_gm = schemes.single_shell(1000, 30, n_b0=3)
+clean_gm = signal.gray_matter(b_gm)
+noisy_gm = np.abs(clean_gm[None, :] + (rng.normal(size=(N_REP, len(b_gm))) + 1j * rng.normal(size=(N_REP, len(b_gm)))) / SNR)
+fa_gm = TensorModel(gradient_table(b_gm, bvecs=v_gm)).fit(noisy_gm).fa
+print(f"gray matter, 30 directions: FA {fa_gm.mean():.3f} ± {fa_gm.std():.3f}   (noise-free value 0)")
 ```
 
 Precision improves roughly with the square root of the number of measurements, as it does
-for any average. The mean also shifts: with few directions FA is biased upward, because
-noise adds apparent anisotropy. Note that a well-spread 6-direction set is already
-well-conditioned, so the gain from more directions comes from averaging, not from a better
-conditioned fit; a badly spread set of any size is worse than either.
+for any average. The mean also shifts upward with few directions, because noise adds
+apparent anisotropy. The reason is that the fit reports the tensor's three diffusivities
+(the lengths of the ellipsoid's axes) sorted from largest to smallest. Noise pushes each of
+them up or down at random, and the sorting always puts whichever one noise pushed up in
+first place and whichever it pushed down in last place, so the three come out more
+different from each other than they really are. FA measures exactly that difference. The
+effect is clearest in gray matter, where water moves equally in all directions and the
+true FA is 0: the last line above shows the fit reporting FA of about 0.1 from noise alone
+{cite:p}`jones2004squashing`.
+(At high b the noise floor has the opposite effect on white matter, lowering its FA;
+[Chapter 8](../03-preprocessing/08-noise.md) shows both.)
+
+Precision depends on how the directions are spread as well as on how many there are. A fit
+is *well-conditioned* when small errors in the measurements produce only small errors in
+the result. If the directions cluster, some orientations of the ellipsoid are barely
+measured, and the noise in those is magnified; how badly then depends on which way the
+fiber happens to point. The figure repeats the simulation for three direction sets while
+turning the fiber from the z axis (0°) to the x axis (90°): 6 directions spread over the
+sphere, 30 spread over the sphere, and 30 clustered within 45° of the z axis. The small
+spheres show each set, with each direction and its opposite. Look at which lines are flat.
 
 ```{code-cell} python
 :tags: [hide-input]
-b6, v6 = schemes.single_shell(1000, 6, n_b0=1)
-b30, v30 = schemes.single_shell(1000, 30, n_b0=1)
-cone = np.column_stack([0.3 * rng.standard_normal(30), 0.3 * rng.standard_normal(30), np.ones(30)])
-cone /= np.linalg.norm(cone, axis=1, keepdims=True)
-print(f"condition number of the tensor fit: 6 spread directions {signal.condition_number(b6, v6):.2f}, "
-      f"30 spread {signal.condition_number(b30, v30):.2f}, 30 clustered in a cone {signal.condition_number(np.full(30, 1000.0), cone):.1f}")
+def cone_directions(n, half_angle_deg, seed):
+    """n random directions within half_angle_deg of the z axis."""
+    g = np.random.default_rng(seed)
+    out = []
+    while len(out) < n:
+        v = g.standard_normal(3); v /= np.linalg.norm(v)
+        v = v if v[2] >= 0 else -v
+        if np.degrees(np.arccos(v[2])) <= half_angle_deg:
+            out.append(v)
+    return np.array(out)
+
+_, v6 = schemes.single_shell(1000, 6, n_b0=0)
+_, v30 = schemes.single_shell(1000, 30, n_b0=0)
+dir_sets = {"6 spread": (v6, 1), "30 spread": (v30, 3), "30 clustered (45° cone)": (cone_directions(30, 45, seed=1), 3)}
+set_colors = {"6 spread": PALETTE[1], "30 spread": PALETTE[0], "30 clustered (45° cone)": PALETTE[3]}
+angles = np.arange(0, 91, 10)
+N_ANG = 300
+fa_sd = {}
+for name, (v, n_b0) in dir_sets.items():
+    bvals = np.r_[np.zeros(n_b0), np.full(len(v), 1000.0)]
+    bvecs = np.r_[np.tile([1.0, 0.0, 0.0], (n_b0, 1)), v]
+    model = TensorModel(gradient_table(bvals, bvecs=bvecs))
+    sds = []
+    for a in angles:
+        f = np.array([np.sin(np.deg2rad(a)), 0.0, np.cos(np.deg2rad(a))])
+        clean = signal.white_matter(bvals, bvecs @ f)
+        noisy = np.abs(clean[None, :] + (rng.normal(size=(N_ANG, len(bvals))) + 1j * rng.normal(size=(N_ANG, len(bvals)))) / SNR)
+        sds.append(model.fit(noisy).fa.std())
+    fa_sd[name] = np.array(sds)
+
+fig = plt.figure(figsize=(9, 5.2))
+gs = fig.add_gridspec(2, 3, height_ratios=(1, 1.6))
+for i, (name, (v, _)) in enumerate(dir_sets.items()):
+    ax = fig.add_subplot(gs[0, i], projection="3d")
+    both = np.concatenate([v, -v])
+    ax.scatter(*both.T, s=10, color=set_colors[name], depthshade=False)
+    ax.plot([0, 0], [0, 0], [-1.2, 1.2], color=INK["secondary"], lw=1)
+    ax.text(0, 0, 1.35, "z", color=INK["secondary"], fontsize=8, ha="center")
+    ax.set_title(name, fontsize=9, color=set_colors[name])
+    ax.set(xlim=(-1, 1), ylim=(-1, 1), zlim=(-1, 1)); ax.set_box_aspect((1, 1, 1))
+    ax.set_xticks([]); ax.set_yticks([]); ax.set_zticks([]); ax.view_init(elev=15, azim=-60)
+ax = fig.add_subplot(gs[1, :])
+for name, sd in fa_sd.items():
+    ax.plot(angles, sd, "o-", color=set_colors[name], label=name)
+ax.set(xlabel="fiber angle from the z axis (degrees)", ylabel="spread of fitted FA (SD)", xticks=angles, ylim=(0, None),
+       title=f"FA precision vs fiber orientation, SNR {SNR:.0f} at b = 0, {N_ANG} noise realizations per point")
+ax.legend(fontsize=8, loc="upper right")
+fig.tight_layout()
+for name, sd in fa_sd.items():
+    print(f"{name:>24}: FA SD from {sd.min():.3f} to {sd.max():.3f} across fiber angles "
+          f"(fiber along z: {sd[0]:.3f}, fiber along x: {sd[-1]:.3f})")
 ```
+
+The 30 spread directions give the same precision whatever the fiber's orientation, which
+is what "around 30 directions" in the list above means {cite:p}`jones2004`. The six spread
+directions are noisier, and their precision depends on how the fiber happens to lie
+relative to the six (an SD between 0.049 and 0.081 here). The clustered set is the
+cautionary case: it has as many volumes as the spread set of 30, yet when the fiber runs
+through the cluster its FA is more than four times noisier (SD 0.120 against 0.027), because the directions all measure
+nearly the same thing and nothing constrains the ellipsoid across the cluster. The
+spreading method only needs to cover half the sphere, since each direction also measures
+its opposite; directions clustered in one region are what cost precision.
 
 ## Scan time
 
-One volume is acquired per TR, so scan time is the number of volumes times TR. With a
-multiband factor of 3 and 2 mm slices, a whole-brain TR is about 3.5 s:
+One volume is acquired per TR (the repetition time, the time taken to acquire every slice of
+one volume once), so scan time is the number of volumes times TR. What sets TR is the
+subject of [Chapter 7](./07-acquisition-parameters.md): mainly the number of slices, and *multiband*, which excites and reads
+several slices at once. With 2 mm slices and a multiband factor of 3 (three slices at a
+time), a whole-brain TR is about 3.5 s, the value used below:
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -373,18 +513,25 @@ methods are marginal there; any single shell gives one point per direction on th
 curve, so every model of how the decay bends (kurtosis, multi-tissue CSD, NODDI, MAP-MRI)
 is ruled out.
 
+The rows are grouped by what the analysis needs from the data, and each analysis carries a
+few words on what it measures; Part IV introduces each one properly.
+
 | Analysis | 30 dirs, b = 1000 | 64 dirs, b = 2000 | multi-shell (HBCD) | DSI-257 | CS-DSI-64 |
 |---|---|---|---|---|---|
-| ADC / mean diffusivity | yes | yes (b-dependent value) | yes | yes | yes |
-| DTI (FA, principal direction) | yes | marginal: high b breaks the Gaussian assumption | yes, using the b ≤ 1000 shells | yes, inner shells | yes, inner points |
-| Diffusion kurtosis | no: needs ≥ 2 non-zero shells | no | yes | yes | marginal |
-| Constrained spherical deconvolution (single-tissue) | marginal: low angular contrast at b = 1000 | yes | yes, highest shell | yes | yes |
-| Multi-tissue CSD | no: needs multiple shells | no | yes | yes | yes |
-| NODDI, spherical mean, free-water models | no | no | yes | yes | marginal |
-| MAP-MRI / propagator | no | no | yes, ≥ 3 shells preferred | yes | yes |
-| DSI / model-free propagator | no | no | no | yes | yes |
-| Deterministic tractography (tensor) | yes | yes | yes | yes | yes |
-| Probabilistic tractography (fODF) | marginal | yes | yes | yes | yes |
+| ***Needs one shell*** | | | | | |
+| ADC / mean diffusivity (average rate of diffusion) | yes | yes (b-dependent value) | yes | yes | yes |
+| DTI: FA, principal direction (the tensor ellipsoid) | yes | marginal: high b breaks the Gaussian assumption | yes, using the b ≤ 1000 shells | yes, inner shells | yes, inner points |
+| Deterministic tractography, tensor-based (tracing along the ellipsoid's long axis) | yes | yes | yes | yes | yes |
+| ***Needs high angular contrast (b ≥ 2000, many directions)*** | | | | | |
+| Constrained spherical deconvolution, single-tissue (fiber directions within a voxel) | marginal: low angular contrast at b = 1000 | yes | yes, highest shell | yes | yes |
+| Probabilistic tractography on fODFs (tracing along the fiber directions found by deconvolution) | marginal | yes | yes | yes | yes |
+| ***Needs two or more non-zero shells*** | | | | | |
+| Diffusion kurtosis (how much the decay bends) | no: needs ≥ 2 non-zero shells | no | yes | yes | marginal |
+| Multi-tissue CSD (fiber directions, with gray matter and CSF separated out) | no: needs multiple shells | no | yes | yes | yes |
+| NODDI, spherical mean, free-water models (sizes of the water pools) | no | no | yes | yes | marginal |
+| MAP-MRI / propagator (the displacement distribution, from a fitted basis) | no | no | yes, ≥ 3 shells preferred | yes | yes |
+| ***Needs a q-space grid*** | | | | | |
+| DSI / model-free propagator (the displacement distribution, by Fourier transform) | no | no | no | yes | yes |
 
 "Marginal" means the fit runs but its assumptions are strained or its precision is poor;
 Part IV shows each case on the simulated datasets. [Chapter 19](../04-modeling/19-what-your-data-allow.md) extends this table with acquisition

@@ -26,7 +26,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from dwibook import phantoms, presets, signal
-from dwibook.plotting import PALETTE, set_style
+from dwibook.plotting import INK, PALETTE, animate, set_style
 
 set_style()
 ```
@@ -49,11 +49,17 @@ the size and arrangement of the barriers {cite:p}`novikov2014,fieremans2016`.
 Standard diffusion protocols fix the diffusion time by the pulse timing, at 30–50 ms, and
 never see the dependence. Acquisitions that vary it do.
 
+
 ## See it: ADC versus diffusion time
 
-The random walks of [Chapter 4](../02-diffusion-encoding/04-diffusion-in-tissue.md) provide the measurement directly: for each geometry, the
-displacement of every molecule after a time Δ is known, so the signal at a given q is the
-average of the encoding phase ([Chapter 5](../02-diffusion-encoding/05-diffusion-encoding.md)), and the ADC follows from it.
+The random walks of [Chapter 4](../02-diffusion-encoding/04-diffusion-in-tissue.md) provide the measurement directly. The diffusion encoding of
+[Chapter 5](../02-diffusion-encoding/05-diffusion-encoding.md) gives each molecule a phase proportional to how far it moved along the gradient
+direction during the diffusion time Δ. The constant of proportionality is 2π*q*, where *q*,
+in cycles per millimeter, is set by the gradient strength and the pulse duration. The
+signal is how well those phases still agree: the average, over all molecules, of an arrow
+pointing at each molecule's phase. For every walk the displacement of every molecule after
+a time Δ is known, so the signal, and from it the ADC, can be computed at any Δ. Here the
+b-value is held at 500 s/mm² and *q* is adjusted for each Δ.
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -69,55 +75,163 @@ walks = {
 }
 deltas_ms = np.array([1, 2, 5, 10, 20, 40, 70, 100])
 B_TARGET = 500.0  # s/mm^2, held fixed: q is adjusted for each diffusion time (keeps the free signal well above the Monte Carlo floor)
+
+
+def adc_at(pos, d):
+    """ADC (um^2/ms) along x after diffusion time d (ms), from the phases of all walkers"""
+    k = int(round(d / DT))
+    dx = (pos[k] - pos[0])[:, 0] * 1e-3  # mm, along x (across the channel)
+    q = np.sqrt(B_TARGET / (d * 1e-3)) / (2 * np.pi)  # 1/mm, from b = (2 pi q)^2 Delta
+    e = np.abs(np.mean(np.exp(2j * np.pi * q * dx)))
+    return -np.log(max(e, 1e-6)) / B_TARGET * 1e3
+
+
 fig, ax = plt.subplots(figsize=(7, 3.4))
+adc = {}
 for (name, pos), color in zip(walks.items(), PALETTE):
-    adc = []
-    for d in deltas_ms:
-        k = int(round(d / DT))
-        dx = (pos[k] - pos[0])[:, 0] * 1e-3  # mm, along x (across the channel)
-        q = np.sqrt(B_TARGET / (d * 1e-3)) / (2 * np.pi)  # 1/mm, from b = (2 pi q)^2 Delta
-        e = np.abs(np.mean(np.exp(2j * np.pi * q * dx)))
-        adc.append(-np.log(max(e, 1e-6)) / B_TARGET * 1e3)  # um^2/ms
-    ax.plot(deltas_ms, adc, "o-", color=color, label=name)
+    adc[name] = [adc_at(pos, d) for d in deltas_ms]
+    ax.plot(deltas_ms, adc[name], "o-", color=color, label=name)
 ax.axhline(D_FREE, color="0.5", lw=1, ls="--")
 ax.set(xlabel="diffusion time Δ (ms)", ylabel="apparent diffusion coefficient (µm²/ms)", xscale="log", title="ADC measured from the random walks of Chapter 4")
 ax.legend(fontsize=8)
 fig.tight_layout()
+print("ADC (µm²/ms) at Δ = 1, 10, 40, 100 ms: " + "; ".join(
+    f"{name} " + ", ".join(f"{a:.2f}" for d, a in zip(deltas_ms, vals) if d in (1, 10, 40, 100)) for name, vals in adc.items()))
 ```
 
-Free water gives the same ADC at every diffusion time, within the scatter of the Monte
-Carlo estimate. The hindered walk sits at its plateau across the whole range: with obstacles
-about a micrometer apart, molecules meet them within a fraction of a millisecond, and the
-tortuosity has set in before the earliest diffusion time shown. Time dependence in hindered
-tissue therefore comes from structure larger than the spacing of the barriers, such as the
-variation of axon packing along a bundle, and is a subtle effect. The two restricted walks
-are not subtle. The 2 µm axon has reached its long-time value by 1 ms: every molecule has
-crossed it and no further displacement is possible. The 12 µm cell body starts near the
-free value and falls over tens of milliseconds as its molecules reach the walls; at the
-40 ms of a standard protocol it is close to its long-time value. This is why standard
-protocols see time-independent ADCs, and why measuring the approach requires diffusion
-times of a few milliseconds or structures of many micrometers.
+Read the four curves one at a time.
+
+- **Free water** (blue) gives the same ADC at every diffusion time, within the scatter of
+  the Monte Carlo estimate, and sits on the dashed line of the free diffusivity.
+- **The hindered walk** (orange) sits at its plateau across the whole range. With obstacles
+  about a micrometer apart, molecules meet them within a fraction of a millisecond, and the
+  slowing from the detours around them (the tortuosity) has set in before the earliest
+  diffusion time shown. Time dependence in hindered tissue therefore comes from structure
+  larger than the spacing of the barriers, such as the variation of axon packing along a
+  bundle, and is a subtle effect.
+- **The 2 µm axon** (yellow), measured across its width, is already filled by 1 ms: every
+  molecule has crossed it, the displacement cannot grow any further, and from then on the
+  ADC (displacement squared divided by time) simply falls toward zero as 1/Δ.
+- **The 12 µm cell body** (green) is still at about two thirds of the free value at 1 ms
+  (printed above) and falls steeply over the next tens of milliseconds as its molecules
+  reach the walls. By the 40 ms of a standard protocol its molecules have filled it too,
+  and its ADC is small and falling as 1/Δ.
+
+The two restricted walks are not subtle, but a standard protocol at 40 ms sees both after
+their molecules have filled the available space: it measures how small the displacement
+is, not how quickly it stopped growing. Measuring the approach itself requires diffusion
+times of a few milliseconds or structures of many micrometers. The animation
+below follows the cell body. On the left, a few hundred of its molecules spread from their
+starting points; on the right, the marker moves along that walk's ADC curve.
+
+```{code-cell} python
+:tags: [hide-input]
+cell = walks["restricted, 12 µm cell"]
+R_CELL = 6.0
+anim_deltas = np.geomspace(0.25, 100, 28)
+cell_adc = np.array([adc_at(cell, d) for d in anim_deltas])
+show = np.arange(300)
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8.4, 3.6), gridspec_kw={"width_ratios": [1, 1.4]})
+ax1.add_patch(plt.Circle((0, 0), R_CELL, fill=False, color=INK["primary"], lw=1.2))
+ax1.scatter(cell[0, show, 0], cell[0, show, 1], s=4, color=INK["grid"], zorder=1)
+dots = ax1.scatter(cell[0, show, 0], cell[0, show, 1], s=6, color=PALETTE[2], zorder=2)
+trails = [ax1.plot([], [], lw=0.7, color=PALETTE[c])[0] for c in (0, 1, 4)]
+ax1.set(aspect="equal", xlim=(-7, 7), ylim=(-7, 7), xlabel="µm", ylabel="µm")
+ax1.grid(False)
+ax2.plot(anim_deltas, cell_adc, color=PALETTE[2], label="12 µm cell")
+ax2.axhline(D_FREE, color="0.5", lw=1, ls="--", label="free water")
+marker, = ax2.plot([], [], "o", color=PALETTE[2], ms=8)
+ax2.set(xscale="log", xlabel="diffusion time Δ (ms)", ylabel="ADC (µm²/ms)", ylim=(0, 3.4))
+ax2.legend(fontsize=8, loc="lower left")
+ax1.set_title("Δ = 0.0 ms (gray: starting points)")
+ax2.set_title("ADC at this diffusion time")
+fig.tight_layout()
+
+
+def frame(i):
+    d = anim_deltas[i]
+    k = int(round(d / DT))
+    dots.set_offsets(cell[k, show])
+    for w, line in enumerate(trails):
+        k0 = max(0, k - int(5 / DT))  # the last 5 ms of each traced path
+        line.set_data(cell[k0 : k + 1, w, 0], cell[k0 : k + 1, w, 1])
+    marker.set_data([d], [cell_adc[i]])
+    ax1.set_title(f"Δ = {d:.1f} ms (gray: starting points)")
+    ax2.set_title("ADC at this diffusion time")
+
+
+animate(fig, frame, list(range(len(anim_deltas))) + [len(anim_deltas) - 1] * 5, fps=4, width=700, dpi=70,
+        alt="Left: 300 molecules inside a 12 micrometer circle spread from their starting points until they fill the circle, with the last 5 milliseconds of three paths traced; right: a marker moves along the cell's ADC curve, which starts close to the free value of 3 square micrometers per millisecond at a fraction of a millisecond and falls steeply over tens of milliseconds")
+```
+
+At the shortest times the molecules have moved much less than the cell radius, few have
+touched the wall, and the ADC is close to the free value. By a few tens of milliseconds
+the cloud fills the circle: the molecules' displacements are now limited by the cell's
+size rather than by time, and the ADC, displacement squared divided by time, keeps
+falling as time grows.
 
 ## PGSE versus OGSE
 
-The pulsed-gradient spin echo cannot reach short diffusion times: the pulse duration itself
-is tens of milliseconds at ordinary gradient strength, because the b-value depends on the
-duration cubed ([Chapter 5](../02-diffusion-encoding/05-diffusion-encoding.md)). Oscillating-gradient spin echo (OGSE) replaces each pulse by a
-gradient waveform that oscillates at a chosen frequency; the effective diffusion time is
-then set by the oscillation period rather than by the pulse separation, and frequencies of
-50–200 Hz probe diffusion times of a few milliseconds {cite:p}`does2003`. The price is
-b-value: an oscillating gradient of the same amplitude and duration produces a much smaller
-b, so OGSE acquisitions work at low b-values and need strong gradients to reach a useful
-weighting.
+The pulsed-gradient spin echo (PGSE) of [Chapter 5](../02-diffusion-encoding/05-diffusion-encoding.md) cannot reach short diffusion times at a
+useful b-value, because b grows with the square of the pulse duration times the diffusion
+time, roughly the cube of the timing. The oscillating-gradient spin echo (OGSE) replaces
+each pulse by a gradient that oscillates at a chosen frequency {cite:p}`does2003`. The
+figure compares the two within the same timing: two 20 ms gradient windows on either side of
+the 180° pulse, at 80 mT/m.
+
+```{code-cell} python
+:tags: [hide-input]
+G_MAX, WIN, GAP, F_OSC = 80.0, 20.0, 6.0, 100.0  # mT/m, ms, ms (180° pulse), Hz
+t = np.linspace(0, 2 * WIN + GAP, 4601)
+dt_s = (t[1] - t[0]) * 1e-3
+first, second = t < WIN, t >= WIN + GAP
+waves = {
+    "PGSE": np.where(first | second, G_MAX, 0.0),
+    f"OGSE, {F_OSC:.0f} Hz": np.where(first, G_MAX * np.sin(2 * np.pi * F_OSC * t * 1e-3), 0.0)
+    + np.where(second, G_MAX * np.sin(2 * np.pi * F_OSC * (t - WIN - GAP) * 1e-3), 0.0),
+}
+fig, axes = plt.subplots(2, 2, figsize=(10, 4.6), sharex=True)
+b_num = {}
+for row, ((name, g), color) in enumerate(zip(waves.items(), PALETTE)):
+    g_eff = np.where(second, -g, g)  # the 180° pulse reverses the phase gathered before it
+    q_t = signal.GAMMA * np.cumsum(g_eff * 1e-3) * dt_s / (2 * np.pi) * 1e-3  # 1/mm
+    b_num[name] = np.sum((2 * np.pi * q_t) ** 2) * dt_s  # s/mm^2
+    axes[row, 0].plot(t, g, color=color)
+    axes[row, 0].axvspan(WIN, WIN + GAP, color=INK["grid"], lw=0)
+    axes[row, 0].set(ylabel="gradient (mT/m)", title=f"{name}: gradient as played")
+    axes[row, 1].plot(t, q_t, color=color)
+    axes[row, 1].axvspan(WIN, WIN + GAP, color=INK["grid"], lw=0)
+    axes[row, 1].set(ylabel="q (1/mm)", title=f"{name}: phase wound per unit displacement")
+for ax in axes[1]:
+    ax.set_xlabel("time (ms); gray: 180° pulse")
+fig.tight_layout()
+b_pgse = signal.b_value(G_MAX, WIN, WIN + GAP)
+print(f"b at {G_MAX:.0f} mT/m in two {WIN:.0f} ms windows: PGSE {b_num['PGSE']:.0f} s/mm² (b_value formula: {b_pgse:.0f}), "
+      f"OGSE at {F_OSC:.0f} Hz {b_num[f'OGSE, {F_OSC:.0f} Hz']:.0f} s/mm²")
+print(f"PGSE at {G_MAX:.0f} mT/m with δ = Δ = 5 ms: b = {signal.b_value(G_MAX, 5, 5):.0f} s/mm²; "
+      f"with δ = Δ = 40 ms: b = {signal.b_value(G_MAX, 40, 40):.0f} s/mm²")
+```
+
+The left column shows the gradients as the scanner plays them; the right column shows *q*,
+the phase each molecule gains per micrometer it moves, as it builds up during the encoding.
+In PGSE, *q* is wound up during the first pulse, held while the molecules move, and unwound
+by the second: a molecule's phase reports where it was at the start compared with where it
+is 26 ms later. In OGSE, *q* is wound and unwound every 10 ms, so the phase reports only
+displacements over a few milliseconds; the effective diffusion time is about a quarter of
+the oscillation period, 2.5 ms at 100 Hz, set by the frequency rather than by the pulse
+separation.
+
+The price is b-value. In the same 46 ms, at the same amplitude, the oscillating waveform
+reaches about a fiftieth of the PGSE b-value, as printed above. Shortening PGSE instead
+fails faster still: with the pulses shortened from 40 to 5 ms (δ = Δ), a factor of 8, b
+falls by 8³ = 512, from about 20 000 to about 40 s/mm². OGSE acquisitions therefore work at
+low b-values, typically a few hundred s/mm², and need strong gradients to reach even those.
 
 ## Axon diameter and gradient strength
 
 The long-time limit of the signal across an impermeable cylinder depends only on its
-radius: the displacement distribution is the cylinder's cross-section, and the signal is
-its Fourier transform ([Chapter 4](../02-diffusion-encoding/04-diffusion-in-tissue.md)). Measuring the radius therefore means measuring the
-signal decay at high q, where cylinders of different radii differ. How high depends on the
-radius, and for the axons of the human brain, mostly below 2 µm in diameter, it is beyond
-what ordinary gradients reach:
+radius. The figure shows that signal against *q* for four radii, with dotted lines at the
+*q* that three gradient systems reach with 10 ms pulses:
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -132,23 +246,38 @@ for name, g in presets.GMAX_MT_PER_M.items():
 ax.set(xlabel="q (1/mm)", ylabel="signal across the cylinder", title="restricted signal versus q, and the q reachable with 10 ms pulses")
 ax.legend(fontsize=8, loc="lower left")
 fig.tight_layout()
+print("q reached with 10 ms pulses, and the displacement scale 1/q: " + "; ".join(
+    f"{g:.0f} mT/m q = {signal.q_value(g, 10.0):.0f}/mm, 1/q = {1e3 / signal.q_value(g, 10.0):.0f} µm" for g in presets.GMAX_MT_PER_M.values()))
 ```
 
-At the q that a 40 or 80 mT/m system reaches, cylinders of 0.5, 1, and 2 µm radius are
-indistinguishable: their signal has barely decayed. Only the 300 mT/m system reaches a q
-where the 1 and 2 µm curves separate, and even there the smallest axons remain out of reach.
+A useful way to read *q* is through its inverse. A molecule that moves 1/*q* along the
+gradient gains one full turn of phase, so 1/*q* is the displacement scale the measurement
+resolves: displacements much smaller than 1/*q* barely change the phase and barely change
+the signal. At the *q* of a 40 or 80 mT/m system, 1/*q* is tens of micrometers (printed
+above), far larger than an axon, and cylinders of 0.5, 1, and 2 µm radius are
+indistinguishable: their signal has barely decayed. Only the 300 mT/m system reaches a
+1/*q* under ten micrometers, where the 1 and 2 µm curves separate, and even there the
+smallest axons remain out of reach. The displacement distribution across the cylinder is
+its cross-section, and the signal is its Fourier transform ([Chapter 4](../02-diffusion-encoding/04-diffusion-in-tissue.md)), so telling radii
+apart means measuring at a *q* high enough to see the shape of that transform. For the
+axons of the human brain, mostly below 2 µm in diameter, that is beyond what ordinary
+gradients reach.
+
 This is the reason axon diameter mapping {cite:p}`assaf2008` is a strong-gradient technique,
 why its estimates are weighted toward the largest axons in a voxel, and why claims of
 diameter measurement on standard hardware should be read with the plot above in mind.
 
 ## Exchange
 
-Water crosses membranes. Over diffusion times longer than the exchange time between
+Water crosses membranes. Picture two rooms joined by a leaky door: over a short visit, the
+people in each room stay in their room and each room can be counted on its own; over a
+long one, enough people drift through the door that the two crowds mix. Compartments
+behave the same way. Over diffusion times longer than the exchange time between
 compartments (tens to hundreds of milliseconds in gray matter, longer across myelinated
-axons), the compartments blend and their signals stop being separable, which is a further
-reason compartment models depend on the diffusion time. Exchange is measured by
-acquisitions that vary the time between two encodings (filter-exchange imaging); it is
-absent from the simulated brain.
+axons), molecules move between them, the compartments blend, and their signals stop being
+separable, which is a further reason compartment models depend on the diffusion time.
+Exchange is measured by acquisitions that vary the time between two encodings
+(filter-exchange imaging); it is absent from the simulated brain.
 
 ## Why the simulated datasets cannot show this
 

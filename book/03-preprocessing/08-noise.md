@@ -8,7 +8,7 @@ kernelspec:
 :::{admonition} Simulated datasets in this chapter
 :class: note
 - **Built in this page:** a synthetic diffusion series on a 16-slice block of the packaged 3 mm volume, with a fiber orientation assigned to every white matter voxel ([Appendix B](../appendices/b-data-manifest.md#app-b-package-data)).
-- **`noise-sweep`** (pending): four noise levels with one coil, plus an 8-coil GRAPPA run ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-noise-sweep)).
+- **`noise-sweep`** (pending): four noise levels with one coil, plus an 8-coil run reconstructed with GRAPPA, the parallel-imaging method of [Chapter 3](../01-mri-physics/03-reconstruction.md) that fills in skipped k-space lines from the coil data ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-noise-sweep)).
 - **`truth`** (pending): the 27 analytic ground-truth maps and the true fiber orientations ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-truth), [Appendix E](../appendices/e-truth-map-catalogue.md)).
 
 Pipeline-tier datasets are simulated offline by TRXScan ([Chapter 0.2](../00-frontmatter/the-simulated-datasets.md)) and are marked *pending* until their release; the figures that need them say so where they will appear.
@@ -134,7 +134,7 @@ fitted quantities follow directly:
   so FA fitted from high-b volumes comes out too low.
   In nearly isotropic tissue such as gray matter, the random spread of the noise does the
   opposite: the fit always ranks the three diffusivities from largest to smallest, so noise
-  pulls them apart and produces anisotropy that is not there.
+  pulls them apart and produces anisotropy that is not there {cite:p}`jones2004squashing`.
 - **Kurtosis and multi-compartment fits**, which read the curvature of the decay above
   b = 1500, are affected most, because the floor adds curvature of its own: the bend of
   the dotted line above.
@@ -190,7 +190,11 @@ for b in [0, 1000, 2000, 3000]:
 The images show the effect; the distributions show the cause. The same noise realization is
 examined twice: as the real and imaginary components of the complex image, and as the
 magnitude. The residual is the noisy value minus the noise-free value, so a distribution
-centered on zero means no bias.
+centered on zero means no bias. The left panel is the complex data in white matter at
+b = 3000; the middle panel is the magnitude of the same voxels at b = 0 and at b = 3000;
+the right panel is the magnitude outside the head, where there is no signal at all. In each
+panel, compare the histogram with the gray curve: in the first two panels it is unbiased
+Gaussian noise, in the third the Rayleigh distribution of pure noise.
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -232,44 +236,89 @@ positive mean is the bias that the rest of this chapter measures and removes.
 ## Measure it: the bias
 
 The bias is the mean difference between the noisy and the noise-free series, which for pure
-noise would be zero. Inside white matter at b = 3000 it is not:
+noise would be zero. It is computed below for every white matter voxel and each shell, as a
+percentage of the true signal at that b-value:
 
 ```{code-cell} python
 :tags: [hide-input]
-def bias_table(series, label):
-    print(f"{label:>28}", end="")
-    for b in [0, 1000, 2000, 3000]:
-        v = np.isclose(bvals, b)
-        err = (series[..., v] - clean[..., v])[wm]
-        print(f"   b={b}: {100 * err.mean() / clean[..., v][wm].mean():+5.1f} %", end="")
-    print()
+B_SHELLS = [0, 1000, 2000, 3000]
 
-print("mean signal error in white matter, relative to the true signal at that b")
-bias_table(noisy, "magnitude, noisy")
+def wm_bias(series):
+    """Mean error in white matter per shell, in percent of the true signal at that b."""
+    out = []
+    for b in B_SHELLS:
+        v = np.isclose(bvals, b)
+        out.append(100 * (series[..., v] - clean[..., v])[wm].mean() / clean[..., v][wm].mean())
+    return np.array(out)
+
+bias = {"magnitude, noisy": wm_bias(noisy)}
+print("magnitude, noisy: " + ",  ".join(f"b = {b}: {e:+.1f} %" for b, e in zip(B_SHELLS, bias["magnitude, noisy"])))
 ```
 
-The floor also reaches the tensor fit. Fitting only the b ≤ 1000 volumes, where the SNR is
-still high, keeps the tensor errors modest; the high-b volumes are where kurtosis and
-compartment models would read the bias as tissue.
+The bias grows as the signal falls: under 1 % at b = 0 and b = 1000, 2.4 % at b = 2000, and
+6.7 % at b = 3000.
+These are averages over all 12 directions of a shell; along the fibers, where the signal
+is weakest, it is much larger, as the plot of signal against b showed.
 
 ## Correction step by step: MP-PCA
 
 Marchenko-Pastur PCA denoising {cite:p}`veraart2016` uses the redundancy of a diffusion
-series. In a small neighborhood of voxels, the signals across all volumes are well
-described by a few principal components; noise fills the remaining components with a known
-spectrum (the Marchenko-Pastur distribution for random matrices). Components whose variance
-matches that spectrum are removed. The method needs no model of the tissue, estimates the
-noise level itself, and is the standard first step of current pipelines. Applied to
-magnitude data it removes the random part of the noise but not the floor, because the floor
-is a bias, not a fluctuation.
+series. Take a small block of neighboring voxels, here 5 × 5 × 5 = 125 of them, and look
+at their 39 signal values each. The tissue in the block is made of a few kinds of
+compartments, so those 125 signal curves are close to mixtures of a few shared shapes.
+Principal component analysis (PCA) finds those shapes and ranks them by how much of the
+variation between voxels each one explains. Noise, being independent in every voxel and
+volume, cannot be explained by a few shapes; it spreads its variance over all 39
+components. Random-matrix theory predicts exactly how: for pure noise of standard deviation
+σ, the component variances fall inside a known range (the **Marchenko-Pastur** range),
+which depends only on σ and on the block size.
+
+The figure shows one such block in white matter. Each bar is one component's variance, in
+units of σ², sorted from largest to smallest, on a logarithmic scale. The gray band is the
+range that pure noise would produce. Look for the few bars that stand far above the band:
+those carry the tissue. All the rest sit inside the band, and the open circles, the same
+analysis of the noise-free block, show that their true content is nearly zero.
+
+```{code-cell} python
+:tags: [hide-input]
+def patch_spectrum(series, center, r=2):
+    i, j, k = center
+    X = series[i - r : i + r + 1, j - r : j + r + 1, k - r : k + r + 1].reshape(-1, series.shape[-1])
+    X = X - X.mean(axis=0)
+    return np.sort(np.linalg.eigvalsh(X.T @ X / X.shape[0]))[::-1], X.shape[0]
+
+center = (13, 33, K)
+ev_noisy, n_vox = patch_spectrum(noisy, center)
+ev_clean, _ = patch_spectrum(clean, center)
+gamma = len(bvals) / n_vox
+mp_lo, mp_hi = (1 - np.sqrt(gamma)) ** 2, (1 + np.sqrt(gamma)) ** 2   # in units of σ²
+n_signal = int((ev_noisy / sigma**2 > mp_hi).sum())
+
+fig, ax = plt.subplots(figsize=(7, 3.4))
+idx = np.arange(1, len(ev_noisy) + 1)
+ax.axhspan(mp_lo, mp_hi, color="0.85", zorder=0, label="range for pure noise (Marchenko-Pastur)")
+ax.bar(idx[:n_signal], ev_noisy[:n_signal] / sigma**2, color=PALETTE[0], width=0.7, label="noisy block: kept (signal)")
+ax.bar(idx[n_signal:], ev_noisy[n_signal:] / sigma**2, color=PALETTE[3], width=0.7, label="noisy block: discarded (noise)")
+ax.plot(idx, np.maximum(ev_clean / sigma**2, 1e-3), "o", mfc="none", mec=INK["primary"], ms=5, label="noise-free block")
+ax.set(yscale="log", ylim=(1e-2, 5e3), xlim=(0.3, len(idx) + 0.7), xlabel="component (sorted by variance)",
+       ylabel="variance (units of σ²)", title=f"PCA of one {n_vox}-voxel block in white matter, {len(bvals)} volumes")
+ax.legend(loc="upper right", fontsize=7)
+fig.tight_layout()
+print(f"{n_signal} of {len(ev_noisy)} components lie above the noise range (upper edge {mp_hi:.2f} σ²); "
+      f"the other {len(ev_noisy) - n_signal} are discarded")
+```
+
+MP-PCA keeps the components above the band (blue), discards the rest (yellow), and
+rebuilds each voxel from what is left. Because the height of the band depends on σ, the
+same fit also estimates the noise level. The method needs no model of the tissue and is the
+standard first step of current pipelines.
 
 ```{code-cell} python
 :tags: [hide-input]
 den_mag, sigma_est = mppca(noisy, patch_radius=2, return_sigma=True)
 den_mag = np.clip(den_mag, 0, None)
+bias["magnitude, MP-PCA"] = wm_bias(den_mag)
 print(f"true noise SD {sigma:.4f}; MP-PCA estimate inside the brain {np.median(sigma_est[mask]):.4f}")
-bias_table(noisy, "magnitude, noisy")
-bias_table(den_mag, "magnitude, MP-PCA")
 ```
 
 Denoising in the **complex domain** avoids the floor: the noise in the real and imaginary
@@ -277,8 +326,6 @@ channels is Gaussian with zero mean, so removing its random part leaves an unbia
 and the magnitude is taken afterward, from a series with far less noise
 {cite:p}`corderogrande2019`. The same MP-PCA can be applied by treating the real and
 imaginary parts as additional volumes. This requires that the phase was saved ([Chapter 3](../01-mri-physics/03-reconstruction.md)).
-The next page describes the other use of the phase: correcting it so that the data can be
-kept as real values, in which case no floor arises in the first place.
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -286,7 +333,7 @@ complex_noisy = synth.add_complex_noise(clean, sigma, seed=0)
 stacked = np.concatenate([complex_noisy.real, complex_noisy.imag], axis=-1)
 den_stacked = mppca(stacked, patch_radius=2)
 den_complex = np.abs(den_stacked[..., : len(bvals)] + 1j * den_stacked[..., len(bvals) :])
-bias_table(den_complex, "complex, MP-PCA")
+bias["complex, MP-PCA"] = wm_bias(den_complex)
 
 fig, axes = plt.subplots(1, 4, figsize=(11, 3))
 v = shell(3000)
@@ -297,40 +344,104 @@ show_image(axes[3], den_complex[:, :, K, v], "MP-PCA on complex data", vmin=0, v
 fig.tight_layout()
 ```
 
-The magnitude-domain result is smoother but still too bright where the signal is weak; the
-complex-domain result is close to the reference. A third option, when only magnitudes are
-available, is to estimate the floor from the noise level and subtract it from the squared
-signal (the method of moments, $\sqrt{M^2 - 2\sigma^2}$); it removes the mean bias but not
-the fluctuation and fails where the signal is below the floor.
+Both denoised images are smoother than the noisy one; the magnitude-domain result is still
+too bright where the signal is weak, most plainly outside the head, which should be black
+and is gray, while the complex-domain result is close to the reference. The next figure separates the two effects.
+On the left are the residuals in white matter at b = 3000, as in the histograms earlier in
+the chapter; on the right, the mean error (the bias) for each method and shell.
+
+```{code-cell} python
+:tags: [hide-input]
+fig, (ax_h, ax_b) = plt.subplots(1, 2, figsize=(11, 3.4), gridspec_kw={"width_ratios": [1, 1.1]})
+colors = {"magnitude, noisy": PALETTE[3], "magnitude, MP-PCA": PALETTE[1], "complex, MP-PCA": PALETTE[0]}
+series_by = {"magnitude, noisy": noisy, "magnitude, MP-PCA": den_mag, "complex, MP-PCA": den_complex}
+bins = np.linspace(-3, 4, 50)
+for label, s in series_by.items():
+    r = (s - clean)[..., v3][wm] / sigma
+    ax_h.hist(r, bins=bins, density=True, histtype="step", lw=2, color=colors[label], label=f"{label}: mean {r.mean():+.2f} σ, SD {r.std():.2f} σ")
+ax_h.axvline(0, color=INK["secondary"], lw=1, ls="--")
+ax_h.set(title="WM residual at b = 3000", xlabel="noisy − true (units of σ)", ylabel="density", ylim=(0, 1.75))
+ax_h.legend(fontsize=7, loc="upper right")
+width = 0.26
+for n, (label, e) in enumerate(bias.items()):
+    ax_b.bar(np.arange(len(B_SHELLS)) + (n - 1) * width, e, width, color=colors[label], label=label)
+ax_b.axhline(0, color=INK["secondary"], lw=1)
+ax_b.set_xticks(range(len(B_SHELLS)), [f"b = {b}" for b in B_SHELLS])
+ax_b.set(title="bias in white matter", ylabel="mean error (% of true signal)")
+ax_b.legend(fontsize=7, loc="upper left")
+fig.tight_layout()
+for label, e in bias.items():
+    print(f"{label:>18}: bias at b = 3000 {e[-1]:+.1f} %")
+```
+
+Each histogram has a width and a center. The width is the **fluctuation**, the part of the
+noise that differs from one voxel and one volume to the next. The center is the **bias**,
+the part that pushes every weak measurement the same way. MP-PCA on magnitude data narrows
+the histogram but leaves its center where it was, and its bias bars are nearly as tall as
+those of the noisy data. The reason follows from how the method works: the floor raises
+each weak value by an amount set by its true signal, so similar voxels in a block are
+raised alike, and a change shared by the whole block is exactly the kind of structure PCA
+keeps as signal. The floor is a bias, not a fluctuation,
+so a method that removes fluctuations cannot remove it. MP-PCA on complex data narrows the
+histogram just as much and also leaves it centered on zero, because before the magnitude is
+taken there is no floor to keep.
+
+A third option, when only magnitudes are available, is to subtract the floor
+arithmetically. On average, the squared magnitude equals the squared true signal plus
+2σ², so subtracting 2σ² from the squared measurement and taking the square root removes
+most of the floor (the **method of moments**, $\sqrt{M^2 - 2\sigma^2}$, with $M$
+the measured magnitude and $\sigma$ the noise SD). Applied voxel by voxel it trades one
+problem for another: wherever noise has pushed $M$ below $\sqrt{2}\,\sigma$ there is no
+square root to take, and those voxels must be set to zero, so weak regions come out speckled
+with zeros and the fluctuation is not reduced at all. It works best on values that have
+already been averaged or denoised.
+
+The next page describes the other use of the phase: correcting it so that the data can be
+kept as real values, in which case no floor arises in the first place. The two uses are
+complementary. Complex denoising removes most of the fluctuation, and because a magnitude
+is still taken at the end, a small floor remains where the denoised signal is weakest; the
+real part removes the floor but not the fluctuation. Pipelines that have the phase do both:
+denoise the complex data, then take the phase-corrected real part.
 
 ## Residual error versus truth
 
-The tensor fit summarizes the effect on derived measures. All fits use the b ≤ 1000 volumes
-and are compared with the fit of the noise-free series.
+The tensor fit summarizes the effect on derived measures. All fits use only the b ≤ 1000
+volumes, where the SNR is still high (9.5 in white matter at b = 1000), which is how
+tensors are usually fitted; the high-b volumes, where the floor matters most, are the ones
+kurtosis and compartment models read ([Chapter 15](../04-modeling/15-signal-representations.md)). Each fit is compared with
+the fit of the noise-free series. The maps show the FA error, the fitted FA minus the
+noise-free FA: red where FA is too high, blue where it is too low.
 
 ```{code-cell} python
 :tags: [hide-input]
 low = bvals <= 1000
 ref = synth.dti_maps(clean[..., low], bvals[low], bvecs[low], mask=mask)
 rows = []
+print(f"{'':>18}   {'WM FA error':>15}   {'WM MD error (µm²/ms)':>20}   {'GM FA error':>11}")
+print(f"{'':>18}   {'mean':>7} {'SD':>7}   {'mean':>10} {'SD':>9}   {'mean':>11}")
 for label, series in [("noisy", noisy), ("MP-PCA magnitude", den_mag), ("MP-PCA complex", den_complex)]:
     m = synth.dti_maps(series[..., low], bvals[low], bvecs[low], mask=mask)
     rows.append((label, m))
     fa_err = (m["fa"] - ref["fa"])[wm]
     md_err = (m["md"] - ref["md"])[wm] * 1e3
     fa_gm = (m["fa"] - ref["fa"])[gm]
-    print(f"{label:>18}: WM FA error {fa_err.mean():+.3f} ± {fa_err.std():.3f}   WM MD error {md_err.mean():+.3f} ± {md_err.std():.3f} (x10^-3)   GM FA error {fa_gm.mean():+.3f}")
+    print(f"{label:>18}   {fa_err.mean():+7.3f} {fa_err.std():7.3f}   {md_err.mean():+10.3f} {md_err.std():9.3f}   {fa_gm.mean():+11.3f}")
 
 fig, axes = plt.subplots(1, 4, figsize=(11, 3))
 show_image(axes[0], ref["fa"][:, :, K], "FA, noise-free", kind="scalar", vmin=0, vmax=0.9)
 for ax, (label, m) in zip(axes[1:], rows):
-    show_image(ax, m["fa"][:, :, K], f"FA, {label}", kind="scalar", vmin=0, vmax=0.9)
+    show_image(ax, np.where(mask[:, :, K], m["fa"][:, :, K] - ref["fa"][:, :, K], 0), f"FA error, {label}", kind="diff", vmin=-0.2, vmax=0.2)
 fig.tight_layout()
+fig.colorbar(axes[3].images[0], ax=axes[1:], shrink=0.8, label="FA − noise-free FA")
 ```
 
-Gray matter is where noise-induced anisotropy shows: its true FA is near zero, and every
-fit of noisy data overestimates it. Denoising reduces the spread of the errors in both
-tissues; only the complex-domain version also removes the bias.
+The number to take from the table is the last column. Gray matter is where noise-induced
+anisotropy shows: its true FA is near zero, and the fit of the noisy data overestimates it
+by 0.10 on average, which is why red dominates the speckle of the second panel. Denoising
+cuts that to about 0.03 and narrows the spread of the white matter FA error from 0.036 to
+0.024; the magnitude and complex versions do about equally well here, because at
+b ≤ 1000 the signal is well above the floor. The difference between them is in the
+high-b shells, in the bias figure above.
 
 ## Measure it: the simulated datasets
 
@@ -346,8 +457,10 @@ compare MP-PCA's noise estimate with the noise map TRXScan wrote.
 - **Shorter TE** is the largest lever on SNR ([Chapter 7](../02-diffusion-encoding/07-acquisition-parameters.md)); gradient strength, partial
   Fourier, and in-plane acceleration all shorten it.
 - **Larger voxels** raise SNR in proportion to their volume, at the cost of partial volume.
-- **Fewer coils do not help**; the floor rises with coil count but so does SNR. Save the
-  phase instead, so that denoising can work in the complex domain.
+- **Fewer coils do not help.** With a root-sum-of-squares combination every coil adds its
+  own noise to the sum, so the floor rises with the number of coils (roughly as its square
+  root, [Chapter 3](../01-mri-physics/03-reconstruction.md)), but the extra coils also raise the SNR, and fewer coils
+  would lower the signal along with the floor. Save the phase instead, so that denoising can work in the complex domain.
 - **Plan the highest shell around its SNR**, not the b=0 SNR. If b = 3000 lands below
   SNR 3 in the tissue of interest, add averages or lower the shell.
 - **Denoise before anything else.** Every later step (unringing, registration, fitting)

@@ -196,17 +196,35 @@ water inside the axons cannot move across them at all; a single $D$ does not des
 as the next figure shows. The separation $\Delta$ is
 approximately the diffusion time of [Chapter 4](./04-diffusion-in-tissue.md).
 
+Gradient strength is measured in millitesla per meter (mT/m), and it is the scanner's
+hardware limit. The three lines below are example timings on three classes of system: a
+clinical scanner (40 mT/m), a research whole-body scanner (80 mT/m), and the Connectom
+scanner built for diffusion (300 mT/m).
+
 ```{code-cell} python
 :tags: [hide-input]
-for g, d, D in [(40, 20, 40), (80, 14, 34), (300, 6, 26)]:
-    print(f"G = {g:>3} mT/m, delta = {d:>2} ms, Delta = {D:>2} ms  ->  b = {signal.b_value(g, d, D):6.0f} s/mm^2")
+for system, (g, d, D) in {"clinical": (40, 20, 40), "whole-body": (80, 14, 34), "Connectom": (300, 6, 26)}.items():
+    print(f"{system:>10}: G = {g:>3} mT/m, delta = {d:>2} ms, Delta = {D:>2} ms  ->  b = {signal.b_value(g, d, D):5.0f} s/mm^2")
 ```
+
+Stronger gradients buy b-value with shorter timing. The 80 mT/m system reaches about 1.7
+times the b-value of the clinical one with pulses 6 ms shorter, and the 300 mT/m system
+reaches b ≈ 5600 with pulses of only 6 ms. Shorter pulses mean a shorter sequence, and the
+last section of this chapter shows why that matters.
 
 ## Seeing the signal loss
 
 The simulation below applies the phase argument of the first section to 20 000 molecules
-whose displacements are drawn from the free-diffusion distribution of [Chapter 4](./04-diffusion-in-tissue.md). The
-magnitude of the summed signal matches the exponential formula.
+whose displacements are drawn from the free-diffusion distribution of [Chapter 4](./04-diffusion-in-tissue.md),
+with $D = 1 \times 10^{-3}$ mm²/s, typical of brain tissue. Each molecule's leftover phase
+is proportional to its displacement, and the signal is the length of the average of all
+the phase arrows. The top panel shows that this length matches the exponential formula.
+The bottom row shows why, at three b-values: each dot is one molecule's leftover phase,
+placed on a circle (300 molecules shown), and the arrow is the average of all 20 000. At
+b = 250 the dots bunch near the starting direction (pointing right) and the arrow is long.
+At b = 1000 most sit within a quarter turn either side of the start, with some straying
+farther, and the arrow is shorter. At b = 3000 they wrap all the way around, pull in
+opposite directions, and the arrow is short.
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -214,16 +232,35 @@ rng = np.random.default_rng(0)
 D = 1.0e-3  # mm^2/s
 Delta_s = 0.040
 bvals = np.array([0, 250, 500, 1000, 2000, 3000], float)
-measured = []
+b_phasor = [250, 1000, 3000]
+measured, phases = [], {}
 for b in bvals:
     q = np.sqrt(b / Delta_s) / (2 * np.pi)          # 1/mm, narrow-pulse relation b = (2 pi q)^2 Delta
     dx = rng.normal(scale=np.sqrt(2 * D * Delta_s), size=20_000)  # mm
-    measured.append(np.abs(np.mean(np.exp(2j * np.pi * q * dx))))
-fig, ax = plt.subplots(figsize=(6, 3.2))
-ax.plot(bvals, np.exp(-bvals * D), color="0.5", ls="--", label="exp(−b D)")
-ax.plot(bvals, measured, "o", label="20 000 simulated molecules")
-ax.set(xlabel="b (s/mm²)", ylabel="S / S₀", title=f"D = {D * 1e3:.1f} × 10⁻³ mm²/s")
+    phases[b] = 2 * np.pi * q * dx                   # leftover phase of each molecule, rad
+    measured.append(np.abs(np.mean(np.exp(1j * phases[b]))))
+
+fig = plt.figure(figsize=(8, 6))
+gs = fig.add_gridspec(2, 3, height_ratios=[1, 1.05])
+ax = fig.add_subplot(gs[0, :])
+b_fine = np.linspace(0, 3000, 200)
+ax.plot(b_fine, np.exp(-b_fine * D), color="0.5", ls="--", label="exp(−b D)")
+ax.plot(bvals, measured, "o", color=PALETTE[0], label="20 000 simulated molecules")
+for i, b in enumerate(b_phasor):
+    m = measured[list(bvals).index(b)]
+    ax.plot(b, m, "o", ms=11, mfc="none", color=PALETTE[1])
+    ax.annotate(f"b = {b}", (b, m), (b + 90, m + 0.12), fontsize=8, color=PALETTE[1])
+ax.set(xlabel="b (s/mm²)", ylabel="S / S₀", ylim=(0, 1.1), title=f"D = {D * 1e3:.1f} × 10⁻³ mm²/s")
 ax.legend()
+for i, b in enumerate(b_phasor):
+    axp = fig.add_subplot(gs[1, i])
+    ph = phases[b][:300]
+    axp.add_patch(plt.Circle((0, 0), 1, fill=False, color="0.8"))
+    axp.scatter(np.cos(ph), np.sin(ph), s=8, alpha=0.35, color=PALETTE[0])
+    s = np.exp(1j * phases[b]).mean()
+    axp.annotate("", xy=(s.real, s.imag), xytext=(0, 0), arrowprops=dict(arrowstyle="-|>", color=PALETTE[1], lw=2.2))
+    axp.set(xlim=(-1.2, 1.2), ylim=(-1.2, 1.2), aspect="equal", title=f"b = {b}: sum length {abs(s):.2f}")
+    axp.set_axis_off()
 fig.tight_layout()
 ```
 
@@ -319,7 +356,12 @@ pulse duration. On a given scanner the amplitude is fixed, so higher b-values re
 longer pulses, which push the echo out and cost signal through T2 decay ([Chapter 1](../01-mri-physics/01-spins-and-signal.md)). The
 function below computes the minimum echo time for a simplified sequence in which the
 two pulses sit directly against the 180° pulse and the EPI readout needs 23 ms to reach
-the center of k-space (a 6/8 partial Fourier readout of the HBCD protocol, [Chapter 2](../01-mri-physics/02-spatial-encoding-kspace.md)).
+the center of k-space. The echo time is defined by that moment, because the center of
+k-space holds the image's overall brightness and contrast ([Chapter 2](../01-mri-physics/02-spatial-encoding-kspace.md)).
+The 23 ms is that of the HBCD protocol, which uses 6/8 partial Fourier: it skips a quarter
+of the k-space lines, all from the side read first, so the readout reaches the center
+sooner. The right panel shows how much white matter signal is left at each echo time, as a
+fraction of what it would have with no T2 decay at all.
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -337,12 +379,13 @@ fig.tight_layout()
 for name, g in presets.GMAX_MT_PER_M.items():
     r = signal.min_te(3000, g)
     print(f"{name:>14}: b = 3000 needs delta = {r['delta']:4.1f} ms, TE >= {r['te']:5.1f} ms, "
-          f"WM b=0 signal {np.exp(-r['te'] / t2_wm):.2f} of proton density")
+          f"WM b=0 signal {np.exp(-r['te'] / t2_wm):.2f} of its no-decay value")
 ```
 
 The difference between a 40 mT/m clinical system and an 80 mT/m research system is about
-25 ms of echo time at b = 3000, which is 30 % of the white matter signal. A 300 mT/m system
-gains a similar amount again. This is the reason gradient strength is the headline
+25 ms of echo time at b = 3000 (115 versus 90 ms), so the clinical system keeps about 30 %
+less white matter signal (0.19 versus 0.27) before any diffusion weighting. A 300 mT/m
+system gains a similar amount of echo time again. This is the reason gradient strength is the headline
 specification of a diffusion scanner, and why high-b protocols on 80 mT/m hardware use
 echo times near 90 ms, the value the HBCD protocol and the simulated brain use.
 
@@ -362,28 +405,41 @@ treated in Part III; they are named here because they originate in the encoding.
   produces a large, spatially varying phase. This is the reason single-shot readouts are
   used ([Chapter 2](../01-mri-physics/02-spatial-encoding-kspace.md)) and a cause of signal dropout in individual slices ([Chapter 12](../03-preprocessing/12-motion-and-dropout.md)).
 
-The pulse pair described here applies weighting along one direction per image. Newer
-acquisitions vary the gradient direction within one encoding to probe several directions
-at once (b-tensor encoding), which separates microscopic anisotropy from orientation
-dispersion; [Chapter 15](../04-modeling/15-signal-representations.md) and [Chapter 23](../05-advanced/23-frontiers.md) describe what that adds.
+The pulse pair described here weights each image along one direction. Newer acquisitions
+shape the gradients to weight several directions within one image (b-tensor encoding);
+[Chapter 23](../05-advanced/23-frontiers.md) describes what that adds.
 
 ## The reference scheme
 
 TRXScan's default protocol is the HBCD scheme bundled with the simulation inputs. It has 75 volumes
-per phase-encode direction:
+per phase-encode direction, grouped into shells (sets of volumes that share a b-value but
+differ in gradient direction). The plot shows every volume in the order it is acquired,
+at the height of its b-value; the b=0 volumes are the black diamonds along the bottom.
 
 ```{code-cell} python
 :tags: [hide-input]
 bvals, bvecs = schemes.hbcd()
-for b, n in schemes.shells_of(bvals).items():
-    print(f"b = {b:5.0f}: {n:2d} volumes")
-print(f"acquisition order of the first 20 volumes: {bvals[:20].astype(int).tolist()}")
+shells = schemes.shells_of(bvals)
+shell_of = np.round(bvals / 50) * 50
+fig, ax = plt.subplots(figsize=(9, 2.8))
+idx = np.arange(len(bvals))
+for b_shell, color in zip(shells, ["k"] + PALETTE):
+    sel = shell_of == b_shell
+    label = f"b = 0 ({shells[b_shell]} volumes)" if b_shell == 0 else f"b = {b_shell:.0f} ({shells[b_shell]})"
+    ax.vlines(idx[sel], 0, bvals[sel], color=color, lw=1, alpha=0.35)
+    ax.plot(idx[sel], bvals[sel], "D" if b_shell == 0 else "o", color=color, ms=5, label=label)
+ax.set(xlabel="volume, in acquisition order", ylabel="b (s/mm²)", xlim=(-1, len(bvals)), ylim=(-150, 3300))
+ax.legend(fontsize=8, ncol=5, loc="upper center", bbox_to_anchor=(0.5, 1.28), frameon=False)
+fig.tight_layout()
 ```
 
-The b=0 volumes are spread through the acquisition rather than collected at the start, and
-the shells are interleaved. Both choices make the scheme robust to motion and drift:
-if the subject moves halfway through, every shell is affected equally rather than one shell
-being lost. [Chapter 6](./06-qspace-sampling.md) covers the design of schemes like this one.
+The b=0 volumes are spread through the acquisition, about one every eight volumes, rather
+than collected at the start. Each one is a fresh reference image, so slow signal drift and
+head motion can be tracked across the whole scan. The shells, by contrast, are acquired in
+blocks of increasing b-value. That order has a cost: if the subject moves late in the scan,
+the damage falls mostly on the b = 3000 shell rather than being shared among all shells,
+which is why many protocols interleave the shells instead.
+[Chapter 6](./06-qspace-sampling.md) covers the design of schemes like this one.
 
 ## What this implies for acquisition
 
@@ -394,7 +450,8 @@ being lost. [Chapter 6](./06-qspace-sampling.md) covers the design of schemes li
   pulses. Ask for the gradient amplitude of the scanner before designing a high-b protocol.
 - **High-b images are low-SNR images.** Budget the number of averages or directions with
   the expected SNR at the highest shell in mind, not the SNR of the b=0 image.
-- **Interleave shells and spread b=0 volumes** through the acquisition.
+- **Spread b=0 volumes through the acquisition**, and consider interleaving the shells so
+  that motion late in the scan does not concentrate in one shell.
 - **The diffusion time is a consequence of the timing** ($\Delta$, typically 30–50 ms) and
   is rarely reported; record it, because measured diffusivities depend on it.
 

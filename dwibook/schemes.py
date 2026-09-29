@@ -119,7 +119,8 @@ def hbcd() -> tuple[np.ndarray, np.ndarray]:
     """The HBCD-style multi-shell scheme bundled with the phantom (75 volumes, AP polarity).
 
     Ten b=0 volumes and four shells (b = 500, 1000, 2000, 3000 with 6, 12, 18, 29 directions),
-    interleaved in acquisition order. This is the scheme TRXScan simulates by default and the
+    acquired in blocks of increasing b with the b=0 volumes spread through the series (about
+    one every eight volumes); the shells are not interleaved. This is the scheme TRXScan simulates by default and the
     reference protocol of the book.
     """
     return read_fsl(Path(__file__).with_name("data") / "schemes" / "hbcd_ap")
