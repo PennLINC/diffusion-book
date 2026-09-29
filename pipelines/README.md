@@ -11,9 +11,9 @@ wsl -e bash -lc "cd /mnt/c/Users/tsalo/Documents/linc/diffusion-book/pipelines &
 | Piece | Purpose | Status |
 |---|---|---|
 | `config/datasets.yaml` | single source of truth: tools, phantoms, schemes, every dataset's flags | written |
-| `Snakefile` | `prepare_grid` → `truth` → `simulate` rules | grid + truth wired; `simulate` stubbed |
+| `Snakefile` | `prepare_grid` → `truth` → `simulate` rules, plus `zero_fieldmap` / `zero_fieldmap_sim` (all-zero fieldmap for `fieldmap: zero` datasets) and `crop_slab` (the `slices:` subset) | grid, truth, zero fieldmaps and slab crop wired; `simulate` stubbed |
 | `scripts/run_dataset.py` | expands one dataset entry into `trxscan` runs (sweeps, variants, PE pairs), writes provenance JSON | to do |
-| `scripts/make_schemes.py` | writes `config/schemes/*.bval/.bvec` from `dwibook.schemes` | to do |
+| `scripts/make_schemes.py` | writes `config/schemes/*.bval/.bvec` from `dwibook.schemes`, copies `source: bundled` / `source: reference` schemes (`hbcd76` from the sub-60501 reference data), and writes `<scheme>-first<N>` truncations for datasets with `volumes:` | to do |
 | `scripts/normalize_grid_names.py` | renames `prepare_acquisition_grid.py` outputs to the fixed names the rules expect | to do |
 | `scripts/precompute_*.py` | topup / eddy / MRtrix / qsiprep inside `docker run pennlinc/qsiprep:<tag>`; must write the `derivatives/` names that `dwibook.cookbook.expected_files` lists (Appendix A shows them) | to do |
 | `scripts/package_release.py` | tar per dataset, sha256 registry → `dwibook/registry.txt`, upload as release assets | to do |

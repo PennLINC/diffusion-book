@@ -60,9 +60,19 @@ slice by slice within a few seconds. Head motion affects it on two time scales:
   phase proportional to displacement ([Chapter 5](../02-diffusion-encoding/05-diffusion-encoding.md)). A small movement during the 40 ms
   between the pulses gives all spins in a slice a large, spatially varying phase, and the
   signal of that slice is partly or completely lost. This is **slice dropout**: a dark
-  slice, or a dark band of slices, in one volume. It scales with b, so it is most frequent
-  in the highest shell, and it is the dominant motion artifact in children and clinical
-  populations.
+  slice, or a dark band of slices, in one volume. It grows with b (with the pulse timing
+  fixed, the phase per unit of movement grows as the square root of b), so it is most
+  frequent in the highest shell, and it is the dominant motion artifact in children and
+  clinical populations.
+
+A third case sits between the two: the head moves while a volume is being acquired, but
+not during the brief encoding of any one slice. Each slice is then intact, but the slices
+of one volume were taken with the head in different positions, so the volume is not a
+rigid copy of the head. Registering the whole volume as one rigid body cannot undo this.
+FSL eddy can model it by letting the head pose change within the volume
+(`--mporder`, *slice-to-volume* correction {cite:p}`andersson2017`); for that it must know
+when each slice (or multiband group) was acquired, given as a slice-timing file
+(`--slspec`) or read from the BIDS JSON sidecar (`--json`).
 
 ### Why a rotated head needs rotated b-vectors
 
@@ -268,10 +278,14 @@ animate(fig, frame, range(2, len(bvals)), fps=2, width=320,
 
 ## Correction step by step: registration and b-vector rotation
 
-Each volume is registered rigidly to the first b=0 volume (six parameters: three rotations,
-three translations). For diffusion-weighted volumes, FSL eddy registers to a predicted
-image rather than to the b=0 ([Chapter 11](./11-eddy-currents.md)); the toy version registers to the b=0 directly.
-The rotation recovered by the registration is then applied to the b-vector of that volume.
+A pipeline registers every volume rigidly to a reference (six parameters: three rotations,
+three translations), because it cannot know in advance which volumes moved. For
+diffusion-weighted volumes, FSL eddy registers to a predicted image rather than to the b=0
+([Chapter 11](./11-eddy-currents.md)). The toy version takes two shortcuts: it registers
+only the three volumes it knows were moved, and it registers them to the first b=0 volume
+directly, using mutual information, a similarity measure that tolerates the difference in
+contrast. The rotation recovered by the registration is then applied to the b-vector of
+that volume.
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -326,6 +340,27 @@ diffusion-weighted volumes moved, by a few degrees each. It grows with the size 
 rotations and the number of rotated volumes, and the direction error is what tractography
 follows, so pipelines always rotate.
 
+:::{admonition} In practice: keeping the b-vectors right
+:class: tip
+- **Use the rotated table the pipeline wrote.** FSL eddy leaves the input `bvecs` file
+  untouched and writes the rotated directions to a separate file,
+  `<output>.eddy_rotated_bvecs`. Fitting the corrected data with the original file silently
+  discards the rotation shown above.
+- **Know which frame the table is in.** FSL `bvecs` are given along the image's voxel axes,
+  not the scanner's axes, and the sign of the x component depends on the handedness of the
+  image's affine (FSL flips it for images stored in the "neurological" orientation). Other
+  tools store the table in the scanner frame (MRtrix) or read it as given (DIPY), so a table
+  copied between tools or converters without conversion can end up with one axis flipped.
+- **Resampling again means rotating again.** Any later resampling of the data, for example
+  to AC-PC alignment or to a template, must rotate the b-vectors by the rotational part of
+  that transform. A nonlinear warp rotates each region differently, so there the model
+  (tensor or fiber orientations) must be reoriented voxel by voxel; one table no longer fits
+  all voxels.
+- **Check the table.** Fit a tensor and look at the principal-direction color map: the
+  corpus callosum should run left-right and the corticospinal tract up-down. MRtrix's
+  `dwigradcheck` tests the axis flips and permutations automatically.
+:::
+
 ## Slice dropout
 
 A within-volume event is simulated in a single volume: the head moves during one multiband
@@ -359,8 +394,14 @@ Dropout is detected from the model: fit the tensor to all volumes, predict every
 from the fit, and compare each slice of each volume with its prediction. A dropped slice
 has a residual far outside the distribution of that slice across volumes. The affected
 slice is then replaced by the prediction, and the fit is repeated without it
-{cite:p}`andersson2016b`. The same principle is used by FSL eddy (`--repol`) and by
-SHORELine in QSIPrep.
+{cite:p}`andersson2016b`. FSL eddy's outlier replacement (`--repol`) is built on this
+principle, but the version below is a toy. Eddy predicts each volume with its Gaussian
+process from the other volumes, not with a tensor; it standardizes each slice's difference
+from its prediction by the spread of those differences across all the slices of that
+shell, which are many, so one outlier barely moves the scale; and it flags a slice whose
+signal falls more than a set number of standard deviations below its prediction
+(`--ol_nstd`, default 4). The toy uses a tensor fit and, because it has only 12 values per
+slice, the robust scale described next.
 
 "Far outside the distribution" needs a yardstick that the outlier cannot bend. The usual
 z-score, the distance from the mean in units of the standard deviation, fails here, because
@@ -425,8 +466,9 @@ only ones below −4: the three slices of the one multiband shot, found from the
 alone, without being told where the event happened. The margin is narrower than in the
 worked example (about −5, while a few cells elsewhere reach ±4). The dropped slice pulls the
 tensor fit of its own slice toward itself, so the other volumes of that slice also miss
-their predictions and its MAD grows. This is why FSL eddy repeats the detection after
-replacing what it found, refitting each time without the outliers.
+their predictions and its MAD grows. The same pull, of an outlier on the prediction it is
+judged against, is why FSL eddy repeats the detection after replacing what it found,
+predicting again each time with the outliers replaced.
 
 The flagged slices are then replaced by their predictions. Here is slice 29 of volume 4 at
 each stage:
@@ -459,7 +501,8 @@ reference, because the tensor it was predicted from was fitted with the dark sli
 and was pulled down by it. Refitting with the replaced slice and predicting again closes
 part of the remaining gap: the white-matter signal rises from 68 % to 82 % of the reference
 and the FA error in the slice falls from 0.034 to 0.020 (0.056 with the dropout left in).
-Further rounds continue the approach; this iteration is what FSL eddy performs. The replacement is never
+Further rounds continue the approach; eddy iterates in the same way, with its own
+predictor. The replacement is never
 identical to the reference: it is a prediction from the other volumes, smoother than a real
 measurement. Replacement uses the other volumes' information to fill the gap; it cannot
 recover the
@@ -469,11 +512,13 @@ as a quality measure, and studies set a threshold above which a scan is excluded
 
 ## Reporting motion
 
-Pipelines summarize motion with two numbers per volume. The first is the **framewise
-displacement** (FD): how far the head moved since the previous volume, adding the three
-translations in millimeters to the three rotations converted to millimeters as the distance
-a point on a 50 mm sphere, roughly the head's surface, travels. The second is the count of
-outlier slices from the detection above. A worked conversion, and the FD of the toy series:
+Pipelines summarize motion with two numbers per volume. The first is a displacement since
+the previous volume. The version used below, and in much of the fMRI literature, is Power's
+**framewise displacement** (FD) {cite:p}`power2012`: the sum of the absolute changes in the
+three translations, in millimeters, and the three rotations converted to millimeters as
+the distance a point on a 50 mm sphere, roughly the head's surface, travels. The second is
+the count of outlier slices from the detection above. A worked conversion, and the FD of the
+toy series:
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -492,9 +537,18 @@ print("FD above zero: " + ", ".join(f"volume {v} {fd_toy[v]:.1f} mm" for v in np
 ```
 
 Each moved volume produces two bars: one for moving away from the reference position and
-one for moving back in the next volume. A threshold such as the dashed 0.5 mm line is a
-common way to count high-motion volumes; the live section below uses the same measure on a
-real subject's motion. Both numbers should be inspected before any group analysis, because
+one for moving back in the next volume. A threshold such as the dashed 0.5 mm line is one
+way to count high-motion volumes; the live section below uses the same measure on a real
+subject's motion.
+
+Not every tool reports this FD. FSL eddy, and its quality report `eddy_quad`, give instead
+the root-mean-square displacement of the voxels in the brain mask, relative to the
+first volume (*absolute*) and to the previous volume (*relative*). The two measures weigh
+rotations differently and are not interchangeable, so a threshold set on one does not
+transfer to the other, and thresholds also differ between studies, populations, and the
+measure being analyzed. Report which measure and which threshold were used.
+
+Both numbers should be inspected before any group analysis, because
 motion correlates with age and with clinical status, and residual motion effects bias FA
 downward and MD upward in a way that can masquerade as a group difference.
 
@@ -562,4 +616,6 @@ dataset runs the full 76-volume trace and FSL eddy on it.
 ## Further reading
 
 Rotating the b-matrix {cite:p}`leemans2009`, integrated motion and eddy correction
-{cite:p}`andersson2016`, and outlier detection and replacement {cite:p}`andersson2016b`.
+{cite:p}`andersson2016`, outlier detection and replacement {cite:p}`andersson2016b`,
+slice-to-volume motion correction {cite:p}`andersson2017`, and framewise displacement
+{cite:p}`power2012`.

@@ -61,6 +61,62 @@ rule prepare_grid:
         """
 
 
+wildcard_constraints:
+    phantom="sub-[A-Za-z0-9]+",
+    voxel="[0-9.]+",
+
+
+def _zero_like(src, dst):
+    """Write an all-zero float32 image on the grid (shape, affine, header) of ``src``."""
+    import nibabel as nib
+    import numpy as np
+
+    img = nib.load(src)
+    out = nib.Nifti1Image(np.zeros(img.shape, np.float32), img.affine, img.header)
+    out.set_data_dtype(np.float32)
+    nib.save(out, dst)
+
+
+# An all-zero fieldmap on the acquisition grid, for datasets with `fieldmap: zero` (no
+# susceptibility distortion: ref-clean and the single-artifact datasets scored against truth).
+rule zero_fieldmap:
+    input:
+        str(WORK / "{phantom}" / "{voxel}mm" / "fmap.nii.gz"),
+    output:
+        str(WORK / "{phantom}" / "{voxel}mm" / "fmap-zero.nii.gz"),
+    run:
+        _zero_like(input[0], output[0])
+
+
+# The same on the oversampled simulation grid (runs with oversample > 1 pass --sim-fmap).
+rule zero_fieldmap_sim:
+    input:
+        str(WORK / "{phantom}" / "{voxel}mm" / "sim" / "fmap.nii.gz"),
+    output:
+        str(WORK / "{phantom}" / "{voxel}mm" / "sim" / "fmap-zero.nii.gz"),
+    run:
+        _zero_like(input[0], output[0])
+
+
+# A slab of the acquisition grid for datasets with `slices: [first, stop]` (half-open), e.g.
+# slab-kspace: slices 28-32. nibabel's slicer keeps the affine consistent with the crop.
+rule crop_slab:
+    input:
+        expand(str(WORK / "{{phantom}}" / "{{voxel}}mm" / "{name}.nii.gz"), name=["wm", "gm", "csf", "mask", "fmap"]),
+    output:
+        expand(str(WORK / "{{phantom}}" / "{{voxel}}mm" / "slices{{first}}-{{last}}" / "{name}.nii.gz"), name=["wm", "gm", "csf", "mask", "fmap"]),
+    wildcard_constraints:
+        first="[0-9]+",
+        last="[0-9]+",
+    run:
+        import nibabel as nib
+
+        first, last = int(wildcards.first), int(wildcards.last)
+        for src, dst in zip(input, output):
+            img = nib.load(src)
+            nib.save(img.slicer[:, :, first : last + 1], dst)
+
+
 # Ground-truth microstructure maps for the phantom at the book's default resolution.
 rule truth:
     input:

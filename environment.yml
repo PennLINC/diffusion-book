@@ -7,7 +7,7 @@
 # mystmd needs Node >= 20; the system node in WSL is 18, so Node comes from conda-forge.
 #
 # TRXScan is a pip dependency (the `trxscan` wheel); notebooks simulate single slices of the
-# phantom live. FSL/MRtrix/qsiprep (via the pennlinc/qsiprep Docker image) are still called
+# simulated brain live. FSL/MRtrix/qsiprep (via the pennlinc/qsiprep Docker image) are still called
 # only from pipelines/, never at book build time.
 name: dwibook
 channels:
@@ -34,9 +34,9 @@ dependencies:
   - nodejs>=20
   - pip:
       - mystmd            # jupyter-book 2 engine
-      - trxscan[dipy,trx,viz]>=0.1.0   # the simulator, called live on a slab of the phantom in notebooks
+      - trxscan[dipy,trx,viz]>=0.1.0   # the simulator, called live on a slab of the simulated brain in notebooks
       - snakemake         # offline pipeline driver (runs in WSL; calls trxscan + docker)
-      - sigpy             # compressed-sensing k-space reconstruction (Ch. 3)
+      - sigpy             # iterative / compressed-sensing reconstruction; no chapter imports it at present (CS is discussed in Ch. 6)
       - cvxpy             # dipy's multi-tissue CSD and MAP-MRI positivity constraints (Ch. 15-16)
       - pyyaml            # pipeline configuration, read by the appendices
       # optional extras, installed later if the chapter needs them:

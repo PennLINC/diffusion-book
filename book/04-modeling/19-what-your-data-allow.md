@@ -8,7 +8,7 @@ kernelspec:
 :::{admonition} Simulated datasets in this chapter
 :class: note
 - **Built in this page:** sampling schemes evaluated from their b-values and direction counts, without images ([Appendix B](../appendices/b-data-manifest.md#app-b-package-data)).
-- **`ref-schemes`** (pending): the simulated brain under the 30-direction, 64-direction, HBCD, DSI, and CS-DSI schemes at matched scan time ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-ref-schemes)).
+- **`ref-schemes`** (pending): the simulated brain under the 30-direction, 64-direction, HBCD, and DSI schemes, compared at equal total scan time (the per-volume noise is scaled with the number of volumes), plus a CS-DSI subset of the DSI run, which takes about a quarter of its time ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-ref-schemes)).
 - **`truth`** (pending): the 27 analytic ground-truth maps and the true fiber orientations ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-truth), [Appendix E](../appendices/e-truth-map-catalogue.md)).
 
 Pipeline-tier datasets are simulated offline by TRXScan ([Chapter 0.2](../00-frontmatter/the-simulated-datasets.md)) and are marked *pending* until their release; the figures that need them say so where they will appear.
@@ -64,8 +64,8 @@ ROW_LABELS = {
     "mean diffusivity / ADC": ("Mean diffusivity (ADC)", "≥ 3 directions and 1 b=0 · Ch 15"),
     "DTI (FA, direction)": ("Tensor (DTI): FA, fiber direction", "≥ 30 dirs at b ≤ 1200 (6 minimum) · Ch 6, 15"),
     "diffusion kurtosis": ("Diffusion kurtosis", "≥ 2 shells, top ≥ 2000, ≥ 30 dirs · Ch 15"),
-    "single-shell CSD": ("Fiber ODF, single-shell CSD", "≥ 45 dirs at b ≥ 2000 · Ch 16"),
-    "multi-tissue CSD": ("Fiber ODF, multi-tissue CSD", "≥ 2 shells, ≥ 45 dirs at high b · Ch 16"),
+    "single-shell CSD": ("Fiber ODF, single-shell CSD", "≥ 45 dirs on one shell at b ≈ 2000 or more · Ch 16"),
+    "multi-tissue CSD": ("Fiber ODF, multi-tissue CSD", "≥ 2 shells, one as above · Ch 16"),
     "NODDI / spherical mean / free water": ("NODDI, spherical mean, free water", "≥ 2 shells, top ≥ 2000 · Ch 17"),
     "MAP-MRI / propagator": ("MAP-MRI (propagator)", "≥ 3 shells, ≥ 60 dirs · Ch 15"),
     "DSI (model-free propagator)": ("DSI (model-free propagator)", "Cartesian grid, 200+ points · Ch 6, 16"),
@@ -98,7 +98,7 @@ note_id = {key: k + 1 for k, key in enumerate(notes)}
 SUPERSCRIPT = str.maketrans("0123456789", "⁰¹²³⁴⁵⁶⁷⁸⁹")
 
 # Geometry in inches: the axes spans the whole figure with 1 data unit = 1 inch.
-label_w, cell_w, cell_h, gap, head_h, foot_h = 2.45, 0.80, 0.40, 0.18, 0.78, 0.40
+label_w, cell_w, cell_h, gap, head_h, foot_h = 2.85, 0.80, 0.40, 0.18, 0.78, 0.40
 n_rows, n_cols = len(analyses), len(COLUMNS)
 W = label_w + n_cols * cell_w + gap + 0.05
 H = head_h + n_rows * cell_h + foot_h
@@ -151,7 +151,17 @@ Read each row across to see which schemes support that analysis, or each column 
 see everything one dataset supports; green is "yes", amber "marginal", pale red "no", and
 the numbered notes under the figure give the reason for each marginal cell. The two
 single-shell columns show the trade most clearly: b = 1000 gives a good tensor but only a
-marginal fiber ODF, b = 2000 the reverse, and only multi-shell columns turn the middle rows green.
+marginal fiber ODF, b = 2000 the reverse. Only multi-shell columns turn the kurtosis and
+compartment-model rows green. The fiber-ODF rows need something else: one shell at
+b ≈ 2000 or more with 45 or more directions. Single-shell CSD uses only one shell, so
+directions on other shells do not help it. Multi-tissue CSD fits all shells together, and
+the rule asking it for one well-sampled high shell is a conservative one:
+[Chapter 16](./16-fiber-orientation.md) shows the multi-tissue fit resolving 60° crossings from three
+30-direction shells once its harmonic order is high enough. The HBCD scheme has
+four shells but only 18 and 29 directions on its two high ones, so both fiber-ODF rows are
+marginal for it, as is the tensor, with 18 directions at b ≤ 1200. The DSI grid spreads
+its points over 14 radii rather than a few shells, so multi-tissue CSD on it needs the
+points binned into shells first.
 
 The verdicts are rules of thumb, not guarantees. A "yes" means the fit is determined and
 the sampling is in the range where the method was developed; "marginal" means the fit
@@ -225,24 +235,55 @@ with the dataset.
 
 **Case 1: single shell, b = 1000, 32 directions, one b=0, magnitude only.** Stay with the
 tensor: FA, mean diffusivity, the principal direction, deterministic tractography,
-tract-based statistics. Single-shell CSD runs but resolves few crossings at b = 1000.
+tract-based statistics. Single-shell CSD runs but resolves crossings poorly at b = 1000
+(in [Chapter 16](./16-fiber-orientation.md) it missed a third of them).
 Without reverse-polarity volumes, correct distortion with a fieldmap if one exists,
 otherwise by registration to the anatomical image. The single b=0 volume weakens outlier
 detection and eddy's prediction, so report motion carefully.
 
+:::{dropdown} Tract-based spatial statistics: what to check
+Tract-based spatial statistics (TBSS, FSL's standard group analysis of FA) {cite:p}`smith2006` registers every
+subject's FA map to a template, thins the group's mean FA to a one-voxel-wide "skeleton"
+along the center of the main tracts, and then gives each skeleton voxel the highest FA
+found nearby in each subject, perpendicular to the skeleton. That projection is meant to
+absorb small misregistrations, and it is where the pitfalls are:
+
+- **Projection hides misregistration instead of fixing it.** Where registration is off by
+  more than the search distance, or where two tracts lie close together, the maximum can
+  come from the wrong tract, or from the edge of the right one. Check the registered FA
+  maps, not only the skeleton.
+- **CSF partial volume.** Near the ventricles and in atrophy, CSF in the voxel lowers FA
+  and raises MD ([Chapter 17](./17-microstructure-models.md), free-water elimination), so a
+  group difference in brain size or ventricle size can appear as an FA difference.
+  Free-water-corrected maps, or brain volume as a covariate, separate the two.
+- **Crossing fibers.** On the skeleton as elsewhere, FA falls where a second bundle
+  crosses ([Chapter 16](./16-fiber-orientation.md)). A group difference in a crossing
+  region can come from the crossing bundle, and a higher FA there can mean the crossing
+  bundle was lost, not that the tract improved.
+:::
+
 **Case 2: two shells, b = 1000 and 2500, 30 directions each, reverse-polarity b=0s.** Fit
 kurtosis, free water, NODDI, and the spherical mean technique. Fit the tensor to the
-b = 1000 shell only. Run multi-tissue CSD with a lower harmonic order, since 30 directions
-at the top shell is marginal, and treat MAP-MRI results from two shells with caution.
+b = 1000 shell only. Multi-tissue CSD is marginal, with 30 directions on the top shell:
+run it (a constrained fit does not need its harmonic order lowered to match the direction
+count, [Chapter 16](./16-fiber-orientation.md)) but check its peaks in known crossing
+regions. Treat MAP-MRI results from two shells with caution.
 Correct distortion with topup.
 
-**Case 3: HBCD-style multi-shell with phase, 1.7 mm, both polarities.** Everything in the
-figure except DSI, and the tensor is marginal: only 18 directions sit at b ≤ 1200, so
-tensor maps are noisier than from a 30-direction clinical scan. Denoise in the complex
-domain first; correct with topup and eddy using both polarities; fit multi-tissue CSD,
-kurtosis, MAP-MRI, and the compartment models; track probabilistically with ACT. The
-remaining limits are the ones no processing removes: the fixed diffusion time, the
-Gaussian assumptions of the models, and the resolution.
+**Case 3: HBCD-style multi-shell with phase, 1.7 mm, both polarities.** The strengths are
+the many shells and the phase: kurtosis, the compartment models, MAP-MRI, and
+complex-domain denoising all get a "yes". Three rows are marginal. The tensor has only 18
+directions at b ≤ 1200, so its maps are noisier than from a 30-direction clinical scan.
+Neither fiber-ODF method has a shell with 45 directions (18 at b = 2000, 29 at b = 3000),
+so single-shell CSD on either shell gives broad, low-contrast ODFs. Denoise in the complex
+domain first; correct with topup and eddy using both polarities; fit kurtosis, MAP-MRI,
+and the compartment models. For orientations, prefer multi-tissue CSD, which fits all four
+shells together, over single-shell CSD, check its peaks in known crossing regions before
+trusting them, and track probabilistically with ACT. The remaining limits are the ones no
+processing removes: the fixed diffusion time, the Gaussian assumptions of the models, and
+the resolution. (The column uses the book's bundled HBCD scheme, 75 volumes sorted by b
+for readability. The protocol HBCD acquires has 76 volumes, with the shells interleaved
+after six b=0 volumes and the same directions per shell, so every verdict is the same.)
 
 ## Measure it: the simulated datasets
 
@@ -257,12 +298,32 @@ maps, so that "marginal" is a number rather than a word.
 
 - **Decide the analyses, then read the matrix along their rows**; the cheapest scheme
   that says "yes" to all of them is the protocol.
-- **Multi-shell with a b ≈ 1000 shell of 30 or more directions, the top shell at
-  b ≥ 2000 with 45 or more directions, reverse polarity, and the phase saved** supports
-  every analysis in the matrix except DSI (and IVIM, which needs several shells below
-  b = 200), at a scan time under ten minutes ([Chapter 7](../02-diffusion-encoding/07-acquisition-parameters.md)).
+- **Three shells: b ≈ 1000 with 30 or more directions, a shell at b ≈ 2000 or more with
+  45 or more directions, and a third shell, with reverse polarity and the phase saved.**
+  This supports every analysis in the matrix except DSI (and IVIM, which needs several
+  shells below b = 200). The third shell is what turns MAP-MRI from "marginal" to "yes";
+  with two shells every other row is already green.
 - **Record the metadata**: phase-encode direction, readout time, diffusion timing, and
   the gradient coefficient file.
+
+The cell below checks two such protocols against the matrix and times them at the TR of
+[Chapter 7](../02-diffusion-encoding/07-acquisition-parameters.md)'s worked example.
+
+```{code-cell} python
+:tags: [hide-input]
+tr_s = 72 * 0.14 / 3  # Chapter 7's worked example: 72 slices, 0.14 s each, multiband 3
+for name, shells_, n_b0 in [("two shells", {1000: 30, 2000: 45}, 6), ("three shells", {1000: 30, 2000: 30, 3000: 45}, 6)]:
+    b_rec = schemes.multi_shell(shells_, n_b0=n_b0)[0]
+    verdicts = {a: v for a, v, _ in schemes.analysis_matrix(b_rec, complex_data=True)}
+    minutes = schemes.scan_time_s(len(b_rec) + 6, tr_s) / 60  # plus six reverse-polarity b=0 volumes
+    not_yes = [f"{a} ({v})" for a, v in verdicts.items() if v != "yes"]
+    print(f"{name}, {len(b_rec)} volumes + 6 reverse b=0: {minutes:.1f} min at TR {tr_s:.2f} s; not 'yes': {', '.join(not_yes)}")
+```
+
+The three-shell protocol (30, 30, and 45 directions at b = 1000, 2000, and 3000, plus six
+b=0) takes 6.6 minutes including six reverse-polarity b=0 volumes, and only DSI is not
+"yes". The two-shell protocol (30 directions at b = 1000, 45 at b = 2000) takes 4.9
+minutes, and MAP-MRI drops to marginal.
 
 ## Further reading
 

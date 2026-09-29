@@ -26,7 +26,7 @@ from typing import Any
 #: Flags used by the book's datasets, with the artifact or feature each controls.
 FLAG_GLOSSARY: dict[str, str] = {
     "--oversample": "simulate the object on a finer grid than the acquisition, so Gibbs ringing is intrinsic (Chapter 9)",
-    "--noise": "complex Gaussian noise variance in k-space; Rician magnitude, phase noise (Chapter 8)",
+    "--noise": "complex Gaussian noise: the variance of each of the real and imaginary parts of the single-coil image; Rician magnitude, phase noise (Chapter 8)",
     "--noise-map": "spatially varying noise level; writes the true sigma map (Chapter 8)",
     "--coils": "number of ring-arranged receive coils, combined with Roemer weights (Chapter 3)",
     "--accel": "GRAPPA in-plane acceleration factor (Chapter 3)",
@@ -44,10 +44,10 @@ FLAG_GLOSSARY: dict[str, str] = {
     "--gnl-scale": "severity of the nonlinear terms (Chapter 13)",
     "--gnl-no-warp": "encoding deviation only, no spatial warp (Chapter 13)",
     "--gnl-no-encoding": "spatial warp only, no encoding deviation (Chapter 13)",
-    "--isocenter": "scanner isocenter in world mm (Chapter 13)",
-    "--te": "echo time in ms; planned flag, implementation plan item T1 (Chapters 7, 20)",
-    "--window": "k-space apodization at reconstruction; planned flag, item T1 (Chapter 9)",
-    "--export-kspace": "write raw per-coil k-space; planned flag, item T2 (Chapters 2, 3)",
+    "--isocenter": "scanner isocenter as x,y,z in world RAS mm, the ACPC frame of the source anatomy, so 0,-20,-30 is 20 mm posterior and 30 mm inferior of the ACPC origin (Chapter 13)",
+    "--te": "echo time in ms; planned simulator flag (Chapters 7, 20)",
+    "--window": "k-space apodization at reconstruction; planned simulator flag (Chapter 9)",
+    "--export-kspace": "write raw per-coil k-space; planned simulator flag (Chapters 2, 3)",
     "--subsample": "keep N streamlines sampled by SIFT2 weight; identical subset in the truth run",
     "--seed": "noise, dropout, and subsample realization",
     "--params": "compartment preset: adult, neonatal, infant (Chapter 1)",
@@ -55,6 +55,19 @@ FLAG_GLOSSARY: dict[str, str] = {
     "--truth-peaks": "write up to three ground-truth fiber orientations per voxel (Chapter 16)",
     "--big-delta / --small-delta": "diffusion timing for MAP-MRI truth maps in physical units (Chapter 15)",
 }
+
+#: Planned simulator changes a dataset or file can wait on, by the key the configuration uses.
+PLANNED_CHANGES: dict[str, str] = {
+    "T1": "new acquisition flags (--te, --window)",
+    "T2": "raw k-space export (--export-kspace)",
+    "T3": "a per-volume echo time",
+}
+
+
+def planned_change(key: str) -> str:
+    """Plain-language name of a planned simulator change."""
+    return PLANNED_CHANGES.get(key, key)
+
 
 #: The derivative dataset that holds everything TRXScan writes beyond the raw series.
 TRUTH_PIPELINE = "derivatives/trxscan"
@@ -149,7 +162,8 @@ def _runs(cfg: dict[str, Any], dataset_id: str) -> list[dict[str, Any]]:
                         "dir": var.get("dir", "AP"), "scheme": scheme, "voxel": voxel,
                         "oversample": var.get("oversample", ds.get("oversample", d["oversample"])),
                         "params": var.get("params", ds.get("params", d["params"])),
-                        "extra": list(ds.get("extra_flags", d["extra_flags"])) + list(var.get("extra_flags", []))
+                        "extra": list(ds.get("extra_flags", d["extra_flags"])) + list(ds.get("scheme_flags", {}).get(scheme, []))
+                                 + list(var.get("extra_flags", []))
                                  + ([f"{sweep['flag']} {val}"] if sweep and "flag" in sweep else []),
                         "truth_peaks": bool(ds.get("truth_peaks")),
                     }
@@ -167,10 +181,26 @@ def _runs(cfg: dict[str, Any], dataset_id: str) -> list[dict[str, Any]]:
     return runs
 
 
+def _grid(ds: dict[str, Any], sub: str, voxel: float) -> str:
+    """The work directory of the tissue grids a run reads: the slab subset when the dataset has one."""
+    grid = f"work/{sub}/{voxel:g}mm"
+    if ds.get("slices"):
+        first, stop = ds["slices"]
+        grid += f"/slices{first}-{stop - 1}"
+    return grid
+
+
+def _scheme_file(ds: dict[str, Any], scheme: str) -> str:
+    """The scheme files a run reads: the first N volumes when the dataset truncates the scheme."""
+    name = f"{scheme}-first{ds['volumes']}" if ds.get("volumes") else scheme
+    return f"--bval schemes/{name}.bval --bvec schemes/{name}.bvec"
+
+
 def _base_flags(cfg: dict[str, Any], ds: dict[str, Any], run: dict[str, Any]) -> list[str]:
     d = cfg["defaults"]
-    grid = f"work/{run['sub']}/{run['voxel']:g}mm"
+    grid = _grid(ds, run["sub"], run["voxel"])
     pcfg = cfg["phantoms"][run["sub"]]
+    fmap = "fmap-zero" if ds.get("fieldmap") == "zero" else "fmap"
     flags = [
         f"--wm {grid}/wm.nii.gz", f"--gm {grid}/gm.nii.gz", f"--csf {grid}/csf.nii.gz", f"--mask {grid}/mask.nii.gz",
         f"--streamlines {pcfg['tract'].split('/')[-1]}", f"--weights {pcfg['weights']}",
@@ -178,9 +208,10 @@ def _base_flags(cfg: dict[str, Any], ds: dict[str, Any], run: dict[str, Any]) ->
         f"--params {run['params']}",
     ]
     if run["oversample"] > 1:
-        flags += [f"--oversample {run['oversample']}"] + [f"--sim-{k} {grid}/sim/{k}.nii.gz" for k in ("wm", "gm", "csf", "mask", "fmap")]
+        flags += [f"--oversample {run['oversample']}"] + [f"--sim-{k} {grid}/sim/{k}.nii.gz" for k in ("wm", "gm", "csf", "mask")]
+        flags += [f"--sim-fmap {grid}/sim/{fmap}.nii.gz"]
     else:
-        flags += ["--oversample 1", f"--fmap {grid}/fmap.nii.gz"]
+        flags += ["--oversample 1", f"--fmap {grid}/{fmap}.nii.gz"]
     return flags
 
 
@@ -206,7 +237,7 @@ def render_commands(cfg: dict[str, Any], dataset_id: str) -> list[str]:
     ds = cfg["datasets"][dataset_id]
     cmds: list[str] = []
     for run in _runs(cfg, dataset_id):
-        flags = _base_flags(cfg, ds, run) + [f"--bval schemes/{run['scheme']}.bval", f"--bvec schemes/{run['scheme']}.bvec"]
+        flags = _base_flags(cfg, ds, run) + [_scheme_file(ds, run["scheme"])]
         flags += _fill(run["extra"], cfg["phantoms"][run["sub"]], run)
         if run["truth_peaks"]:
             flags.append("--truth-peaks")
@@ -221,7 +252,17 @@ def print_commands(cfg: dict[str, Any], dataset_id: str) -> None:
     ds = cfg["datasets"][dataset_id]
     print(f"pipeline description: {ds['description'].strip()}")
     if ds.get("requires"):
-        print(f"waits on simulator items {', '.join(ds['requires'])}")
+        print(f"waits on planned simulator changes: {'; '.join(planned_change(k) for k in ds['requires'])}")
+    if ds.get("slices") or ds.get("volumes"):
+        what = []
+        if ds.get("slices"):
+            first, stop = ds["slices"]
+            what.append(f"crops the tissue grids to slices {first}-{stop - 1}")
+        if ds.get("volumes"):
+            what.append(f"keeps the first {ds['volumes']} volumes of the scheme")
+        print(f"before running trxscan, the pipeline {' and '.join(what)}")
+    if ds.get("fieldmap") == "zero":
+        print("the fieldmap is an all-zero map on the anatomy's grid, written by the pipeline: no susceptibility distortion")
     for cmd in render_commands(cfg, dataset_id):
         print(cmd)
 
@@ -242,7 +283,7 @@ def flags_used(cfg: dict[str, Any]) -> list[str]:
 # outputs in ``bin/trxscan.rs``); the driver renames the non-raw ones into BIDS derivative
 # names. The precomputed names are the contract the pipeline's precompute scripts must honor,
 # and the chapters load files by these names. Files that wait on a planned simulator change
-# are tagged with the implementation-plan item that adds them.
+# are tagged with the key of that change (see ``PLANNED_CHANGES``).
 
 _DWI_SUFFIXES = ("_part-mag_dwi.nii.gz", "_part-mag_dwi.json", "_part-phase_dwi.nii.gz",
                  "_part-phase_dwi.json", "_dwi.bval", "_dwi.bvec")
@@ -315,7 +356,7 @@ def expected_files(cfg: dict[str, Any], dataset_id: str) -> list[tuple[str, str 
     """Every file a dataset directory holds once the pipeline has run, as ``(path, planned)``.
 
     Paths are relative to the pipeline's data root (``data/<dataset>/...``); ``planned`` is the
-    implementation-plan item a file waits on, or None.
+    key of the planned simulator change a file waits on (``PLANNED_CHANGES``), or None.
     """
     ds = cfg["datasets"][dataset_id]
     subs = _phantoms_of(ds)
@@ -359,7 +400,7 @@ def print_tree(cfg: dict[str, Any], dataset_id: str) -> None:
         for i, name in enumerate(names):
             last = i == len(names) - 1
             child = node[name]
-            tag = "" if child is None or isinstance(child, dict) else f"   (planned: item {child})"
+            tag = "" if child is None or isinstance(child, dict) else f"   (planned: waits on {planned_change(child)})"
             print(f"{indent}{'└── ' if last else '├── '}{name}{tag}")
             if isinstance(child, dict):
                 walk(child, indent + ("    " if last else "│   "))

@@ -1,5 +1,5 @@
 ---
-title: "22. Multi-diffusion-time DWI"
+title: "21. Multi-diffusion-time DWI"
 kernelspec:
   name: python3
   display_name: Python 3
@@ -185,10 +185,21 @@ G_MAX, WIN, GAP, F_OSC = 80.0, 20.0, 6.0, 100.0  # mT/m, ms, ms (180° pulse), H
 t = np.linspace(0, 2 * WIN + GAP, 4601)
 dt_s = (t[1] - t[0]) * 1e-3
 first, second = t < WIN, t >= WIN + GAP
+
+
+def apodized_cosine(tw):
+    """Cosine lobes over a whole number of periods, with the first and last quarter periods replaced
+    by half-sine lobes at twice the frequency: the waveform starts and ends at zero, and the phase
+    it winds up averages to zero over every period"""
+    quarter = 1e3 / (4 * F_OSC)  # ms
+    g = np.cos(2 * np.pi * F_OSC * tw * 1e-3)
+    ends = (tw < quarter) | (tw > WIN - quarter)
+    return G_MAX * np.where(ends, np.sin(4 * np.pi * F_OSC * np.minimum(tw, WIN - tw) * 1e-3), g)
+
+
 waves = {
     "PGSE": np.where(first | second, G_MAX, 0.0),
-    f"OGSE, {F_OSC:.0f} Hz": np.where(first, G_MAX * np.sin(2 * np.pi * F_OSC * t * 1e-3), 0.0)
-    + np.where(second, G_MAX * np.sin(2 * np.pi * F_OSC * (t - WIN - GAP) * 1e-3), 0.0),
+    f"OGSE, {F_OSC:.0f} Hz": np.where(first, apodized_cosine(t), 0.0) + np.where(second, apodized_cosine(t - WIN - GAP), 0.0),
 }
 fig, axes = plt.subplots(2, 2, figsize=(10, 4.6), sharex=True)
 b_num = {}
@@ -206,8 +217,9 @@ for ax in axes[1]:
     ax.set_xlabel("time (ms); gray: 180° pulse")
 fig.tight_layout()
 b_pgse = signal.b_value(G_MAX, WIN, WIN + GAP)
+b_ogse = b_num[f"OGSE, {F_OSC:.0f} Hz"]
 print(f"b at {G_MAX:.0f} mT/m in two {WIN:.0f} ms windows: PGSE {b_num['PGSE']:.0f} s/mm² (b_value formula: {b_pgse:.0f}), "
-      f"OGSE at {F_OSC:.0f} Hz {b_num[f'OGSE, {F_OSC:.0f} Hz']:.0f} s/mm²")
+      f"OGSE at {F_OSC:.0f} Hz {b_ogse:.0f} s/mm², a ratio of 1/{b_num['PGSE'] / b_ogse:.0f}")
 print(f"PGSE at {G_MAX:.0f} mT/m with δ = Δ = 5 ms: b = {signal.b_value(G_MAX, 5, 5):.0f} s/mm²; "
       f"with δ = Δ = 40 ms: b = {signal.b_value(G_MAX, 40, 40):.0f} s/mm²")
 ```
@@ -216,13 +228,18 @@ The left column shows the gradients as the scanner plays them; the right column 
 the phase each molecule gains per micrometer it moves, as it builds up during the encoding.
 In PGSE, *q* is wound up during the first pulse, held while the molecules move, and unwound
 by the second: a molecule's phase reports where it was at the start compared with where it
-is 26 ms later. In OGSE, *q* is wound and unwound every 10 ms, so the phase reports only
-displacements over a few milliseconds; the effective diffusion time is about a quarter of
-the oscillation period, 2.5 ms at 100 Hz, set by the frequency rather than by the pulse
-separation.
+is 26 ms later. The OGSE waveform here is a cosine (its first and last quarter-periods are
+softened into half-sine lobes so that the gradient starts and ends at zero, the usual
+"apodized cosine"). Its *q* swings up and back down through zero every 10 ms and averages
+to zero, so no part of the encoding compares positions far apart in time: the phase reports
+only displacements over a few milliseconds, and the effective diffusion time is about a
+quarter of the oscillation period, 2.5 ms at 100 Hz, set by the frequency rather than by
+the pulse separation. (A sine-modulated waveform would not do this: its *q* stays on one
+side of zero during each window, and much of its b-value would come from a slow, PGSE-like
+comparison across the 180° pulse.)
 
 The price is b-value. In the same 46 ms, at the same amplitude, the oscillating waveform
-reaches about a fiftieth of the PGSE b-value, as printed above. Shortening PGSE instead
+reaches about 1/160 of the PGSE b-value, as printed above. Shortening PGSE instead
 fails faster still: with the pulses shortened from 40 to 5 ms (δ = Δ), a factor of 8, b
 falls by 8³ = 512, from about 20 000 to about 40 s/mm². OGSE acquisitions therefore work at
 low b-values, typically a few hundred s/mm², and need strong gradients to reach even those.
@@ -230,8 +247,10 @@ low b-values, typically a few hundred s/mm², and need strong gradients to reach
 ## Axon diameter and gradient strength
 
 The long-time limit of the signal across an impermeable cylinder depends only on its
-radius. The figure shows that signal against *q* for four radii, with dotted lines at the
-*q* that three gradient systems reach with 10 ms pulses:
+radius, provided the gradient pulses are short enough that molecules barely move during
+them (δ ≪ *R*²/*D*, well under a millisecond for a 1 µm axon). The figure shows that
+short-pulse signal against *q* for four radii, with dotted lines at the *q* that three
+gradient systems reach with 10 ms pulses:
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -243,11 +262,26 @@ for name, g in presets.GMAX_MT_PER_M.items():
     q_reach = signal.q_value(g, 10.0)  # 10 ms pulses
     ax.axvline(q_reach, color="0.6", lw=1, ls=":")
     ax.text(q_reach, 0.3, f"{name}\n{g:.0f} mT/m", fontsize=7, ha="center", color="0.4")
-ax.set(xlabel="q (1/mm)", ylabel="signal across the cylinder", title="restricted signal versus q, and the q reachable with 10 ms pulses")
+ax.set(xlabel="q (1/mm)", ylabel="signal across the cylinder", title="restricted signal versus q (short-pulse limit), and the q reachable with 10 ms pulses")
 ax.legend(fontsize=8, loc="lower left")
 fig.tight_layout()
 print("q reached with 10 ms pulses, and the displacement scale 1/q: " + "; ".join(
     f"{g:.0f} mT/m q = {signal.q_value(g, 10.0):.0f}/mm, 1/q = {1e3 / signal.q_value(g, 10.0):.0f} µm" for g in presets.GMAX_MT_PER_M.values()))
+
+# With pulses much longer than R^2/D, molecules cross the axon many times during each pulse and the
+# phase averages out (motional narrowing); Neuman's long-pulse limit for a cylinder
+D_AX = presets.ADULT_DIFFUSIVITY["WM_intra"] * 1e-6  # m^2/s
+g_con, delta_s = presets.GMAX_MT_PER_M["Connectom 300"] * 1e-3, 10e-3
+
+
+def neuman_cylinder(r_um):
+    r = r_um * 1e-6
+    return np.exp(-7 / 96 * (signal.GAMMA * g_con) ** 2 * r**4 / D_AX * (2 * delta_s - 99 / 112 * r**2 / D_AX))
+
+
+q_con = signal.q_value(presets.GMAX_MT_PER_M["Connectom 300"], 10.0)
+print("at 300 mT/m with 10 ms pulses, signal across the cylinder, short-pulse curve versus long-pulse (Neuman) value: " + "; ".join(
+    f"radius {r} µm {float(signal.cylinder_sgp(q_con, r)):.2f} vs {neuman_cylinder(r):.2f}" for r in (1.0, 2.0)))
 ```
 
 A useful way to read *q* is through its inverse. A molecule that moves 1/*q* along the
@@ -257,11 +291,21 @@ the signal. At the *q* of a 40 or 80 mT/m system, 1/*q* is tens of micrometers (
 above), far larger than an axon, and cylinders of 0.5, 1, and 2 µm radius are
 indistinguishable: their signal has barely decayed. Only the 300 mT/m system reaches a
 1/*q* under ten micrometers, where the 1 and 2 µm curves separate, and even there the
-smallest axons remain out of reach. The displacement distribution across the cylinder is
-its cross-section, and the signal is its Fourier transform ([Chapter 4](../02-diffusion-encoding/04-diffusion-in-tissue.md)), so telling radii
-apart means measuring at a *q* high enough to see the shape of that transform. For the
-axons of the human brain, mostly below 2 µm in diameter, that is beyond what ordinary
-gradients reach.
+smallest axons remain out of reach. At long times a molecule's start and end points are
+independent and each is anywhere in the cross-section, so the displacement distribution
+across the cylinder is the autocorrelation of the cross-section (its overlap with a shifted
+copy of itself), and the signal, its Fourier transform ([Chapter 4](../02-diffusion-encoding/04-diffusion-in-tissue.md)), is the squared magnitude of
+the cross-section's Fourier transform. Telling radii apart means measuring at a *q* high
+enough to see the shape of that transform. For the axons of the human brain, mostly below
+2 µm in diameter, that is beyond what ordinary gradients reach.
+
+The figure is also optimistic. Pulses of 10 ms are far longer than the time a molecule takes
+to cross an axon, so during each pulse it crosses many times and its phase averages over
+the cross-section; the attenuation is then much weaker than the short-pulse curve
+{cite:p}`neuman1974`. At 300 mT/m, the 2 µm radius curve predicts a signal of 0.51 at the
+marker, but the long-pulse value is 0.92, and for a 1 µm radius 0.99 instead of 0.85
+(printed above). Shortening the pulses would restore the curve but lower *q* by the same
+factor, so the conclusion only strengthens.
 
 This is the reason axon diameter mapping {cite:p}`assaf2008` is a strong-gradient technique,
 why its estimates are weighted toward the largest axons in a voxel, and why claims of

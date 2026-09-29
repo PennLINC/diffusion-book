@@ -9,7 +9,7 @@ kernelspec:
 :class: note
 - **Built in this page:** a synthetic series with a fiber crossing built from the packaged tissue maps ([Appendix B](../appendices/b-data-manifest.md#app-b-package-data)).
 - **`ref-clean`** (pending): the artifact-free, noise-free reference series with its truth maps and true fiber orientations ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-ref-clean)).
-- **`ref-schemes`** (pending): the simulated brain under the 30-direction, 64-direction, HBCD, DSI, and CS-DSI schemes at matched scan time ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-ref-schemes)).
+- **`ref-schemes`** (pending): the simulated brain under the 30-direction, 64-direction, HBCD, and DSI schemes, compared at equal total scan time (the per-volume noise is scaled with the number of volumes), plus a CS-DSI subset of the DSI run, which takes about a quarter of its time ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-ref-schemes)).
 - **`truth`** (pending): the 27 analytic ground-truth maps and the true fiber orientations ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-truth), [Appendix E](../appendices/e-truth-map-catalogue.md)).
 
 Pipeline-tier datasets are simulated offline by TRXScan ([Chapter 0.2](../00-frontmatter/the-simulated-datasets.md)) and are marked *pending* until their release; the figures that need them say so where they will appear.
@@ -155,10 +155,12 @@ sphere that gives, for every direction, how much of the voxel's diffusion or fib
 points that way. Its peaks are the fiber directions. Two definitions are in use. The
 **diffusion ODF** is the angular profile of the water displacements, which peaks along fibers
 but broadly; q-ball imaging and DSI estimate it. The **fiber ODF** is the distribution of
-fiber orientations itself. It is obtained by **deconvolution**, undoing a known blur: the
-signal of a single coherent bundle (the **response function**) is removed from the measured
-signal; spherical deconvolution estimates it, with sharper peaks and better separation of
-crossings.
+fiber orientations itself. It is obtained by **deconvolution**, undoing a known blur. The
+signal of a single coherent bundle (the **response function**) is the blur: every fiber
+population contributes one copy of it, turned to its own orientation, and the measured
+signal is the sum of those copies. Spherical deconvolution works backward from that sum to
+the fiber orientations that produced it, which gives sharper peaks and better separation
+of crossings.
 
 The idea is easiest to see in one dimension, on a circle of orientations (0° to 180°, where
 0° and 180° are the same orientation) instead of a sphere. In the sketch below each fiber
@@ -378,19 +380,43 @@ Blue voxels inside the band are missed crossings. The single-shell fits (the fir
 panels) also show gray matter and CSF in yellow: where there is no fiber, the ODF is nearly
 round, and its small noisy bumps pass the peak threshold as spurious peaks. Single-shell CSD at b = 3000 finds both fibers in every
 voxel of the band, to within a few degrees. DSI finds them nearly always, with broader peaks
-and a larger angular error. The multi-tissue fit and q-ball find most of them; both are
-limited here by the 30 directions per shell, which cap the harmonic order at 6, and the
-multi-tissue fit also spends part of that angular resolution on separating three tissues.
-(Q-ball and the deconvolution methods build the ODF as a sum of smooth standard shapes on the
-sphere, the **spherical harmonics**; the maximum **order** sets how finely the shapes may
-vary with direction. A higher order allows sharper shapes but has more coefficients to
-estimate, so it needs more directions; the figure after this paragraph shows the effect.)
-CSD at b = 1000 misses a third of the crossings, and the peaks it reports are off by
-15°, because the angular contrast of the signal is low at that b-value ([Chapter 5](../02-diffusion-encoding/05-diffusion-encoding.md)): the
-shell is fine for a tensor and inadequate for deconvolution. False peaks in single-fiber
-white matter are the other failure mode; at this SNR none of the methods produced them, but
-they appear at lower SNR and in gray matter and CSF partial volume, which is what the
-multi-tissue model is for.
+and a larger angular error. CSD at b = 1000 misses a third of the crossings, and the peaks
+it reports are off by 15°, because the angular contrast of the signal is low at that
+b-value ([Chapter 5](../02-diffusion-encoding/05-diffusion-encoding.md)): the shell is fine
+for a tensor and inadequate for deconvolution. False peaks in single-fiber white matter are
+the other failure mode; at this SNR none of the methods produced them, but they appear at
+lower SNR and in gray matter and CSF partial volume, which is what the multi-tissue model
+is for.
+
+The multi-tissue fit and q-ball find most of the crossings, for different reasons. Q-ball
+estimates the diffusion ODF, whose lobes are broad and still run into each other at 60°
+(the single-voxel glyphs above), so noise merges some pairs into one peak; the
+crossing-angle sweep later in the chapter measures the same weakness. For the multi-tissue
+fit the limit is the **harmonic order** chosen here, 6 for every method. (Q-ball and the
+deconvolution methods build the ODF as a sum of smooth standard shapes on the sphere, the
+**spherical harmonics**; the maximum order sets how finely the shapes may vary with
+direction. A higher order allows sharper shapes but has more coefficients to estimate.)
+The cell below refits the multi-tissue model at order 8 in the crossing band only.
+
+```{code-cell} python
+:tags: [hide-input]
+band3 = crossing[:, :, None]
+msmt8 = MultiShellDeconvModel(gtab, multi_shell_fiber_response(sh_order_max=8, bvals=np.unique(np.round(bvals / 50) * 50),
+                                                              wm_rf=resp_wm, gm_rf=resp_gm, csf_rf=resp_csf), sh_order_max=8)
+pk8 = peaks_from_model(msmt8, data, sphere, relative_peak_threshold=0.25, min_separation_angle=25, mask=band3, npeaks=3)
+vals8, dirs8 = pk8.peak_values[:, :, 0][crossing], pk8.peak_dirs[:, :, 0][crossing]
+e8 = [np.min(np.where(vals8 > 0, angle(dirs8, tr[crossing][:, None, :]), 90), axis=-1).mean() for tr in (truth1, truth2)]
+for name, pk_ in [("multi-tissue CSD, order 6", results["multi-tissue CSD, 3 shells"]), ("multi-tissue CSD, order 8", pk8)]:
+    both_ = (np.count_nonzero(pk_.peak_values[:, :, 0][crossing] > 0, axis=-1) >= 2).mean()
+    err_ = score(pk_)[3] if pk_ is not pk8 else 0.5 * (e8[0] + e8[1])
+    print(f"{name}: both fibers found in {both_:.0%} of crossing voxels, angle error {err_:.1f}°")
+```
+
+At order 8 the multi-tissue fit finds both fibers in every crossing voxel, with an angle
+error of 4.0°, as accurate as single-shell CSD at b = 3000 (4.3°). Its 47 unknowns (45 for white matter, one each for gray
+matter and CSF) are well determined by the 90 diffusion-weighted measurements of three
+30-direction shells. The shortfall in the table was the order chosen for the comparison,
+not a weakness of the method.
 
 The same deconvolution at three harmonic orders, on one noise-free voxel with two fibers
 crossing at 45° (60 directions at b = 3000):
@@ -416,8 +442,16 @@ What to look at: the lobes against the dashed true directions. At order 4 the tw
 are a single lobe along their bisector, because a sum of order-4 shapes cannot vary quickly
 enough with direction to have two peaks 45° apart. At order 6 the lobe splits, but its two
 peaks are pulled toward each other. At order 8 the lobes are narrower and the peaks sit on
-the true directions. An order-8 fit has 45 coefficients to estimate, more than the 30
-measurements a 30-direction shell provides, which is why the fits above stop at order 6.
+the true directions.
+
+An order-8 fit has 45 coefficients to estimate, more than the 30 measurements of a
+30-direction shell. For a fit without constraints, such as q-ball, that is too few: the
+coefficients are not determined. Constrained deconvolution is different. The rule that
+fiber amounts cannot be negative supplies information the measurements do not, and it lets
+the fit estimate more coefficients than there are directions ("super-resolution",
+{cite:t}`tournier2007`); MRtrix fits order 8 by default whatever the direction count. The
+comparison above used order 6 for every method so that all of them, q-ball included, are
+compared on equal terms; for the deconvolution fits that was a choice, not a limit.
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -546,7 +580,8 @@ crossing geometry of the simulated brain's tractogram.
 ## What this implies for acquisition
 
 - **Crossings need b ≥ 2000 and 45 or more directions.** A b = 1000 tensor protocol
-  cannot resolve them, whatever model is fitted.
+  resolves them poorly whatever model is fitted: deconvolution of the b = 1000 shell above
+  found both fibers in only two thirds of the crossing voxels, with peaks 15° off.
 - **Multi-shell adds tissue separation** and is the default choice for tractography
   studies; the low shell is not wasted, it removes partial-volume false peaks.
 - **Angular precision improves with SNR and direction count**; false peaks decrease with

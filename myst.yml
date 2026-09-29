@@ -60,10 +60,9 @@ project:
         - file: book/04-modeling/19-what-your-data-allow.md
     - title: "Part V: Advanced acquisitions"
       children:
-        - file: book/05-advanced/20-multi-te.md
-        - file: book/05-advanced/21-multi-echo.md
-        - file: book/05-advanced/22-multi-diffusion-time.md
-        - file: book/05-advanced/23-frontiers.md
+        - file: book/05-advanced/20-echo-time.md
+        - file: book/05-advanced/21-multi-diffusion-time.md
+        - file: book/05-advanced/22-frontiers.md
     - title: Appendices
       children:
         - file: book/appendices/a-trxscan-cookbook.md

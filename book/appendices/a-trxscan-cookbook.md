@@ -45,8 +45,8 @@ for flag, what in cookbook.FLAG_GLOSSARY.items():
         print(f"{flag:<28} {what}")
 ```
 
-Flags marked *planned* correspond to simulator changes listed in the implementation plan;
-the datasets that need them are generated once those changes land.
+Flags marked *planned* need simulator changes that have not landed yet; the datasets that
+need them are generated once those changes land.
 
 ## Shared settings
 
@@ -56,6 +56,18 @@ d = cfg["defaults"]
 print(f"acquisition voxel {d['voxel_mm']} mm; oversampling {d['oversample']}; {d['subsample']} streamlines sampled by SIFT2 weight with seed {d['seed']}; preset {d['params']}; default scheme {d['scheme']}")
 print(f"tools: TRXScan branch {cfg['tools']['trxscan_branch']}; container image {cfg['tools']['qsiprep_image']}")
 ```
+
+Two gradient schemes carry the HBCD name. The default, `hbcd`, is the 75-volume scheme
+bundled with the `dwibook` package, sorted by b-value for teaching; it is not the order in
+which HBCD acquires its volumes. The acquired protocol, `hbcd76`, has 76 volumes: it opens
+with six b=0 volumes and then interleaves the shells. It comes with the sub-60501 reference
+data and is used where a trace measured in that subject is replayed volume by volume
+(`eddy`, `motion-mb`), so that each row of the trace meets the volume it was measured on.
+
+Several datasets set `fieldmap: zero`: the pipeline writes an all-zero fieldmap on the
+anatomy's grid and passes it in place of the real one, so those runs have no
+susceptibility distortion. Every run still has the simulator's fixed HBCD-like readout:
+partial Fourier 6/8, T2* decay during the readout, and a faint Nyquist ghost.
 
 (app-a-datasets)=
 ## The datasets
@@ -82,13 +94,13 @@ exact command lines, the simulator commit, and the container tag. Results precom
 inside the QSIPrep container form one derivative dataset per tool (`derivatives/topup`,
 `derivatives/eddy`, and so on) with the same subject layout. The `truth` dataset holds only
 truth maps and is itself a derivative-type dataset. Files tagged *planned* wait on a
-simulator change from the implementation plan. The pipeline driver renames the simulator's
+simulator change that has not landed yet. The pipeline driver renames the simulator's
 outputs into this layout; the command lines show the prefixes it passes.
 
 (ds-ref-clean)=
 ### ref-clean
 
-The baseline. The simulated brain sub-0001a under the HBCD scheme at 2.5 mm with no noise, no oversampling (so no ringing beyond the acquisition matrix's own truncation), and every artifact flag off, together with the truth maps and true fiber peaks for the same streamline subset. Every artifact-free reference at the pipeline tier is this dataset. The truth run uses the same subsample and seed as the simulation so that the answer key matches the data voxel for voxel.
+The baseline. The simulated brain sub-0001a under the HBCD scheme at 2.5 mm with no noise, no oversampling (so no ringing beyond the acquisition matrix's own truncation), a zero fieldmap (so no susceptibility distortion), and every artifact flag off, together with the truth maps and true fiber peaks for the same streamline subset. It is not entirely artifact-free: the simulator's fixed readout (partial Fourier 6/8, T2* decay during the readout, a faint Nyquist ghost) is always on. Every reference at the pipeline tier is this dataset. The truth run uses the same subsample and seed as the simulation so that the answer key matches the data voxel for voxel.
 
 *Used in:* Chapters [6](../02-diffusion-encoding/06-qspace-sampling.md), [15](../04-modeling/15-signal-representations.md), [16](../04-modeling/16-fiber-orientation.md), [17](../04-modeling/17-microstructure-models.md), [18](../04-modeling/18-tractography.md).
 
@@ -107,7 +119,7 @@ cookbook.print_tree(cfg, "ref-clean")
 (ds-ref-schemes)=
 ### ref-schemes
 
-The same anatomy under four schemes at matched scan time and modest noise: 30 directions at b = 1000, 64 directions at b = 2000, the four-shell HBCD scheme, and the 257-point DSI grid with b up to 4000. A 64-point subset of the DSI run stands in for CS-DSI, so the five schemes of Chapter 6 come from four simulations. Part IV fits every model to these series and scores the fits against `truth`.
+The same anatomy under four schemes at matched scan time: 30 directions at b = 1000 (33 volumes with the b=0s), 64 directions at b = 2000 (68), the four-shell HBCD scheme (75), and the 257-point DSI grid with b up to 4000 (257). The schemes have very different numbers of volumes, so matching the scan time means that a scheme with fewer volumes can average each one more: the noise variance per volume is scaled by the number of volumes relative to HBCD's 75, from 8.8 × 10⁻⁵ for 30 directions to 6.85 × 10⁻⁴ for DSI. A 64-point subset of the DSI run stands in for CS-DSI, so the five schemes of Chapter 6 come from four simulations; the subset keeps the DSI run's per-volume noise and so stands for a quarter of the DSI scan time. None of the runs has susceptibility distortion (zero fieldmap). Part IV fits every model to these series and scores the fits against `truth`.
 
 *Used in:* Chapters [6](../02-diffusion-encoding/06-qspace-sampling.md), [7](../02-diffusion-encoding/07-acquisition-parameters.md), [15](../04-modeling/15-signal-representations.md), [16](../04-modeling/16-fiber-orientation.md), [17](../04-modeling/17-microstructure-models.md), [18](../04-modeling/18-tractography.md), [19](../04-modeling/19-what-your-data-allow.md).
 
@@ -126,7 +138,7 @@ cookbook.print_tree(cfg, "ref-schemes")
 (ds-presets)=
 ### presets
 
-The simulated brain sub-0001a under the HBCD scheme with each of the three tissue presets: adult, neonatal, and infant. Nothing else changes between the runs, so the differences in contrast between their b=0 volumes come from the proton density, T1, and T2 values of the presets alone. Chapter 1 shows the b=0 images side by side with the synthetic slice it builds in the page.
+The simulated brain sub-0001a under the HBCD scheme with each of the three tissue presets: adult, neonatal, and infant. Nothing else changes between the runs. The simulator models neither proton density nor T1 differences between tissues, so the differences in contrast between the b=0 volumes come from the presets' T2 values alone; the neonatal and infant presets share their T2 values, so their b=0 volumes match and they differ only in the diffusion-weighted volumes. Chapter 1 shows the b=0 images side by side with the synthetic slice it builds in the page.
 
 *Used in:* Chapter [1](../01-mri-physics/01-spins-and-signal.md).
 
@@ -145,7 +157,7 @@ cookbook.print_tree(cfg, "presets")
 (ds-slab-kspace)=
 ### slab-kspace
 
-Five axial slices through the ventricles (slices 28 to 33) and the first twelve volumes of the HBCD scheme, simulated with eight receive coils, GRAPPA with acceleration 2, and partial Fourier 6/8, with the raw multi-coil k-space written next to the images. It is the only dataset with k-space, and it waits on the acquisition flags and the k-space export (simulator items T1 and T2). Chapters 2 and 3 use it to show a real EPI trajectory and to reproduce the simulator's reconstruction step by step.
+Five axial slices through the ventricles (slices 28 to 32) and the first twelve volumes of the HBCD scheme, simulated with eight receive coils, GRAPPA with acceleration 2, and partial Fourier 6/8, with the raw multi-coil k-space written next to the images. TRXScan has no flags for a slab or a subset of volumes, so the pipeline crops the tissue maps and truncates the scheme first; the command reads the cropped files. It is the only dataset with k-space, and it waits on two planned simulator changes, the new acquisition flags and the k-space export. Chapters 2 and 3 use it to show a real EPI trajectory and to reproduce the simulator's reconstruction step by step.
 
 *Used in:* Chapters [2](../01-mri-physics/02-spatial-encoding-kspace.md), [3](../01-mri-physics/03-reconstruction.md).
 
@@ -164,7 +176,7 @@ cookbook.print_tree(cfg, "slab-kspace")
 (ds-noise-sweep)=
 ### noise-sweep
 
-The simulated brain sub-0001a under the HBCD scheme at four k-space noise levels with a single coil, from nearly noise-free to strongly noisy, plus one run with eight coils and GRAPPA 2, whose magnitude noise follows a non-central chi distribution rather than a Rician one. Chapter 8 measures the noise floor and the denoisers on these series; Chapter 8b applies phase correction to their complex images.
+The simulated brain sub-0001a under the HBCD scheme, with no susceptibility distortion (zero fieldmap), at four k-space noise levels with a single coil, from nearly noise-free to strongly noisy, plus one run with eight coils and GRAPPA 2, whose magnitude noise follows a non-central chi distribution rather than a Rician one. Chapter 8 measures the noise floor and the denoisers on these series; Chapter 8b applies phase correction to their complex images.
 
 *Used in:* Chapters [8](../03-preprocessing/08-noise.md), [8b](../03-preprocessing/08-real-valued-dwi.md).
 
@@ -183,7 +195,7 @@ cookbook.print_tree(cfg, "noise-sweep")
 (ds-gibbs)=
 ### gibbs
 
-Three runs that differ only in how the object is rasterized and windowed. With `--oversample 1` the tissue maps are simulated on the acquisition grid, so the only ringing is the acquisition's own truncation. With `--oversample 2` they are simulated on a grid twice as fine, and the k-space of the sharper object is truncated to the acquisition matrix, which rings at every edge as a real scan does. The Hann-windowed variant apodizes that k-space at acquisition (simulator item T1). Chapter 9 compares unringing after the fact with apodization.
+Three runs that differ only in how the object is rasterized and windowed. With `--oversample 1` the tissue maps are simulated on the acquisition grid, so the only ringing is the acquisition's own truncation. With `--oversample 2` they are simulated on a grid twice as fine, and the k-space of the sharper object is truncated to the acquisition matrix, which rings at every edge as a real scan does. The Hann-windowed variant apodizes that k-space at acquisition (a planned simulator flag). All three runs use a zero fieldmap, so distortion does not move the edges. Chapter 9 compares unringing after the fact with apodization.
 
 *Used in:* Chapter [9](../03-preprocessing/09-gibbs-ringing.md).
 
@@ -221,7 +233,7 @@ cookbook.print_tree(cfg, "sdc-pair")
 (ds-eddy)=
 ### eddy
 
-The simulated brain sub-60501 under the HBCD scheme with three eddy-current models: a linear-plus-quadratic field proportional to the diffusion gradient (`--eddy`, `--eddy-quad`), a per-volume field replayed from the parameters FSL eddy estimated in the real subject (`--eddy-trace`), and the phase ramp the eddy field adds to the complex image (`--eddy-phase`). The pipeline precomputes FSL eddy on each run. Chapter 11 scores the estimated fields against the simulated ones.
+The simulated brain sub-60501 under the acquired 76-volume HBCD scheme (`hbcd76`, in the order the subject was scanned, so the replayed trace lines up volume by volume) with three eddy-current models: a linear-plus-quadratic field proportional to the diffusion gradient (`--eddy`, `--eddy-quad`), a per-volume field replayed from the parameters FSL eddy estimated in the real subject (`--eddy-trace`), and the phase ramp the eddy field adds to the complex image (`--eddy-phase`). The pipeline precomputes FSL eddy on each run. Chapter 11 scores the estimated fields against the simulated ones.
 
 *Used in:* Chapter [11](../03-preprocessing/11-eddy-currents.md).
 
@@ -240,7 +252,7 @@ cookbook.print_tree(cfg, "eddy")
 (ds-motion-mb)=
 ### motion-mb
 
-Two runs from sub-60501. In the motion run the head pose measured in the real subject is replayed volume by volume (`--motion`): the tissue maps and streamlines are moved before each volume is simulated, so the angles between fibers and gradients change as they do in a moving head. In the dropout run a multiband-3 acquisition loses 10 % of its shots (`--mb 3 --dropout-rate 0.1`), and the affected slices are recorded as ground truth. The pipeline precomputes FSL eddy with outlier replacement. Chapter 12 scores the motion estimates and the outlier detection.
+Two runs from sub-60501, both under the acquired 76-volume HBCD scheme (`hbcd76`), whose volumes match the 76 rows of the measured motion trace one for one. In the motion run the head pose measured in the real subject is replayed volume by volume (`--motion`): the tissue maps and streamlines are moved before each volume is simulated, so the angles between fibers and gradients change as they do in a moving head. In the dropout run a multiband-3 acquisition gives each diffusion-weighted volume a 10 % probability of a dropout event, which spoils one shot (the three slices excited together) of that volume (`--mb 3 --dropout-rate 0.1`); the affected slices are recorded as ground truth. The pipeline precomputes FSL eddy with outlier replacement. Chapter 12 scores the motion estimates and the outlier detection.
 
 *Used in:* Chapter [12](../03-preprocessing/12-motion-and-dropout.md).
 
@@ -259,7 +271,7 @@ cookbook.print_tree(cfg, "motion-mb")
 (ds-gnl)=
 ### gnl
 
-Gradient nonlinearity on sub-0001a, with the isocenter placed 20 mm anterior and 30 mm inferior of the volume center so that the far slices see a large field deviation. Five runs: an 80 mT/m whole-body gradient system, the same at twice the severity, the same with only the spatial warp or only the encoding deviation switched on, and a 300 mT/m Connectom-class system. TRXScan writes the true coefficient file, displacement field, and gradient-deviation image next to each series, and the pipeline precomputes the corrections of gradunwarp and TORTOISE. Chapter 13 scores each correction against the true fields; Chapter 7 uses the two gradient systems to show what a stronger gradient buys.
+Gradient nonlinearity on sub-0001a, with the scanner isocenter placed 20 mm posterior and 30 mm inferior of the ACPC origin (`--isocenter 0,-20,-30`, in the world RAS frame of the tissue maps, which is ACPC space) so that the far slices see a large field deviation. Five runs: an 80 mT/m whole-body gradient system, the same at twice the severity, the same with only the spatial warp or only the encoding deviation switched on, and a 300 mT/m Connectom-class system. TRXScan writes the true coefficient file, displacement field, and gradient-deviation image next to each series, and the pipeline precomputes the corrections of gradunwarp and TORTOISE. Chapter 13 scores each correction against the true fields; Chapter 7 uses the two gradient systems to show what a stronger gradient buys.
 
 *Used in:* Chapters [7](../02-diffusion-encoding/07-acquisition-parameters.md), [13](../03-preprocessing/13-gradient-nonlinearity.md).
 
@@ -278,7 +290,7 @@ cookbook.print_tree(cfg, "gnl")
 (ds-kitchen-sink)=
 ### kitchen-sink
 
-Every artifact at once, on sub-0001a: oversampling 2 (ringing), noise, eight coils with GRAPPA 2, multiband 3 with 5 % dropout, modeled eddy currents with their phase ramp, whole-body gradient nonlinearity, an AP/PA pair, and a synthetic gradient-echo fieldmap. The pipeline runs QSIPrep on it end to end with the coefficient file. Chapter 14 reads the QSIPrep report and scores the output against `truth`.
+Every artifact at once, on sub-0001a: oversampling 2 (ringing), noise, eight coils with GRAPPA 2, multiband 3 with a 5 % probability per diffusion-weighted volume of a dropout event, modeled eddy currents with their phase ramp, whole-body gradient nonlinearity, an AP/PA pair, and a synthetic gradient-echo fieldmap. The pipeline runs QSIPrep on it end to end with the coefficient file. Chapter 14 reads the QSIPrep report and scores the output against `truth`.
 
 *Used in:* Chapter [14](../03-preprocessing/14-assembled-pipeline.md).
 
@@ -297,7 +309,7 @@ cookbook.print_tree(cfg, "kitchen-sink")
 (ds-voxel-sweep)=
 ### voxel-sweep
 
-The simulated brain sub-0001a under the HBCD scheme at 1.5, 2.0, 2.5, and 3.0 mm isotropic voxels with the same noise level, so that the change in signal-to-noise ratio and in partial-volume mixing with voxel size can be seen on the same slice. Chapter 7 uses it for the resolution trade-off.
+The simulated brain sub-0001a under the HBCD scheme at 1.5, 2.0, 2.5, and 3.0 mm isotropic voxels with the same noise level and no susceptibility distortion (zero fieldmap), so that the change in signal-to-noise ratio and in partial-volume mixing with voxel size can be seen on the same slice. Chapter 7 uses it for the resolution trade-off.
 
 *Used in:* Chapter [7](../02-diffusion-encoding/07-acquisition-parameters.md).
 
@@ -316,9 +328,9 @@ cookbook.print_tree(cfg, "voxel-sweep")
 (ds-te-sweep)=
 ### te-sweep
 
-The simulated brain sub-0001a under the HBCD scheme at echo times of 70, 88, 110, and 140 ms (`--te`, simulator item T1). Because each compartment relaxes with its own T2, the ratio of white matter to CSF signal and the diffusion contrast change with TE. Chapter 20 fits the joint diffusion-relaxation model across these runs.
+The simulated brain sub-0001a under the HBCD multi-shell scheme at echo times of 70, 88, 110, and 140 ms (`--te`, a planned simulator flag), with no susceptibility distortion (zero fieldmap). The simulator gives each tissue one T2 (white matter, gray matter, CSF; both white matter compartments share one), so the contrast between tissues changes with TE, and with it the diffusion contrast of voxels that mix tissues, while the balance between the compartments within white matter does not. Chapter 20 fits the joint diffusion-relaxation model across these runs.
 
-*Used in:* Chapters [7](../02-diffusion-encoding/07-acquisition-parameters.md), [20](../05-advanced/20-multi-te.md).
+*Used in:* Chapters [7](../02-diffusion-encoding/07-acquisition-parameters.md), [20](../05-advanced/20-echo-time.md).
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -337,7 +349,7 @@ cookbook.print_tree(cfg, "te-sweep")
 
 The 27 analytic microstructure maps and the true fiber peaks for sub-0001a, evaluated by `trxscan-microstructure` from the same per-voxel mixture the simulator draws its signal from, with the same streamline subsample and seed as the other datasets ([Appendix E](./e-truth-map-catalogue.md)). No acquisition is simulated. Every *Measure it* section of Parts III and IV scores its fit against these maps.
 
-*Used in:* Chapters [8](../03-preprocessing/08-noise.md), [8b](../03-preprocessing/08-real-valued-dwi.md), [9](../03-preprocessing/09-gibbs-ringing.md), [10](../03-preprocessing/10-susceptibility-distortion.md), [11](../03-preprocessing/11-eddy-currents.md), [12](../03-preprocessing/12-motion-and-dropout.md), [13](../03-preprocessing/13-gradient-nonlinearity.md), [14](../03-preprocessing/14-assembled-pipeline.md), [15](../04-modeling/15-signal-representations.md), [16](../04-modeling/16-fiber-orientation.md), [17](../04-modeling/17-microstructure-models.md), [18](../04-modeling/18-tractography.md), [19](../04-modeling/19-what-your-data-allow.md), [20](../05-advanced/20-multi-te.md).
+*Used in:* Chapters [8](../03-preprocessing/08-noise.md), [8b](../03-preprocessing/08-real-valued-dwi.md), [9](../03-preprocessing/09-gibbs-ringing.md), [10](../03-preprocessing/10-susceptibility-distortion.md), [11](../03-preprocessing/11-eddy-currents.md), [12](../03-preprocessing/12-motion-and-dropout.md), [13](../03-preprocessing/13-gradient-nonlinearity.md), [14](../03-preprocessing/14-assembled-pipeline.md), [15](../04-modeling/15-signal-representations.md), [16](../04-modeling/16-fiber-orientation.md), [17](../04-modeling/17-microstructure-models.md), [18](../04-modeling/18-tractography.md), [19](../04-modeling/19-what-your-data-allow.md), [20](../05-advanced/20-echo-time.md).
 
 ```{code-cell} python
 :tags: [hide-input]

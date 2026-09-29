@@ -53,9 +53,12 @@ susceptibility field:
 - **It is different in every volume.** The eddy field is proportional to the diffusion
   gradient, so it changes with the gradient direction and strength. The b=0 volumes are
   unaffected; each diffusion-weighted volume is distorted in its own way.
-- **It is spatially simple.** To a good approximation the residual field changes linearly
+- **It is spatially simple.** To a first approximation the residual field changes linearly
   across the head, so the displacement it produces is one of three simple patterns along the
-  phase-encode axis, or a mix of them, depending on which gradient axis was used.
+  phase-encode axis, or a mix of them, depending on which gradient axis was used. (Real eddy
+  fields also have curved components, so FSL eddy's default model of the field is quadratic
+  in position, plus a constant term that shifts the whole volume, `--flm=quadratic`; this
+  chapter's toy keeps only the linear part.)
 
 The three patterns are easiest to see on a square grid. The phase-encode axis here runs
 anterior-posterior (up-down in the pictures), and every point moves only along it:
@@ -228,8 +231,11 @@ The choice of reference decides the quality.
 The obvious reference, the b=0 image, does not work well, because a b = 2000 image does not
 look like a b=0 image even when the two are perfectly aligned: fluid is bright at b=0 and
 dark at b = 2000, and white matter is bright or dark depending on the direction. A
-registration that compares intensities treats those contrast differences as misalignment and
-moves the volume to reduce them (the figure after the next cell shows the result).
+registration that compares intensities directly, as this chapter's toy does (it minimizes
+the sum of squared differences), treats those contrast differences as misalignment and
+moves the volume to reduce them (the figure after the next cell shows the result). A metric
+built for images of different contrast, such as mutual information, fails less badly, but
+it still has little to lock onto in a high-b image whose edges are faint.
 
 FSL eddy instead predicts what each volume should look like from all the others and
 registers each volume to its own prediction {cite:p}`andersson2016`. The predictor is a
@@ -294,8 +300,9 @@ fig.tight_layout()
 The two images on the left are aligned exactly; they differ only in contrast. The fluid in
 the ventricles and around the brain is bright at b=0 and nearly black at b = 2000. A
 registration to the b=0 image tries to make them match anyway, and the bars show the
-result: the edge error after registering to b=0 is larger than with no correction at all.
-Registering each volume to its own prediction reduces it to less than half.
+result: with the toy's sum-of-squares metric, the edge error after registering to b=0 is
+larger than with no correction at all. Registering each volume to its own prediction
+reduces it to less than half.
 
 The prediction does not need to be good at the start. Here is the volume dominated by the
 left-right gradient through the three rounds:
@@ -364,9 +371,13 @@ diagonal's slope but sit below it by a nearly constant amount. Every gradient di
 this scheme has a positive slice component, so every volume was shifted the same way; the
 prediction, built from those volumes, is shifted too, and registering to it cannot see the
 part of the shift that all volumes share. A shift common to the whole series looks exactly
-like the head having moved, and FSL eddy separates the two by modeling how the shift varies
-with the gradient direction {cite:p}`andersson2016`, which this toy correction does not do.
-The shifts here are a fraction of a voxel, so the effect on the maps below is small.
+like the head having moved. FSL eddy can separate the two with its *second-level model*
+(`--slm`), which ties each volume's eddy parameters to its gradient direction
+{cite:p}`andersson2016`; this toy correction does not do that. The default is no such
+model, and the scheme here, with every direction in one hemisphere, is exactly the case in
+which FSL's documentation recommends turning it on (`--slm=linear`), as it does for schemes
+with few directions. The shifts here are a fraction of a voxel, so the effect on the maps
+below is small.
 
 ## Residual error versus truth
 
@@ -404,12 +415,17 @@ is attempted. FSL eddy's output from the pipeline will be scored against the `tr
 ## What acquisition choices reduce it
 
 - **Twice-refocused spin echo** ([Chapter 5](../02-diffusion-encoding/05-diffusion-encoding.md)) splits each diffusion lobe into two with
-  opposite polarity so that the eddy fields cancel at the readout, at the cost of a longer
-  TE. Many vendors offer it; most current high-b protocols use the single-refocused
-  sequence and rely on correction.
+  opposite polarity and chooses their timing so that eddy fields decaying with one chosen
+  time constant cancel at the readout {cite:p}`reese2003`. Eddy currents that decay faster
+  or slower than that are only partly cancelled, so the correction step is still needed,
+  and the sequence costs a longer TE. Many vendors offer it; most current high-b protocols
+  use the single-refocused sequence and rely on correction.
 - **A full set of well-distributed directions** makes the prediction-based correction
   work; a scheme with few directions or with all directions in one hemisphere gives the
-  Gaussian process little to work with.
+  Gaussian process little to work with and cannot tell a shift common to all volumes from
+  head motion (for such data FSL recommends `--slm=linear`, above). Spreading the
+  directions over the whole sphere, which costs nothing for the diffusion models, helps
+  eddy.
 - **Interleave the shells and spread the b=0 volumes through the series.** Long runs of
   strong gradients warm the gradient coils, and the eddy fields and the overall signal
   level drift as they do. With the shells interleaved, that drift is shared by every shell

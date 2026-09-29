@@ -42,7 +42,7 @@ steps = [  # (part, label, chapters)
     ("II", "diffusion weighting\nand its sampling", "Ch 5–7"),
     ("III", "artifacts, and\nhow to correct them", "Ch 8–14"),
     ("IV", "models turn the\nimages into maps", "Ch 15–19"),
-    ("V", "beyond a standard\nacquisition", "Ch 20–23"),
+    ("V", "beyond a standard\nacquisition", "Ch 20–22"),
 ]
 parts = {"I": "how an image is made", "II": "how diffusion is measured", "III": "what goes wrong",
          "IV": "what is fitted", "V": "further"}
@@ -94,12 +94,15 @@ The figures come from three sources, and every chapter says which.
 [Chapter 0.2](./the-simulated-datasets.md) describes each in full.
 
 - **Toy tier.** Small simulations written in the page, which run in seconds when the book
-  is built.
-- **Live tier.** One slice of the simulated brain, acquired in the page by the TRXScan
-  simulator in a few seconds ([Chapter 0.2](./the-simulated-datasets.md#live-tier)).
-- **Pipeline tier.** Full simulations of the same brain by TRXScan, made offline and
-  downloaded by the pages that use them. Sections that depend on one are marked
-  *Simulated dataset pending* until it has been released.
+  is built. Those that need a brain use the tissue maps of one real subject, `sub-0001a`,
+  packaged with the book.
+- **Live tier.** One slice of a second subject's simulated brain, `sub-60501`, acquired in
+  the page by the TRXScan simulator in a few seconds
+  ([Chapter 0.2](./the-simulated-datasets.md#live-tier)).
+- **Pipeline tier.** Full-brain simulations by TRXScan, mostly of `sub-0001a` and, where a
+  chapter needs a field map, eddy currents, or motion measured in a real person, of `sub-60501`, made
+  offline and downloaded by the pages that use them. Sections that depend on one are
+  marked *Simulated dataset pending* until it has been released.
 
 The toy tier is fully reproducible from the repository alone. The pipeline tier is
 reproducible from the repository plus the simulator and the simulation inputs, which
@@ -151,5 +154,10 @@ that Chapters 2 through 5 define, and it will make sense by the end of
   unless stated, field offsets in Hz, displacements in voxels or mm as labeled. The
   notation page (0.3) lists every symbol.
 - The reference protocol is the multi-shell scheme of the HBCD study (b = 500, 1000,
-  2000, 3000; 75 volumes per polarity; echo time 88 ms; 1.7 mm voxels), which is what the
-  simulator reproduces by default and what the toy tier approximates at 2 mm.
+  2000, 3000; echo time 88 ms; effective total readout time 91.7 ms; 1.7 mm voxels), which
+  is what the simulator reproduces by default and what the toy tier approximates at 2 mm.
+  It appears in two versions with the same shells. The toy tier and most pipeline-tier
+  datasets use a bundled copy of 75 volumes per polarity, sorted by b for teaching (shells
+  in blocks of increasing b, a b=0 volume about every eight). The live tier uses the
+  protocol as HBCD acquires it: 76 volumes that start with six b=0 volumes and interleave
+  the shells throughout. The sorted order is not how HBCD acquires its data.

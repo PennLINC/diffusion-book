@@ -62,12 +62,15 @@ build ([Appendix A](./a-trxscan-cookbook.md)):
 
 | Tool | Role | Where it runs |
 |---|---|---|
-| TRXScan, `trxscan-microstructure` | the simulator and its ground truth | native binary; pinned to a commit in the pipeline configuration |
-| FSL (topup, eddy, dtifit, bedpostx), MRtrix (dwi2response, dwi2fod, tckgen, tcksift2), TORTOISE, qsiprep | the reference preprocessing and reconstruction tools the chapters compare against | the `pennlinc/qsiprep` container image, tag pinned in the pipeline configuration |
+| TRXScan, `trxscan-microstructure` | the simulator and its ground truth | native binary, built from the branch named in the pipeline configuration; to be pinned to a commit before the first data release |
+| FSL (topup, eddy, dtifit, bedpostx), MRtrix (dwi2response, dwi2fod, tckgen, tcksift2), TORTOISE, qsiprep | the reference preprocessing and reconstruction tools the chapters compare against | the `pennlinc/qsiprep` container image; the configuration names a development tag for now, to be pinned to a released tag before the first data release |
 | gradunwarp | HCP gradient-nonlinearity correction ([Chapter 13](../03-preprocessing/13-gradient-nonlinearity.md)) | pip, in the pipeline environment |
 | Snakemake | pipeline driver | the `dwibook` environment |
 
 ## Reproducibility
+
+The data release will record the exact simulator commit and container tag in each
+dataset's `provenance.json`.
 
 Every number in the book comes from a seeded random number generator, so the toy-tier
 results are identical between builds on the same versions. Small differences between

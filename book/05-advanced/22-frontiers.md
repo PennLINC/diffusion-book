@@ -1,5 +1,5 @@
 ---
-title: "23. Frontiers"
+title: "22. Frontiers"
 kernelspec:
   name: python3
   display_name: Python 3
@@ -187,20 +187,22 @@ is a planned simulator extension.
 
 ## Diffusion relaxometry
 
-Diffusion time ([Chapter 22](./22-multi-diffusion-time.md)) and echo time ([Chapter 20](./20-multi-te.md)) are further dimensions being added to the
+Diffusion time ([Chapter 21](./21-multi-diffusion-time.md)) and echo time ([Chapter 20](./20-echo-time.md)) are further dimensions being added to the
 encoding, and acquisitions that vary several at once, *multidimensional diffusion MRI*, are
-the current frontier of the field. Chapters [20](./20-multi-te.md) and [21](./21-multi-echo.md) varied the echo time and added
+the current frontier of the field. [Chapter 20](./20-echo-time.md) varied the echo time and added
 echoes. The general form is a joint acquisition over b-value, direction, echo time,
 inversion time, and diffusion time, from which compartments are separated by every
 property at once. Such data support model-free analyses, *correlation spectra* of
 diffusivity against T2 or T1, that need no assumption about the number of compartments.
-The schematic shows the idea for the white matter voxel of Chapter 20:
+The schematic shows the idea for the white matter voxel of [Chapter 20](./20-echo-time.md) (55 % intra-axonal,
+45 % extra-axonal, with the T2 values used there), with a tenth of the signal from CSF
+added so that a third, well-separated peak appears:
 
 ```{code-cell} python
 :tags: [hide-input]
 peaks = {  # (mean diffusivity in µm²/ms, T2 in ms, signal fraction); widths below are illustrative
-    "intra-axonal": (d_intra / 3 * 1e3, 90.0, 0.50, PALETTE[0]),
-    "extra-axonal": ((d_par + 2 * d_perp) / 3 * 1e3, 60.0, 0.40, PALETTE[1]),
+    "intra-axonal": (d_intra / 3 * 1e3, 90.0, 0.9 * f, PALETTE[0]),  # Chapter 20's voxel (f = 0.55), 90 % of the signal
+    "extra-axonal": ((d_par + 2 * d_perp) / 3 * 1e3, 60.0, 0.9 * (1 - f), PALETTE[1]),
     "CSF": (presets.ADULT_DIFFUSIVITY["CSF"] * 1e3, 2000.0, 0.10, PALETTE[2]),
 }
 logd = np.linspace(np.log10(0.2), np.log10(5), 200)
@@ -245,7 +247,7 @@ the number of dimensions sampled, and their design is an open problem.
 
 ## High-gradient systems
 
-[Chapter 5](../02-diffusion-encoding/05-diffusion-encoding.md) gave the echo-time cost of a b-value and [Chapter 22](./22-multi-diffusion-time.md) the q needed for axon
+[Chapter 5](../02-diffusion-encoding/05-diffusion-encoding.md) gave the echo-time cost of a b-value and [Chapter 21](./21-multi-diffusion-time.md) the q needed for axon
 diameters; both are set by gradient amplitude. Systems at 200–300 mT/m (the Connectom class)
 and head-only gradient inserts beyond that reach b = 10 000 at echo times that whole-body
 systems need for much lower b-values:
@@ -321,8 +323,13 @@ head movements during the diffusion encoding readily produce, the ghost is half 
 as the brain.
 
 Multi-shot diffusion imaging therefore needs the per-shot phase. It comes either from a
-*navigator*, a short extra readout of the center of k-space after each shot that measures
-that shot's phase, or from a reconstruction that estimates it from the data themselves.
+*navigator*, a short extra readout after each shot that measures that shot's phase, or from
+a reconstruction that estimates it from the data themselves. The simulation above used one
+number per shot, but real shot phase varies across the image: a rigid movement during the
+encoding gives a phase that ramps linearly across the image, and brain pulsation, which
+moves different parts of the brain differently, gives a nonlinear pattern. That is why a
+navigator is a low-resolution 2-D image rather than a single number, and why the correction
+is applied voxel by voxel.
 The main alternatives to single-shot EPI trade its robustness for resolution or reduced
 distortion:
 
@@ -330,6 +337,7 @@ distortion:
 |---|---|---|---|
 | Multi-shot EPI with navigators | k-space split over several shots, each followed by a navigator | shorter readout: less distortion and blur, higher resolution | longer scan; extra navigator time; relies on the navigator phase matching the shot |
 | Self-navigated multi-shot EPI | per-shot phase estimated from the image data | as above, without navigator time | heavier reconstruction; needs enough coils to unfold each shot |
+| Readout-segmented EPI (RESOLVE) | k-space split along the readout axis into segments, each read in one shot; a 2-D navigator after each | much shorter echo spacing: less distortion and blur; the most widely available multi-shot option on clinical scanners | scan time grows with the number of segments; segments reacquired when the navigator shows too much motion |
 | Spiral readouts | k-space sampled along spirals from the center | short echo time, efficient sampling | off-resonance blurs instead of shifting; needs a good field map |
 | Reduced field of view | only a small region is excited along the phase-encode axis | fewer lines, short readout; used in the spinal cord and optic nerve | covers only that region |
 | Simultaneous multi-slice ([Chapter 7](../02-diffusion-encoding/07-acquisition-parameters.md)) | several slices excited and read together | shorter TR, more directions per minute | noise amplification when slices are unfolded; now standard |
@@ -341,7 +349,7 @@ nerve and increasingly used for sub-millimeter brain imaging.
 ## Learned reconstruction and denoising
 
 Neural networks trained on paired data now reconstruct images from undersampled k-space
-(extending compressed sensing, [Chapter 3](../01-mri-physics/03-reconstruction.md)), denoise diffusion series (extending MP-PCA,
+(extending compressed sensing, [Chapter 6](../02-diffusion-encoding/06-qspace-sampling.md)), denoise diffusion series (extending MP-PCA,
 [Chapter 8](../03-preprocessing/08-noise.md)), and predict full-quality microstructure maps from short protocols. The gains
 are real and the caveats are the same as for every learned method: the output is only as
 general as the training data, and errors are plausible-looking rather than noisy, which

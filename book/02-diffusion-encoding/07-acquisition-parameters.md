@@ -11,7 +11,7 @@ kernelspec:
 - **`voxel-sweep`** (pending): 1.5, 2.0, 2.5, and 3.0 mm voxels at fixed scheme and noise ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-voxel-sweep)).
 - **`te-sweep`** (pending): four echo times at fixed b ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-te-sweep)).
 - **`gnl`** (pending): gradient nonlinearity on two gradient systems, a severity sweep, and warp-only and encoding-only runs, with the true displacement field and gradient deviation ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-gnl)).
-- **`ref-schemes`** (pending): the simulated brain under the 30-direction, 64-direction, HBCD, DSI, and CS-DSI schemes at matched scan time ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-ref-schemes)).
+- **`ref-schemes`** (pending): the simulated brain under the 30-direction, 64-direction, HBCD, and DSI schemes, compared at equal total scan time (the per-volume noise is scaled with the number of volumes), plus a CS-DSI subset of the DSI run, which takes about a quarter of its time ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-ref-schemes)).
 
 Pipeline-tier datasets are simulated offline by TRXScan ([Chapter 0.2](../00-frontmatter/the-simulated-datasets.md)) and are marked *pending* until their release; the figures that need them say so where they will appear.
 :::
@@ -92,11 +92,17 @@ fraction of CSF that a voxel's signal implies comes out too small. The left pane
 shows the recovery; at TR = 3 s white matter reaches 97 % of its full signal and CSF 53 %.
 
 The minimum TR is the time to acquire all slices once: the number of slices times the time
-per slice (about TE plus half the readout plus some overhead, roughly 120–150 ms), divided
-by the *multiband* factor. Multiband (also called simultaneous multi-slice) excites several
-slices at once and reads them in one readout; the receive coils' different views of each
-slice let the reconstruction pull them apart. With multiband 3, three slices share each
-readout, so a volume takes a third of the time.
+per slice, divided by the *multiband* factor. The time per slice runs from the excitation
+to the end of the readout: TE, plus the part of the readout that remains after the
+k-space center, plus some overhead for fat suppression, excitation, and spoiling. For an
+HBCD-like TE near 90 ms and an unshortened readout it is roughly 120–150 ms; the figure
+uses 140 ms. Multiband (also called simultaneous multi-slice) excites several slices at
+once and reads them in one readout; the receive coils' different views of each slice let
+the reconstruction pull them apart. With multiband 3, three slices share each readout, so
+a volume takes a third of the time. It has two costs. Separating the slices amplifies the
+noise where the coils see the slices alike, by a g-factor like that of in-plane
+acceleration (below). And the shorter TR it allows leaves less time for T1 recovery, so
+pushing TR down lowers the signal of every volume, most of all in CSF and gray matter.
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -226,7 +232,7 @@ Three ways to shorten the acquisition, with different costs (Chapters [2](../01-
 |---|---|---|
 | Partial Fourier (6/8, 7/8 of the lines) | EPI readout and TE, but not distortion | some blurring along phase-encode; errors where the image phase varies quickly |
 | In-plane acceleration (R = 2) | EPI readout, TE, and distortion, by R | more noise: at least √R, times the g-factor, and uneven across the image |
-| Multiband (2–4) | TR by the factor | slice leakage; dropout affects several slices at once ([Chapter 12](../03-preprocessing/12-motion-and-dropout.md)) |
+| Multiband (2–4) | TR by the factor | g-factor noise; slice leakage; less T1 recovery at the shorter TR; dropout affects several slices at once ([Chapter 12](../03-preprocessing/12-motion-and-dropout.md)) |
 
 The costs in plain words:
 
@@ -243,17 +249,24 @@ The costs in plain words:
   head) that separation amplifies the noise further. The factor by which it does is the
   *g-factor*, a map that is near 1 at the edges and larger in the center.
 - **Multiband** separates the simultaneously excited slices by the same coil-sensitivity
-  trick. The separation is imperfect, and a faint copy of one slice can appear in another:
-  *slice leakage*.
+  trick, with the same g-factor noise penalty where the coils see the slices alike (though
+  without the √R loss, since no lines are skipped). The separation is imperfect, and a
+  faint copy of one slice can appear in another: *slice leakage*. And the time it saves
+  is only free if TR stays long enough for T1 recovery: at a TR of 3 s white matter
+  recovers 97 % of its signal but CSF only 53 % (the figure in the TR section).
 
-The figure shows the readout timelines for a 128-line EPI at the HBCD echo spacing. Each
-tick is one acquired k-space line, and the diamond marks the center of k-space, where the
-echo forms. Look at two things: where the diamond sits (it sets how short TE can be) and how
-long each bar is (the readout duration).
+The figure shows the readout timelines for a 128-line EPI. Each tick is one acquired
+k-space line, and the diamond marks the center of k-space, where the echo forms. Look at two
+things: where the diamond sits (it sets how short TE can be) and how long each bar is (the
+duration of the echo train). The time between lines, the *echo spacing*, is an
+illustration: it is chosen as 91.7 ms / 128 so that the unaccelerated readout lasts as long
+as HBCD's total readout time. HBCD's own readout is not like the top bar: its 91.7 ms is
+already an effective value that includes its in-plane acceleration (next section).
 
 ```{code-cell} python
 :tags: [hide-input]
-esp = presets.READOUT_HBCD_MS / 128
+esp = presets.READOUT_HBCD_MS / 128                    # illustrative echo spacing
+print(f"echo spacing {esp:.3f} ms per acquired line")
 epi_cases = [("full", {}), ("6/8 partial Fourier", {"partial_fourier": 0.75}),
              ("R = 2", {"accel": 2}), ("6/8 + R = 2", {"partial_fourier": 0.75, "accel": 2})]
 fig, ax = plt.subplots(figsize=(7.5, 2.9))
@@ -273,14 +286,15 @@ fig.tight_layout()
 ```
 
 Partial Fourier alone and R = 2 alone each reach the k-space center in half the time, 23 ms
-instead of 46 ms; together they cut the readout from 91 ms to 34 ms and reach the center in
+instead of 46 ms; together they cut the echo train from 91 ms to 34 ms and reach the center in
 a quarter of the time. Only one of them reduces susceptibility distortion. The
 displacement depends on how long the readout takes to step from one line of the *full*
-k-space grid to the next. In-plane acceleration skips every other line, so each step covers
-twice the distance in the same time and the distortion halves. Partial Fourier leaves out
-lines at one edge of k-space but keeps the spacing of the rest, so the distortion is the
-same as with full sampling; it buys a shorter TE, not a smaller displacement. The next
-section is the same trade viewed from the artifact side.
+k-space grid to the next, the *effective* echo spacing. In-plane acceleration skips every
+other line, so each step covers twice the distance in the same time: the effective echo
+spacing, and with it the distortion, halves. Partial Fourier leaves out lines at one edge
+of k-space but keeps the spacing of the rest, so the distortion is the same as with full
+sampling; it buys a shorter TE, not a smaller displacement. The next section is the same
+trade viewed from the artifact side.
 
 ## Phase-encode direction and readout time
 
@@ -289,15 +303,21 @@ because the magnetic field it sits in is slightly off. The scanner reads positio
 phase-encode axis from precession phase, so a spin with extra phase is placed in the wrong
 row: signal is displaced along the phase-encode axis by the frequency offset times the
 total readout time ([Chapter 2](../01-mri-physics/02-spatial-encoding-kspace.md)), in voxels. The main cause is air next to tissue, which bends the
-field; near the frontal sinuses and the ear canals the offset reaches 100–200 Hz. The total
-readout time is defined on the full matrix, as the time between adjacent lines times the
-number of lines, so it is shortened by in-plane acceleration but not by partial Fourier.
+field; near the frontal sinuses and the ear canals the offset reaches 100–200 Hz. The
+total readout time that sets the displacement is the *effective* one, defined on the full
+reconstructed matrix: BIDS records it as `TotalReadoutTime` = effective echo spacing ×
+(number of phase-encode lines in the reconstructed image − 1), where the effective echo
+spacing is the time between acquired lines divided by the acceleration factor. It is
+shortened by in-plane acceleration but not by partial Fourier, and it is not the duration
+of the echo train. HBCD's 91.7 ms is this effective value, with HBCD's in-plane
+acceleration already included.
 
 The figure applies a smooth field map with a frontal hot spot (left, bottom) to the
 synthetic b=0 slice (left, top), with the front of the head at the top and phase encoding
 running top to bottom. The four panels on the right are the images the scanner would
-produce at two total readout times, 30 ms (roughly an accelerated readout) and 90 ms (about
-the HBCD readout), and with the two phase-encode polarities, anterior→posterior (AP) and
+produce at two total readout times, 30 ms (a short readout, for example from a coarser
+matrix or stronger acceleration) and 90 ms (about the HBCD readout), and with the two
+phase-encode polarities, anterior→posterior (AP) and
 posterior→anterior (PA). Look at the frontal lobe: at 90 ms it is pushed far out of place,
 in opposite directions for AP and PA; at 30 ms the same field does a third of the damage.
 
@@ -355,7 +375,7 @@ The `gnl` dataset ([Chapter 13](../03-preprocessing/13-gradient-nonlinearity.md)
 
 Saving the phase costs nothing at acquisition and enables complex-domain denoising and
 several diagnostics ([Chapter 3](../01-mri-physics/03-reconstruction.md)). Most scanners can export it as a second image series.
-Multi-echo and multi-TE diffusion acquisitions (Chapters [20](../05-advanced/20-multi-te.md) and [21](../05-advanced/21-multi-echo.md)) add relaxation
+Multi-echo and multi-TE diffusion acquisitions ([Chapter 20](../05-advanced/20-echo-time.md)) add relaxation
 information at the cost of TR or TE; they are choices for specific analyses rather than
 defaults.
 
@@ -366,17 +386,26 @@ and a 32-channel head coil, within ten minutes of diffusion scanning.
 
 ```{code-cell} python
 :tags: [hide-input]
-voxel_mm, n_slices, mb, t_slice_s = 2.0, 72, 3, 0.14
-tr_s = n_slices * t_slice_s / mb
+voxel_mm, n_slices, mb, n_pe = 2.0, 72, 3, 120
+esp_ms = presets.READOUT_HBCD_MS / n_pe                 # echo spacing: time between acquired lines (an assumed value)
+overhead_ms = 10.0                                      # excitation, fat suppression, spoiling (an assumed value)
 bvals, _ = schemes.hbcd()
 n_ap = len(bvals)
-traj_we = kspace.epi_trajectory(120, 120, presets.READOUT_HBCD_MS / 120, partial_fourier=0.75, accel=2)
+traj_we = kspace.epi_trajectory(n_pe, n_pe, esp_ms, partial_fourier=0.75, accel=2)
 te_ms = signal.min_te(3000, 80, t_post_ms=traj_we.time_to_center_ms)["te"]
-trt_ms = presets.READOUT_HBCD_MS / 2                    # total readout time: R = 2 halves it, partial Fourier does not
+after_center_ms = traj_we.readout_ms - traj_we.time_to_center_ms
+t_slice_s = (te_ms + after_center_ms + overhead_ms) / 1000   # excitation to the end of the readout, plus overhead
+tr_s = n_slices * t_slice_s / mb
+trt_ms = esp_ms / 2 * (n_pe - 1)                        # effective readout time: R = 2 halves it, partial Fourier does not
 snr0 = 30
-print(f"voxel {voxel_mm} mm, {n_slices} slices, multiband {mb}  ->  TR {tr_s:.2f} s")
-print(f"6/8 partial Fourier, R = 2, b_max 3000 on 80 mT/m  ->  TE about {te_ms:.0f} ms")
-print(f"total readout time {trt_ms:.0f} ms  ->  100 Hz moves signal {100 * trt_ms / 1000:.1f} voxels")
+print(f"6/8 partial Fourier, R = 2, echo spacing {esp_ms:.2f} ms: echo train {traj_we.readout_ms:.1f} ms, "
+      f"k-space center at {traj_we.time_to_center_ms:.1f} ms")
+print(f"b_max 3000 on 80 mT/m  ->  TE about {te_ms:.0f} ms")
+print(f"time per slice: TE {te_ms:.0f} + rest of readout {after_center_ms:.0f} + overhead {overhead_ms:.0f} = {t_slice_s * 1000:.0f} ms")
+print(f"voxel {voxel_mm} mm, {n_slices} slices, multiband {mb}  ->  TR {tr_s:.2f} s "
+      f"(without multiband {n_slices * t_slice_s:.1f} s)")
+print("recovered fraction at this TR: " + ", ".join(f"{name} {1 - np.exp(-tr_s * 1000 / t1):.0%}" for name, t1 in presets.T1_MS.items()))
+print(f"effective total readout time {trt_ms:.1f} ms  ->  100 Hz moves signal {100 * trt_ms / 1000:.1f} voxels")
 print(f"expected SNR at b = 3000 in WM across fibers, for SNR {snr0} at b = 0: {snr0 * signal.white_matter(3000, 0.0):.1f}")
 
 # scan-time budget, one stacked bar per variant
@@ -404,21 +433,33 @@ ax.grid(axis="y", visible=False)
 fig.tight_layout()
 ```
 
+The timing is computed from the protocol itself. The example assumes an echo spacing of
+0.76 ms between acquired lines of a 120-line matrix (the illustrative spacing of the
+figures above) and 10 ms of overhead per slice. With 6/8 partial Fourier and R = 2 the echo
+train lasts 33.6 ms and reaches the k-space center after 11.5 ms, which gives a TE of about
+67 ms at b = 3000. Each slice then takes TE, plus the 22 ms of readout left after the
+center, plus the overhead: 99 ms. Seventy-two slices at multiband 3 need a TR of 2.37 s
+(7.1 s without multiband). At that TR white matter recovers 94 % of its full signal, gray
+matter 83 %, and CSF 45 %: the price of the short TR, paid in every volume. The effective
+total readout time is the echo spacing divided by R, times 119: 45.5 ms, half of what the
+same echo spacing would give without acceleration.
+
 The bars show where the time goes: each colored block is the volumes of one shell, gray is
 the reverse-polarity volumes. The minimal version, with six reverse-polarity b=0 volumes for
 distortion correction, takes under five minutes. The HBCD protocol instead acquires the full
-scheme in both polarities, which doubles the directions and averages the distortion
-correction over all volumes; it fits the ten-minute budget with time to spare for a
-fieldmap. The table collects each decision, why it was made, what it costs, and the chapter
+scheme in both polarities. That doubles the number of volumes, not the number of
+directions, since the copy repeats the same directions, and it lets every diffusion-weighted
+volume be corrected from both polarities ([Chapter 10](../03-preprocessing/10-susceptibility-distortion.md)).
+It still fits the ten-minute budget with time to spare for a fieldmap. The table collects each decision, why it was made, what it costs, and the chapter
 that tests it.
 
 | Parameter | Choice | Why | Cost | Tested in |
 |---|---|---|---|---|
 | Voxel size | 2.0 mm isotropic | enough SNR for b = 3000; partial volume acceptable for tracts | cortex and ventricle walls are mixtures | this chapter, voxel size |
-| Slices, multiband | 72 slices, multiband 3 | TR 3.36 s instead of about 10 s | slice leakage; dropout hits three slices at once | [Chapter 12](../03-preprocessing/12-motion-and-dropout.md) |
-| Readout | 6/8 partial Fourier, R = 2 | TE about 67 ms at b = 3000; total readout 46 ms | noise × √2 × g-factor; blurring along phase-encode | [Chapter 1](../01-mri-physics/01-spins-and-signal.md), [Chapter 3](../01-mri-physics/03-reconstruction.md) |
-| b-values | 0, 500, 1000, 2000, 3000 (HBCD) | tensor, kurtosis, and multi-shell models all possible (Table 6.1) | WM across fibers at SNR 18.7 at b = 3000; along fibers in the noise floor | [Chapter 8](../03-preprocessing/08-noise.md) |
-| Phase encoding | AP, with a full PA copy | distortion can be estimated and removed; 100 Hz moves signal 4.6 voxels | doubles the scan time | [Chapter 10](../03-preprocessing/10-susceptibility-distortion.md) |
+| Slices, multiband | 72 slices, multiband 3 | TR 2.37 s instead of 7.1 s | g-factor noise; slice leakage; CSF recovers only 45 % per TR; dropout hits three slices at once | [Chapter 12](../03-preprocessing/12-motion-and-dropout.md) |
+| Readout | 6/8 partial Fourier, R = 2 | TE about 67 ms at b = 3000; effective total readout time 45.5 ms | noise × √2 × g-factor; blurring along phase-encode | [Chapter 1](../01-mri-physics/01-spins-and-signal.md), [Chapter 3](../01-mri-physics/03-reconstruction.md) |
+| b-values | 0, 500, 1000, 2000, 3000 (HBCD) | kurtosis, NODDI, and MAP-MRI supported; the tensor and CSD only marginal with these direction counts (Table 6.1) | WM across fibers at SNR 18.7 at b = 3000; along fibers in the noise floor | [Chapter 8](../03-preprocessing/08-noise.md) |
+| Phase encoding | AP, with a full PA copy | distortion can be estimated and removed; 100 Hz moves signal 4.5 voxels | doubles the scan time | [Chapter 10](../03-preprocessing/10-susceptibility-distortion.md) |
 | Phase export | on | complex-domain denoising and diagnostics | storage only | [Chapter 3](../01-mri-physics/03-reconstruction.md), [Chapter 8](../03-preprocessing/08-noise.md) |
 
 ## What this implies for acquisition
@@ -428,7 +469,8 @@ that tests it.
   tissue decay, distortion from readout time. All are one-line calculations.
 - **Shorten the readout** with moderate partial Fourier and R = 2. Both reduce TE; only
   R = 2 reduces distortion, and its noise cost is acceptable.
-- **Use multiband** to bring TR to 3–4 s and spend the saved time on volumes.
+- **Use multiband** to shorten TR and spend the saved time on volumes, keeping in mind
+  its g-factor noise and that a very short TR costs signal through incomplete T1 recovery.
 - **Acquire reverse-polarity volumes** and record the phase-encode metadata correctly.
 - **Save the phase.**
 

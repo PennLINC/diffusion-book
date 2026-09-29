@@ -331,26 +331,41 @@ fig.tight_layout()
 ```
 
 The timing of the readout determines several artifacts. With $N_y$ lines and an echo spacing
-of 0.5–1 ms, the readout lasts 40–90 ms. TRXScan uses the HBCD protocol's 91.7 ms total
-readout time for any matrix size.
+of 0.5–1 ms, the readout lasts 40–90 ms.
 
-Two times matter. The **readout duration** is how long the train of lines lasts, from the
-first line to the last. The **time to center** is how long the train takes to reach the
-$k_y = 0$ line, the line that carries most of the signal: the echo has to form then, so this
-time sets how short the echo time can be. Two ways of skipping lines change both, and the
-next sections return to each:
+Three times matter. The **readout duration** (the length of the EPI train) is how long the
+train of lines lasts, from the first line to the last. The **time to center** is how long
+the train takes to reach the $k_y = 0$ line, the line that carries most of the signal: the
+echo has to form then, so this time sets how short the echo time can be. The **total
+readout time** that the image's metadata record (the BIDS sidecar field
+`TotalReadoutTime`) is neither of these. It is defined as the *effective* echo spacing
+times one less than the number of phase-encode lines of the reconstructed image,
+$(N_y - 1)\,\Delta t_\mathrm{esp}/R$, where the effective echo spacing is the physical
+spacing divided by the in-plane acceleration $R$. It is the quantity that sets how far an
+off-resonance moves the image, and it can differ from the length of the train: acceleration
+shortens both, but partial Fourier shortens only the train. Two ways of skipping lines
+change these times, and the next sections return to each:
 
 - **Partial Fourier** (here 6/8) skips the first quarter of the lines, on one side of
   k-space, and relies on the symmetry of k-space to supply them.
 - **In-plane acceleration** by a factor $R$ (here $R = 2$) keeps every second line and
   recovers the missing ones with the help of the receive coils ([Chapter 3](./03-reconstruction.md)).
 
-For a 128-line matrix, each bar below is one readout; the dark mark is where it reaches the
-center of k-space:
+The reference protocol, HBCD, records a total readout time of 91.7 ms. That is its
+*effective* value: the protocol is accelerated in-plane, and the 91.7 ms already includes
+the acceleration. The simulator uses 91.7 ms as the effective readout time of every
+acquisition, whatever its matrix size or acceleration setting. As an illustration, the
+cells below divide 91.7 ms among the lines of an unaccelerated 128-line train, one line
+every 0.72 ms. That makes the length of the unaccelerated toy train and its total readout
+time equal, which is not true of a real accelerated train, and it is the total readout
+time, not the per-line time of this toy, that carries over to the real protocol. For such a
+128-line matrix, each bar below is one readout; the dark mark is where it reaches the
+center of k-space, and the printed lines add the total readout time the sidecar would
+record for each:
 
 ```{code-cell} python
 :tags: [hide-input]
-esp = 91.7 / 128
+esp = 91.7 / 128  # an illustrative per-line time for an unaccelerated 128-line train
 schemes = [("full", {}), ("partial Fourier 6/8", {"partial_fourier": 0.75}),
            ("R = 2", {"accel": 2}), ("6/8 and R = 2", {"partial_fourier": 0.75, "accel": 2})]
 fig, ax = plt.subplots(figsize=(8, 2.6))
@@ -360,8 +375,9 @@ for i, (label, kw) in enumerate(schemes):
     ax.plot([tr.time_to_center_ms] * 2, [i - 0.3, i + 0.3], color=INK["primary"], lw=2.5)
     ax.text(tr.readout_ms + 1.5, i, f"{tr.lines.size} lines, {tr.readout_ms:.1f} ms; center at {tr.time_to_center_ms:.1f} ms",
             va="center", fontsize=8.5)
+    trt = (128 - 1) * esp / kw.get("accel", 1)  # BIDS TotalReadoutTime: effective spacing x (lines - 1)
     print(f"{label:>20}: {tr.lines.size:3d} lines, readout {tr.readout_ms:5.1f} ms, "
-          f"k-space center reached after {tr.time_to_center_ms:5.1f} ms")
+          f"k-space center reached after {tr.time_to_center_ms:5.1f} ms; TotalReadoutTime {trt:5.1f} ms")
 ax.set(yticks=range(len(schemes)), yticklabels=[s[0] for s in schemes], xlim=(0, 150),
        xlabel="time since the first line (ms)", title="readout duration (bar) and time to the center of k-space (mark)")
 ax.invert_yaxis()
@@ -369,15 +385,25 @@ ax.grid(axis="y", visible=False)
 fig.tight_layout()
 ```
 
+Partial Fourier shortens the train from 91.0 to 68.1 ms but leaves the total readout time at
+91.0 ms, because the lines it skips are still part of the reconstructed image and the
+spacing of the lines it keeps is unchanged. Acceleration by $R = 2$ roughly halves both
+(45.1 and 45.5 ms).
+
 Three consequences of the long readout, each treated in its own chapter:
 
 - The phase-encode direction is sampled slowly, about one line per 0.7 ms, so a small
   frequency offset displaces signal a long way along that axis. An off-resonance (a spin
-  precessing slightly faster or slower than the scanner assumes) of 100 Hz moves signal by
-  about nine voxels. This is susceptibility distortion ([Chapter 10](../03-preprocessing/10-susceptibility-distortion.md)), and it is
+  precessing slightly faster or slower than the scanner assumes) moves signal by the offset
+  times the total readout time, in voxels: 100 Hz × 91.7 ms, about nine voxels. This is
+  susceptibility distortion ([Chapter 10](../03-preprocessing/10-susceptibility-distortion.md)), and it is
   why the phase-encode direction and readout time must be recorded in the image metadata.
-- Signal decays with T2* during the readout, so lines acquired late are weaker. The result is
-  blurring along the phase-encode direction.
+- The signal changes during the readout, so lines acquired at different times are weighted
+  differently. In a spin-echo readout, T2 decay continues throughout, and the dephasing from
+  small field differences (the T2′ part of T2*, [Chapter 1](./01-spins-and-signal.md)) is
+  undone only at the echo, when the center of k-space is recorded: lines before the center
+  have not yet refocused and lines after it have dephased again. The result is blurring
+  along the phase-encode direction.
 - Odd and even lines are read in opposite directions. A timing mismatch between them
   produces a faint copy of the image shifted by half the field of view, the Nyquist ghost
   ([Chapter 14](../03-preprocessing/14-assembled-pipeline.md)).
@@ -389,13 +415,23 @@ without the fault; the phase-encode direction is vertical in every panel.
 
 ```{code-cell} python
 :tags: [hide-input]
+from dwibook import presets
+
 t_line = (np.arange(ny) - ny // 2) * esp  # ms from the k-space center, for each ky line (acquired top to bottom)
 rr, cc = np.mgrid[:ny, :nx]
+T2_WM = presets.T2_MS["adult"]["WM"]  # T2 held at white matter's; T2* sets T2' through 1/T2* = 1/T2 + 1/T2'
+
+def se_envelope(t2star_ms, t2_ms=T2_WM):
+    """Spin-echo line weights relative to the center line: T2 decay throughout, T2' refocused at the center."""
+    if np.isinf(t2star_ms):
+        return np.ones(ny)
+    t2p = 1 / (1 / t2star_ms - 1 / t2_ms)
+    return np.exp(-np.abs(t_line) / t2p) * np.exp(-t_line / t2_ms)
 
 def epi_acquire(obj, field_hz=0.0, t2star_ms=np.inf, odd_shift=0.0):
     """k-space of obj acquired line by line; each line sees the phase and decay of its own moment."""
     k = np.array([kspace.fft2c(obj * np.exp(2j * np.pi * field_hz * t * 1e-3))[j] for j, t in enumerate(t_line)])
-    k = k * np.exp(-t_line / t2star_ms)[:, None]              # T2* decay, relative to the center line
+    k = k * se_envelope(t2star_ms)[:, None]                   # spin-echo decay, relative to the center line
     if odd_shift:                                             # odd lines read backwards, off by a fraction of a sample
         hyb = np.fft.fftshift(np.fft.ifft(np.fft.ifftshift(k, axes=1), axis=1), axes=1)
         hyb[1::2] *= np.exp(2j * np.pi * odd_shift * (np.arange(nx) - nx // 2) / nx)
@@ -430,10 +466,12 @@ def fwhm(w):
     xs_p, p = psf_pe(w)
     return (p > 0.5).sum() * (xs_p[1] - xs_p[0])
 
-w = np.exp(-t_line / 45.0)
-print(f"T2* = 45 ms: lines weighted from {w[0]:.2f} (first) to {w[-1]:.2f} (last) of the center line; "
-      f"point-spread width along phase-encode {fwhm(w):.2f} voxels, against {fwhm(np.ones(ny)):.2f} without decay "
-      f"and {fwhm(np.exp(-t_line / 20.0)):.2f} with T2* = 20 ms")
+for t2s in (45.0, 20.0):
+    w = se_envelope(t2s)
+    print(f"T2 = {T2_WM:.0f} ms, T2* = {t2s:.0f} ms (T2' = {1 / (1 / t2s - 1 / T2_WM):.0f} ms): lines weighted "
+          f"{w[0]:.2f} (first) and {w[-1]:.2f} (last) of the center line; point-spread width along phase-encode "
+          f"{fwhm(w):.2f} voxels")
+print(f"without decay: {fwhm(np.ones(ny)):.2f} voxels")
 ghost_zone = np.roll(mask, ny // 2, axis=0) & ~mask
 print(f"Nyquist ghost: mean {ghosted[ghost_zone].mean() / img[mask].mean() * 100:.1f} % of the brain's mean signal, "
       f"{ny // 2} voxels (half the field of view) from the brain")
@@ -455,11 +493,11 @@ show_image(axes[0, 2], img, "no line mismatch (window 0–8 % of max)", vmin=0, 
 show_image(axes[1, 2], ghosted, "(c) odd/even mismatch: Nyquist ghost", vmin=0, vmax=0.08 * img.max())
 axp = fig.add_subplot(gs[2, :])
 for t2s, color, ls in [(np.inf, "0.3", "--"), (45.0, PALETTE[1], "-"), (20.0, PALETTE[6], "-")]:
-    xs_p, p = psf_pe(np.exp(-t_line / t2s))
+    xs_p, p = psf_pe(se_envelope(t2s))
     axp.plot(xs_p, p, color=color, ls=ls, lw=1.5, label="no decay" if np.isinf(t2s) else f"T2* = {t2s:.0f} ms")
 axp.axhline(0.5, color="0.7", lw=0.8)
 axp.set(xlim=(-6, 6), xlabel="distance along phase-encode (voxels)", ylabel="intensity (÷ peak)",
-        title="(b) closer: one bright point imaged with each decay, along phase-encode")
+        title=f"(b) closer: one bright point imaged with each spin-echo decay (T2 = {T2_WM:.0f} ms), along phase-encode")
 axp.legend(loc="upper right")
 fig.tight_layout(rect=(0.035, 0, 1, 1), h_pad=2)
 for ax in axes[:, 0]:
@@ -481,10 +519,15 @@ What to look at in each column:
   from the offset the image and the outlines still agree.
 - **(b)** The two ventricle crops look almost the same: at 2 mm voxels and a T2* of 45 ms the
   blur is small. The plot below makes it visible. It is the image of a single bright point,
-  along phase-encode: with decay the peak widens from 1.2 to 1.4 voxels at half height and
-  gains broad wings, and with the shorter T2* of 20 ms found near air-filled sinuses it
-  widens to about 2.6 voxels. Every edge that crosses the phase-encode direction is softened
-  by this profile; edges along it are not.
+  along phase-encode, with T2 held at white matter's 68 ms. With a T2* of 45 ms the field
+  dephasing (T2′ = 133 ms) is slower than the T2 decay, so the early lines, recorded when
+  less T2 decay has occurred, are slightly stronger than the center (1.39 times) and the late
+  lines weaker (0.37); the peak widens from 1.20 to 1.33 voxels at half height and gains
+  broad wings. With the shorter T2* of 20 ms found near air-filled sinuses, the field
+  dephasing (T2′ = 28 ms) dominates: lines on both sides of the center lose signal (0.39
+  of the center at the first line, 0.10 at the last), the center line is the strongest, and
+  the peak widens to 1.61 voxels. Every edge that crosses the phase-encode direction is
+  softened by this profile; edges along it are not.
 - **(c)** With the window set to show only the faintest signal (everything above 8 % of the
   maximum is white), a dim copy of the brain appears above and below it, shifted by half the
   field of view along phase-encode and wrapped around the edges of the image. It is brighter
@@ -617,7 +660,7 @@ excitation, so the ghost and the darkening change from volume to volume, as the 
 numbers show. The standard acquisition is therefore
 single-shot EPI, and its long readout is the origin of most of the artifacts corrected in
 Part III. The multi-shot and non-EPI readouts that work around the phase problem are
-uncommon in practice and are described in [Chapter 23](../05-advanced/23-frontiers.md).
+uncommon in practice and are described in [Chapter 22](../05-advanced/22-frontiers.md).
 
 ## Measure it: a TRXScan slice and its k-space
 
@@ -651,12 +694,19 @@ edge is the quarter skipped by partial Fourier, and the alternate dark rows are 
 skipped by the acceleration. The middle panel is the same coil's k-space after the
 reconstruction has filled them in, and the right panel the image made from all eight
 coils ([Chapter 3](./03-reconstruction.md) covers both steps). The same acquisition also
-reports the timing of every line, which is what the BIDS sidecar summarizes:
+reports the timing of every line. The printout gives two readout times that are easy to
+confuse: the length of the train, from the first acquired line to the last, and the
+`TotalReadoutTime` written to the BIDS sidecar, which is the effective readout time that
+distortion correction needs. The simulator applies HBCD's 91.7 ms as the effective value,
+so each line of the full matrix is one effective echo spacing (91.7 ms divided by the
+number of lines) after the one before it; acquired lines two k-space lines apart are two
+effective spacings, one physical echo spacing, apart in time. The train is shorter than
+91.7 ms mainly because partial Fourier skipped its first quarter:
 
 ```{code-cell} python
 :tags: [hide-input]
 r = sim.readout
-print(f"{r.ny} phase-encode lines at {r.t_line_ms:.3f} ms each; first to last acquired line "
+print(f"{r.ny} phase-encode lines at {r.t_line_ms:.3f} ms each; train (first to last acquired line) "
       f"{r.total_readout_ms:.1f} ms (sidecar TotalReadoutTime {sim.sidecar['TotalReadoutTime'] * 1e3:.1f} ms); "
       f"k-space center reached {r.time_to_center_ms:.1f} ms into the train; TE {r.t_echo_ms:.0f} ms")
 fig, ax = plt.subplots(figsize=(7, 2.8))
@@ -669,11 +719,13 @@ ax.legend(loc="lower right")
 fig.tight_layout()
 ```
 
-The train walks from the top of k-space down, one line per echo spacing. Partial Fourier
-skips the first quarter of the lines, so the center (where the echo forms and the contrast is
-decided) is reached that much sooner and the readout ends earlier; the acceleration skips
-every second line outside a band of fully sampled central lines, which the reconstruction
-uses for calibration ([Chapter 3](./03-reconstruction.md)). The simulator keeps the echo time
+The train walks from the top of k-space down, one effective echo spacing per k-space line.
+Partial Fourier skips the first quarter of the lines, so the center (where the echo forms
+and the contrast is decided) is reached that much sooner and the readout ends earlier; the
+acceleration skips every second line outside a band of fully sampled central lines, which
+the reconstruction uses for calibration ([Chapter 3](./03-reconstruction.md)). The
+simulator records this calibration band inside the diffusion train itself; scanners usually
+record it in a separate, short calibration scan instead. The simulator keeps the echo time
 you asked for, so the shorter path to the center is a TE you may lower, not one it lowers
 for you.
 
@@ -683,12 +735,13 @@ for you.
   readout, and therefore more distortion and blur.
 - **Readout length drives the main EPI artifacts.** Partial Fourier and in-plane
   acceleration both shorten it and both reduce the minimum TE, but only in-plane
-  acceleration reduces distortion, because only it changes the spacing of the lines. [Chapter 7](../02-diffusion-encoding/07-acquisition-parameters.md) discusses their costs.
+  acceleration reduces distortion, because only it changes the effective spacing of the
+  lines and with it the total readout time. [Chapter 7](../02-diffusion-encoding/07-acquisition-parameters.md) discusses their costs.
 - **Ringing is a property of every acquisition**, not a malfunction. It is worst at CSF
   boundaries and can be reduced after the fact ([Chapter 9](../03-preprocessing/09-gibbs-ringing.md)).
 - **Single-shot EPI is a compromise** accepted so that diffusion encoding is robust to
   motion. The metadata that describe the readout, `PhaseEncodingDirection` and
-  `TotalReadoutTime`, are required by the corrections in Part III and should be checked
+  `TotalReadoutTime` (the effective readout time, not the length of the train), are required by the corrections in Part III and should be checked
   before any processing.
 
 ## Further reading

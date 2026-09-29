@@ -12,13 +12,16 @@ draws its signal from, so the maps are the exact answer for a noise-free, artifa
 acquisition of the simulated brain. The expressions are ports of dipy's implementations and are
 validated against dipy at 10⁻⁸, so a dipy fit of the simulated data can be compared with
 them directly. Because the compartments are Gaussian, the maps are long-diffusion-time
-quantities ([Chapter 22](../05-advanced/22-multi-diffusion-time.md)), and the NODDI-style fractions are the simulated brain's own compartment
+quantities ([Chapter 21](../05-advanced/21-multi-diffusion-time.md)), and the NODDI-style fractions are the simulated brain's own compartment
 fractions rather than a fit.
 
 ```{code-cell} python
 :tags: [hide-cell]
 from dwibook import truth
 ```
+
+In the last column, *available* means the map is written with the others but no chapter
+scores against it yet.
 
 | Family | Map | Definition | Used in |
 |---|---|---|---|
@@ -29,24 +32,24 @@ from dwibook import truth
 | DKI | `mk` | mean kurtosis | 15 |
 | DKI | `ak` | axial kurtosis | 15 |
 | DKI | `rk` | radial kurtosis | 15 |
-| DKI | `mkt` | mean kurtosis tensor | 15 |
-| DKI | `kfa` | kurtosis fractional anisotropy | 15 |
-| QTI | `micro_fa` | microscopic FA: anisotropy of the compartments regardless of their arrangement | 15, 23 |
-| QTI | `coherence` | orientation coherence of the compartments | 23 |
-| QTI | `k_bulk` | isotropic (bulk) kurtosis: variance of compartment mean diffusivities | 15, 23 |
-| QTI | `k_shear` | anisotropic (shear) kurtosis | 15, 23 |
+| DKI | `mkt` | mean kurtosis tensor | available |
+| DKI | `kfa` | kurtosis fractional anisotropy | available |
+| QTI | `micro_fa` | microscopic FA: anisotropy of the compartments regardless of their arrangement | available (described in 15, 22) |
+| QTI | `coherence` | orientation coherence of the compartments | available |
+| QTI | `k_bulk` | isotropic (bulk) kurtosis: variance of compartment mean diffusivities | available (described in 22) |
+| QTI | `k_shear` | anisotropic (shear) kurtosis | available (described in 22) |
 | MAP-MRI | `rtop` | return-to-origin probability (1/mm³) | 15 |
 | MAP-MRI | `rtap` | return-to-axis probability | 15 |
 | MAP-MRI | `rtpp` | return-to-plane probability | 15 |
 | MAP-MRI | `msd` | mean squared displacement (mm²) at the given diffusion time | 15 |
-| MAP-MRI | `qiv` | q-space inverse variance | 15 |
+| MAP-MRI | `qiv` | q-space inverse variance | available |
 | MAP-MRI | `ng` | non-Gaussianity | 15 |
-| MAP-MRI | `ngpar` | non-Gaussianity parallel to the principal direction | 15 |
-| MAP-MRI | `ngperp` | non-Gaussianity perpendicular to it | 15 |
-| MAP-MRI | `pa` | propagator anisotropy | 15 |
+| MAP-MRI | `ngpar` | non-Gaussianity parallel to the principal direction | available |
+| MAP-MRI | `ngperp` | non-Gaussianity perpendicular to it | available |
+| MAP-MRI | `pa` | propagator anisotropy | available |
 | ODF | `gfa` | generalized FA of the diffusion ODF | 16 |
 | ODF | `qa` | quantitative anisotropy of the ODF peaks | 16 |
-| NODDI-style | `icvf` | intra-cellular (intra-axonal) volume fraction of the tissue | 17 |
+| NODDI-style | `icvf` | intra-cellular (intra-axonal) volume fraction of the tissue | 17, 20 |
 | NODDI-style | `odi` | orientation dispersion index of the fiber mixture | 17 |
 | NODDI-style | `isovf` | isotropic (CSF) volume fraction | 17 |
 

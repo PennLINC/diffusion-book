@@ -162,11 +162,12 @@ The two errors come from the same field but behave differently. The warp moves v
 the encoding error changes what was measured inside each voxel, so it survives any
 unwarping of the image {cite:p}`bammer2003`.
 
-The practical consequence is that neither error can be seen within a session. The warp is
-the same in every volume and, on most scanners, in the anatomical images too, so nothing
-looks misaligned; it shows up only as a head that is slightly the wrong size and as a
-mismatch with data from another scanner. The encoding error leaves no mark on the images
-at all; it only biases the numbers fitted from them.
+The practical consequence is that neither error is easy to see. The warp is the same in
+every volume of the diffusion series, so the volumes line up with one another and nothing
+within the series looks wrong. It shows up as a head that is slightly the wrong shape, and
+as a mismatch with any image that was corrected for it, which is usually the anatomical
+image of the same session (see the warning box below). The encoding error leaves no mark on
+the images at all; it only biases the numbers fitted from them.
 
 :::{dropdown} The same thing in symbols
 A spin at true position $r$ is displayed at $\phi(r)$, the position a perfectly linear
@@ -322,6 +323,28 @@ worst at the edges of the head, and that no rigid or affine registration can rem
 the sign.
 :::
 
+:::{admonition} In practice: check whether the scanner already corrected the diffusion data
+:class: tip
+Some scanners apply gradwarp to diffusion images too, before export. Look before running
+it, because correcting twice warps the image the other way.
+
+- **Siemens** records its distortion correction in the `ImageType` field of the DICOM header
+  (and the BIDS JSON): `DIS2D` for the two-dimensional version, `DIS3D` for the
+  three-dimensional one, `ND` when none was applied.
+- **GE** calls it gradwarp and records it in the protocol and private header fields; check
+  the protocol and, if in doubt, ask the site.
+- **The two-dimensional versions correct only within each slice**, not along the slice
+  axis, so a 2D-corrected series still carries the through-plane part of the warp.
+- **The encoding error remains either way.** No scanner-side image correction changes the
+  b-values and directions each voxel received; that needs the per-voxel table below.
+
+Given a coefficient file (`--gradient-file`), QSIPrep reads `ImageType` for each run and
+applies only what is missing: the full 3D correction for uncorrected data, the
+through-plane part for `DIS2D` data, and no spatial correction for `DIS3D` data, while
+still writing the gradient-deviation map. When the tags are missing or cannot be trusted,
+`--force gradwarp3D` or `--force gradwarp1D` (through-plane only) overrides them.
+:::
+
 ```{code-cell} python
 :tags: [hide-input]
 unwarped = synth.gnl_unwarp(acquired, A, vox, center)
@@ -361,9 +384,16 @@ of where the tissue really is.
 | QSIPrep | writes a `graddev` gradient-deviation image when given the coefficient file |
 | FSL `dtifit --gradnonlin` | tensor fit with the deviation image |
 | FSL `bedpostx -g` | fiber-orientation fit with the deviation image |
-| `odx graddev` | applies the deviation to orientation distributions |
 | any other model | a loop over voxels with each voxel's table, as this chapter's fits do |
 :::
+
+The deviation image describes the gradients at each point of the scanner with the head in
+the position it was scanned in, so it assumes the head stayed there. The deviation changes
+slowly with position, so the millimeter movements of a typical scan matter little, but a
+head that moved a long way between volumes breaks the assumption. And if the data are later
+resampled or rotated, for example into AC-PC alignment or a template, the deviation image
+must be resampled and its tensors rotated with them, just as the b-vectors must be
+([Chapter 12](./12-motion-and-dropout.md)).
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -448,9 +478,13 @@ report. The per-voxel table removes it, down to 1.0 %.
 
 The second line of output runs the whole chain: warp, gradwarp, then the fit. There a
 residual of 9.9 % remains even with the per-voxel table, and it has nothing to do with the
-encoding. It is the interpolation error of warping and unwarping the diffusion-weighted
-images, concentrated at the edges of white matter, the same cost every resampling carries
-([Chapter 14](./14-assembled-pipeline.md)). In this toy the warp is large (up to 18 mm), so the cost is large too.
+encoding. It is interpolation error, concentrated at the edges of white matter, and the toy
+pays it twice: once when it simulates the acquisition by resampling the true images onto
+the warped grid, and once when gradwarp resamples them back. A scanner forms the warped
+image directly, so a real pipeline pays only the second, the same cost every resampling
+carries ([Chapter 14](./14-assembled-pipeline.md)); the 9.9 % therefore overstates what
+gradwarp itself costs. In this toy the warp is large (up to 18 mm), so the cost is large
+too.
 
 Most default pipelines apply neither correction unless they are given the coefficient
 file.
