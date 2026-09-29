@@ -33,7 +33,7 @@ import matplotlib.pyplot as plt
 from scipy import ndimage
 
 from dwibook import kspace, phantoms, schemes, synth
-from dwibook.plotting import PALETTE, set_style, show_image
+from dwibook.plotting import PALETTE, animate, complex_noise_cloud, set_style, show_image
 
 set_style()
 ```
@@ -52,6 +52,44 @@ of the result is then a real-valued image in which the signal is signed and the 
 Gaussian with zero mean {cite:p}`eichner2015`. Weak signals average to their true value
 instead of to a floor; high-b images can be averaged and fitted without bias; and nothing
 about the acquisition changes, only that the phase is saved.
+
+The picture of [Chapter 3](../01-mri-physics/03-reconstruction.md) shows why. The animation measures one weak voxel (SNR 1.5)
+3000 times. Its true value sits at a phase of 125°, so the cloud of measurements lies in
+the upper left of the complex plane, and its real part is mostly negative. The cloud is then
+rotated by −125° onto the real axis. Below the plane are two histograms: the real part of
+the cloud as drawn (blue), and the magnitude (yellow), which rotation does not change.
+Watch the blue mean arrive on the dashed true value once the rotation is complete, with
+part of the histogram below zero, while the yellow mean stays above it.
+
+```{code-cell} python
+:tags: [hide-input]
+PHI, SNR_DEMO = np.deg2rad(125), 1.5
+turns = np.concatenate([np.zeros(6), np.linspace(0, 1, 24), np.ones(10)])
+fig, (ax_plane, ax_hist) = plt.subplots(2, 1, figsize=(5.4, 7.4), gridspec_kw={"height_ratios": [1.4, 1]})
+
+stats_rot = {}  # filled by the last frame, which is fully rotated
+
+def rotate_frame(i):
+    ax_plane.clear(); ax_hist.clear()
+    stats_rot.update(complex_noise_cloud(ax_plane, ax_hist, SNR_DEMO, sigma=1.0, phase=PHI, seed=3, show=("real", "magnitude"),
+                        rotated=turns[i], extent=(-4.2, 5.2, -3.2, 4.6), hist_ymax=0.62))
+    ax_plane.set_title(f"measured phase 125°, rotated by −{125 * turns[i]:.0f}°")
+    ax_hist.set_xlabel("value (units of σ)")
+    fig.tight_layout()
+
+animate(fig, rotate_frame, range(len(turns)), fps=8, width=460, dpi=70,
+        alt="a cloud of noisy measurements of one weak voxel sits in the upper left of the complex plane, around a true value at a phase of 125 degrees, and rotates clockwise until it is centered on the positive real axis. Below it, the histogram of the real part moves from mostly negative values to a bell curve centered on the true value of 1.5 noise units, with some values below zero, while the histogram of the magnitude stays where it is, with its mean above the true value")
+
+print(f"true value {SNR_DEMO:.2f} σ; mean real part after rotation {stats_rot['mean_real']:.2f} σ; "
+      f"mean magnitude {stats_rot['mean_magnitude']:.2f} σ")
+```
+
+The rotation works only if the phase of every voxel is known. The measured phase cannot be
+used directly: at low SNR it is dominated by the noise, and rotating each measurement by its
+own noisy phase puts every one of them on the positive real axis, which is the magnitude
+again. What is needed is the phase of the true signal, and the method rests on that phase
+being smooth across the image, so that it can be estimated from the neighborhood of each
+voxel with the noise averaged out. That is the filter of the next section.
 
 ## Estimating the background phase
 

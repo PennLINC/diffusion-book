@@ -27,8 +27,8 @@ After this chapter you can:
 import numpy as np
 import matplotlib.pyplot as plt
 
-from dwibook import presets, schemes, signal
-from dwibook.plotting import PALETTE, TISSUE_COLORS, animate, set_style
+from dwibook import phantoms, presets, schemes, signal, synth
+from dwibook.plotting import PALETTE, TISSUE_COLORS, animate, set_style, show_image
 
 set_style()
 ```
@@ -266,6 +266,51 @@ Several practical facts are visible here:
   15 % of $S_0$ and white matter along the fibers less than 1 %. If the b=0 image has
   SNR 30, those measurements have SNR 4 and below 1, the range where the noise floor of
   [Chapter 3](../01-mri-physics/03-reconstruction.md) biases the values. Only across-fiber white matter stays well above the floor.
+
+## See it: the brain at three b-values
+
+The same curves, applied voxel by voxel to the simulated brain's tissue maps, give the images
+below: one slice at b = 0, 1000, and 3000, with the gradient along two different axes. Every
+white matter voxel has a fiber direction, which in this synthetic slice runs parallel to the
+nearest white matter boundary, a simple stand-in for real tract directions.
+
+```{code-cell} python
+:tags: [hide-input]
+tissue = phantoms.brain_slice()
+brain = tissue["mask"]
+gradients = {"gradient left-right": (0.0, 1.0, 0.0), "gradient anterior-posterior": (1.0, 0.0, 0.0)}  # (row, column, slice) = (A-P, L-R, slice)
+b_show = [0, 1000, 3000]
+series = synth.synthetic_dwi(tissue, np.repeat(b_show, 2), np.tile(list(gradients.values()), (len(b_show), 1)))
+
+fig, axes = plt.subplots(2, 3, figsize=(9, 6.4))
+for col, b_val in enumerate(b_show):
+    pair = series[..., 2 * col : 2 * col + 2]
+    vmax = np.percentile(pair[brain], 99.5)  # one brightness scale per column, shared by both gradients
+    for row, name in enumerate(gradients):
+        title = "b = 0 (no gradient)" if b_val == 0 else f"b = {b_val}, {name}"
+        show_image(axes[row, col], pair[..., row], title, vmin=0, vmax=vmax)
+fig.tight_layout()
+pure = {k.upper(): tissue[k] > 0.9 for k in ("wm", "gm", "csf")}  # voxels of nearly one tissue
+for col, b_val in enumerate(b_show[1:], start=1):
+    kept = {k: series[..., 2 * col][m].mean() / series[..., 0][m].mean() for k, m in pure.items()}
+    print(f"b = {b_val}, gradient left-right: " + ", ".join(f"{k} keeps {v:.0%}" for k, v in kept.items()) + " of its b=0 signal")
+```
+
+Each column has its own brightness scale; at b = 3000 the image holds a small fraction of
+the b=0 signal (printed above). Three changes happen at once:
+
+- **The contrast inverts.** At b = 0 the ventricles are the brightest structure in the brain,
+  because CSF has the longest T2 ([Chapter 1](../01-mri-physics/01-spins-and-signal.md)). By b = 1000 they are black.
+- **The brightest voxels at high b are white matter whose fibers cross the gradient.** The
+  water inside those axons barely moves across them and keeps its signal. Averaged over all
+  of white matter, whatever the fiber direction, the signal falls about as fast as gray
+  matter's (printed above); it is the direction dependence, not the average, that sets
+  white matter apart.
+- **The picture depends on the gradient direction.** Compare the two rows: a patch of white
+  matter that is bright in one row is dark in the other, because its fibers cross one
+  gradient and run along the other. No single diffusion-weighted image describes the tissue;
+  the pattern across directions does, which is why a diffusion series contains many
+  directions ([Chapter 6](./06-qspace-sampling.md)).
 
 ## The cost of a high b-value: echo time
 

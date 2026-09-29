@@ -32,8 +32,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from dipy.denoise.localpca import mppca
 
-from dwibook import kspace, phantoms, schemes, synth
-from dwibook.plotting import PALETTE, set_style, show_image
+from dwibook import kspace, phantoms, schemes, signal, synth
+from dwibook.plotting import INK, PALETTE, animate, complex_noise_cloud, set_style, show_image
 
 set_style()
 ```
@@ -42,23 +42,102 @@ set_style()
 
 Thermal noise from the subject and the receive electronics enters every k-space sample as
 independent Gaussian noise. In the complex image it is still Gaussian with zero mean. The
-magnitude operation changes that ([Chapter 3](../01-mri-physics/03-reconstruction.md)): where the signal is weak relative to the noise,
-the magnitude is biased upward toward a floor, and the distribution is Rician for a single
-coil and non-central chi after a root-sum-of-squares combination.
+magnitude operation changes that. [Chapter 3](../01-mri-physics/03-reconstruction.md) showed why with one picture: repeated
+measurements of a voxel form a cloud of points around the true value in the complex plane,
+and the magnitude is each point's distance from the origin. The animation below slides the
+true value toward the origin, from SNR 5 to SNR 0 (SNR is the true signal divided by the
+noise standard deviation σ). On the left are the cloud and, under it, the histogram of the
+magnitudes; on the right, the mean magnitude against the true signal. Watch the yellow mean
+separate from the dashed true value once the cloud reaches the origin, and the point on the
+right leave the identity line and level off at the noise floor.
+
+```{code-cell} python
+:tags: [hide-input]
+snrs = np.concatenate([np.full(4, 5.0), np.linspace(5, 0, 26), np.full(6, 0.0)])
+a = np.linspace(0, 5.5, 200)
+fig = plt.figure(figsize=(9.5, 5.4))
+gs = fig.add_gridspec(2, 2, width_ratios=[1.3, 1], height_ratios=[1.35, 0.8])
+ax_plane, ax_hist, ax_curve = fig.add_subplot(gs[0, 0]), fig.add_subplot(gs[1, 0]), fig.add_subplot(gs[:, 1])
+
+def sweep_frame(i):
+    for ax in (ax_plane, ax_hist, ax_curve):
+        ax.clear()
+    s = complex_noise_cloud(ax_plane, ax_hist, snrs[i], sigma=1.0, seed=3, extent=(-4, 9, -3.6, 3.6), hist_ymax=0.72)
+    ax_plane.set_title(f"true signal: SNR {snrs[i]:.1f}")
+    ax_hist.set_xlabel("magnitude (units of σ)")
+    ax_curve.plot(a, a, color="0.5", lw=1, ls="--", label="identity (no bias)")
+    ax_curve.plot(a, kspace.rician_mean(a, 1.0), color=PALETTE[3], label="mean magnitude")
+    ax_curve.axhline(np.sqrt(np.pi / 2), color=INK["secondary"], lw=1, ls=":", label="noise floor, 1.25 σ")
+    ax_curve.plot([snrs[i]], [s["mean_magnitude"]], "o", ms=8, color=PALETTE[3], mec=INK["primary"])
+    ax_curve.set(xlim=(-0.2, 5.5), ylim=(0, 5.8), xlabel="true signal (units of σ)", ylabel="mean magnitude (units of σ)",
+                 title="mean magnitude vs. true signal")
+    ax_curve.set_aspect("equal", adjustable="box")
+    ax_curve.legend(loc="upper left")
+    fig.tight_layout()
+
+animate(fig, sweep_frame, range(len(snrs)), fps=6, width=760, dpi=70,
+        alt="left: a cloud of noisy measurements in the complex plane slides from a true value of 5 noise units toward the origin, with a histogram of their magnitudes below; while the cloud is far from the origin the mean magnitude sits on the true value, and as the cloud reaches and surrounds the origin the mean stays near 1.25 noise units while the true value drops to zero. Right: the mean magnitude plotted against the true signal follows the identity line at high signal and levels off at the noise floor of 1.25 noise units at low signal")
+```
+
+```{code-cell} python
+:tags: [hide-input]
+for s in [0, 1, 3, 5]:
+    print(f"true signal {s} σ: mean magnitude {kspace.rician_mean(s, 1.0):.2f} σ")
+```
+
+The distance from the origin is never negative, so noise that would push a weak signal
+below zero is folded back to a positive value, and the average ends up too high. In the
+language of statistics the magnitude follows a **Rician** distribution for a single coil
+(the **Rayleigh** distribution, with mean $\sigma\sqrt{\pi/2} \approx 1.25\,\sigma$, where
+there is no signal) and a **non-central chi** distribution after a root-sum-of-squares
+combination of several coils, whose floor is higher still.
 
 In diffusion MRI the weak-signal case is not an edge case. At b = 3000 gray matter retains
 about 15 % of its b=0 signal and white matter along the fibers less than 1 % ([Chapter 5](../02-diffusion-encoding/05-diffusion-encoding.md)).
 Those volumes sit at SNR 1–4, where the floor is a substantial fraction of the measurement.
-The consequences for fitted quantities follow directly:
+The figure follows one white matter voxel with SNR 20 at b = 0, the level used in the rest
+of this chapter, measured along and across its fibers. The vertical axis is logarithmic, so
+a single exponential decay is a straight line. Compare each solid line (the true signal)
+with the dotted line of the same color (the mean magnitude that would be measured), and
+note where the dotted line meets the dashed noise floor.
+
+```{code-cell} python
+:tags: [hide-input]
+b_axis = np.linspace(0, 3000, 121)
+fig, ax = plt.subplots(figsize=(6.5, 3.6))
+for cos, label, color in [(1.0, "along the fibers", PALETTE[0]), (0.0, "across the fibers", PALETTE[1])]:
+    true = 20.0 * signal.white_matter(b_axis, cos)
+    ax.plot(b_axis, true, color=color, label=f"{label}: true signal")
+    ax.plot(b_axis, kspace.rician_mean(true, 1.0), color=color, ls=":", lw=2.4, label=f"{label}: mean magnitude")
+ax.axhline(np.sqrt(np.pi / 2), color=INK["secondary"], lw=1, ls="--", label="noise floor, 1.25 σ")
+ax.set(yscale="log", ylim=(0.08, 30), xlim=(0, 3000), xlabel="b (s/mm²)", ylabel="signal (units of σ)",
+       title="white matter, SNR 20 at b = 0")
+ax.set_yticks([0.1, 0.3, 1, 3, 10, 30], ["0.1", "0.3", "1", "3", "10", "30"])
+ax.legend(loc="lower left", fontsize=7)
+fig.tight_layout()
+for b in [1000, 2000, 3000]:
+    t = 20.0 * signal.white_matter(np.array([b]), 1.0)[0]
+    print(f"along the fibers, b = {b}: true signal {t:.2f} σ, mean magnitude {kspace.rician_mean(t, 1.0):.2f} σ")
+```
+
+Along the fibers the true signal falls in a straight line on this scale, but the measured
+mean bends away from it and flattens onto the floor. At b = 2000 the true signal is
+0.67 σ and the mean magnitude 1.39 σ; at b = 3000 they are 0.12 σ and 1.26 σ, ten times too
+high, and the measurement no longer depends on the tissue at all. Across the fibers the
+signal stays well above the floor and is measured almost correctly. The consequences for
+fitted quantities follow directly:
 
 - **Signal decay with b appears too shallow**, because the measured high-b values are too
-  high. Fitted diffusivities come out too low.
-- **Anisotropy appears too high**, because the direction with the lowest true signal (along
-  the fibers) is raised most by the floor, and the extra spread between directions enters
-  the tensor fit as anisotropy. In isotropic regions, noise produces anisotropy that is not
-  there.
+  high. Fitted diffusivities come out too low, most of all along the fibers.
+- **Anisotropy is wrong.** In white matter the floor raises the along-fiber signal the most,
+  which shrinks the difference between directions that the tensor fit reads as anisotropy,
+  so FA fitted from high-b volumes comes out too low.
+  In nearly isotropic tissue such as gray matter, the random spread of the noise does the
+  opposite: the fit always ranks the three diffusivities from largest to smallest, so noise
+  pulls them apart and produces anisotropy that is not there.
 - **Kurtosis and multi-compartment fits**, which read the curvature of the decay above
-  b = 1500, are affected most, because the floor adds curvature of its own.
+  b = 1500, are affected most, because the floor adds curvature of its own: the bend of
+  the dotted line above.
 
 ## The artifact-free reference
 

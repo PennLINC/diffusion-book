@@ -26,94 +26,223 @@ After this chapter you can:
 ```{code-cell} python
 :tags: [hide-cell]
 import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.colors import to_rgb
+from matplotlib.patches import Patch, Rectangle
 
 from dwibook import schemes
+from dwibook.plotting import INK, PALETTE, set_style
+
+set_style()
 ```
 
 ## The decision matrix
 
 Every requirement in Parts II through IV reduces to a few counts: how many non-zero shells,
 how many directions on each, how high the top shell goes, how many b=0 volumes, whether the
-phase was saved. The helper below applies those rules to a b-value table. It is the
-book's Table 6.1 as a function, and it can be run on any `.bval` file.
+phase was saved. The function `schemes.analysis_matrix` applies those rules to a b-value
+table; it is the book's [Table 6.1](../02-diffusion-encoding/06-qspace-sampling.md) as a
+function, and it can be run on any `.bval` file. The figure below applies it to four
+reference schemes and to two of the inherited datasets worked through later in this
+chapter.
 
 ```{code-cell} python
 :tags: [hide-input]
-def report(name, bvals, complex_data=False):
-    print(f"\n{name}: {len(bvals)} volumes, shells {schemes.shells_of(bvals)}")
-    for analysis, verdict, reason in schemes.analysis_matrix(bvals, complex_data=complex_data):
-        print(f"  {analysis:<36} {verdict:<9} {reason}")
+# Each column: (header, b-values, phase saved?). Verdicts come only from analysis_matrix.
+COLUMNS = [
+    ("Clinical DTI\n30 dirs, b 1000", schemes.single_shell(1000, 30, n_b0=3)[0], False),
+    ("HARDI\n64 dirs, b 2000", schemes.single_shell(2000, 64, n_b0=4)[0], False),
+    ("HBCD, phase\n4 shells (case 3)", schemes.hbcd()[0], True),
+    ("DSI grid\n257 points", schemes.dsi_grid(radius=4)[0], False),
+    ("Case 1\n32 dirs, b 1000", schemes.single_shell(1000, 32, n_b0=1)[0], False),
+    ("Case 2\nb 1000 + 2500", schemes.multi_shell({1000: 30, 2500: 30}, n_b0=2)[0], False),
+]
+N_REFERENCE = 4  # columns before the gap are reference schemes; after it, inherited cases
 
-report("30 directions at b = 1000 (clinical DTI)", schemes.single_shell(1000, 30, n_b0=3)[0])
-report("64 directions at b = 2000 (HARDI)", schemes.single_shell(2000, 64, n_b0=4)[0])
-report("HBCD multi-shell, phase saved", schemes.hbcd()[0], complex_data=True)
-report("DSI grid, 257 points", schemes.dsi_grid(radius=4)[0])
+# Display labels only: (name, what it needs · where the book shows it).
+ROW_LABELS = {
+    "mean diffusivity / ADC": ("Mean diffusivity (ADC)", "≥ 3 directions and 1 b=0 · Ch 15"),
+    "DTI (FA, direction)": ("Tensor (DTI): FA, fiber direction", "≥ 30 dirs at b ≤ 1200 (6 minimum) · Ch 6, 15"),
+    "diffusion kurtosis": ("Diffusion kurtosis", "≥ 2 shells, top ≥ 2000, ≥ 30 dirs · Ch 15"),
+    "single-shell CSD": ("Fiber ODF, single-shell CSD", "≥ 45 dirs at b ≥ 2000 · Ch 16"),
+    "multi-tissue CSD": ("Fiber ODF, multi-tissue CSD", "≥ 2 shells, ≥ 45 dirs at high b · Ch 16"),
+    "NODDI / spherical mean / free water": ("NODDI, spherical mean, free water", "≥ 2 shells, top ≥ 2000 · Ch 17"),
+    "MAP-MRI / propagator": ("MAP-MRI (propagator)", "≥ 3 shells, ≥ 60 dirs · Ch 15"),
+    "DSI (model-free propagator)": ("DSI (model-free propagator)", "Cartesian grid, 200+ points · Ch 6, 16"),
+    "complex-domain denoising": ("Complex-domain denoising", "phase saved · Ch 3, 8, 8b"),
+}
+
+matrix = [schemes.analysis_matrix(b, complex_data=c) for _, b, c in COLUMNS]
+analyses = [row[0] for row in matrix[0]]
+
+
+def tint(color, amount):
+    """Mix a color with white (amount = share of the original color)."""
+    return tuple(1 - amount * (1 - v) for v in to_rgb(color))
+
+
+# Lightness falls from "no" to "yes", so the three verdicts separate in grayscale too.
+STYLE = {
+    "yes": (PALETTE[5], "white"),
+    "marginal": (PALETTE[3], INK["primary"]),
+    "no": (tint(PALETTE[7], 0.22), INK["secondary"]),
+}
+
+# Number the distinct reasons behind "marginal" cells for the notes under the figure.
+notes = {}
+for j, rows in enumerate(matrix):
+    for analysis, verdict, reason in rows:
+        if verdict == "marginal":
+            notes.setdefault((analysis, reason), []).append(COLUMNS[j][0].split("\n")[0])
+note_id = {key: k + 1 for k, key in enumerate(notes)}
+SUPERSCRIPT = str.maketrans("0123456789", "⁰¹²³⁴⁵⁶⁷⁸⁹")
+
+# Geometry in inches: the axes spans the whole figure with 1 data unit = 1 inch.
+label_w, cell_w, cell_h, gap, head_h, foot_h = 2.45, 0.80, 0.40, 0.18, 0.78, 0.40
+n_rows, n_cols = len(analyses), len(COLUMNS)
+W = label_w + n_cols * cell_w + gap + 0.05
+H = head_h + n_rows * cell_h + foot_h
+fig = plt.figure(figsize=(W, H))
+ax = fig.add_axes([0, 0, 1, 1])
+ax.set_xlim(0, W), ax.set_ylim(H, 0), ax.set_axis_off()
+
+
+def col_x(j):
+    return label_w + j * cell_w + (gap if j >= N_REFERENCE else 0)
+
+
+for i, analysis in enumerate(analyses):
+    y = head_h + i * cell_h
+    name, needs = ROW_LABELS.get(analysis, (analysis, ""))
+    ax.text(label_w - 0.08, y + 0.15, name, ha="right", va="center", fontsize=8.5, color=INK["primary"])
+    ax.text(label_w - 0.08, y + 0.30, needs, ha="right", va="center", fontsize=6.8, color=INK["secondary"])
+    for j, rows in enumerate(matrix):
+        a, verdict, reason = rows[i]
+        assert a == analysis
+        face, ink = STYLE[verdict]
+        x = col_x(j)
+        ax.add_patch(Rectangle((x + 0.02, y + 0.02), cell_w - 0.04, cell_h - 0.04, facecolor=face, edgecolor="none"))
+        text = verdict
+        if verdict == "marginal":
+            text += str(note_id[(analysis, reason)]).translate(SUPERSCRIPT)
+        ax.text(x + cell_w / 2, y + cell_h / 2, text, ha="center", va="center", fontsize=7.5, color=ink,
+                fontweight="bold" if verdict == "yes" else "normal")
+
+for j, (header, _, _) in enumerate(COLUMNS):
+    ax.text(col_x(j) + cell_w / 2, head_h - 0.06, header, ha="center", va="bottom", fontsize=6.8,
+            color=INK["primary"], linespacing=1.2)
+for lo, hi, title in [(0, N_REFERENCE, "Reference schemes"), (N_REFERENCE, n_cols, "Inherited datasets")]:
+    x0, x1 = col_x(lo) + 0.04, col_x(hi - 1) + cell_w - 0.04
+    ax.plot([x0, x1], [0.26, 0.26], color=INK["secondary"], lw=0.8)
+    ax.text((x0 + x1) / 2, 0.22, title, ha="center", va="bottom", fontsize=8, color=INK["secondary"])
+
+legend = [Patch(facecolor=STYLE[v][0], label=v) for v in ("yes", "marginal", "no")]
+ax.legend(handles=legend, loc="lower right", bbox_to_anchor=(W - 0.05, H - 0.02), bbox_transform=ax.transData,
+          ncol=3, fontsize=8, handlelength=1.4, columnspacing=1.2, frameon=False)
+plt.show()
+
+for (analysis, reason), cols in notes.items():
+    k = str(note_id[(analysis, reason)]).translate(SUPERSCRIPT)
+    reason = reason.replace(">=", "≥").replace("<=", "≤")
+    print(f"{k} {ROW_LABELS.get(analysis, (analysis,))[0]} — {', '.join(cols)}: {reason}")
 ```
+
+Read each row across to see which schemes support that analysis, or each column down to
+see everything one dataset supports; green is "yes", amber "marginal", pale red "no", and
+the numbered notes under the figure give the reason for each marginal cell. The two
+single-shell columns show the trade most clearly: b = 1000 gives a good tensor but only a
+marginal fiber ODF, b = 2000 the reverse, and only multi-shell columns turn the middle rows green.
 
 The verdicts are rules of thumb, not guarantees. A "yes" means the fit is determined and
 the sampling is in the range where the method was developed; "marginal" means the fit
 runs but its assumptions are strained or its precision is poor, and the chapter for that
 method shows what that looks like; "no" means the fit cannot be performed or its result
-has no meaning. The table below collects the rules with the chapter that demonstrates each.
+has no meaning.
 
+The same verdicts as text, with the reason for every cell, are in the collapsed output
+below.
+
+```{code-cell} python
+:tags: [hide-input, hide-output]
+def report(name, bvals, complex_data=False):
+    print(f"\n{name}: {len(bvals)} volumes, shells {schemes.shells_of(bvals)}")
+    for analysis, verdict, reason in schemes.analysis_matrix(bvals, complex_data=complex_data):
+        print(f"  {analysis:<36} {verdict:<9} {reason}")
+
+for header, bvals, complex_data in COLUMNS:
+    report(header.replace("\n", ": "), bvals, complex_data=complex_data)
+```
+
+To run the same check on your own dataset, point it at the FSL-format `.bval` and `.bvec`
+files that come with the images:
+
+```python
+bvals, bvecs = schemes.read_fsl("sub-01_dwi")  # reads sub-01_dwi.bval and sub-01_dwi.bvec
+for row in schemes.analysis_matrix(bvals, complex_data=False): print(*row, sep="  |  ")
+```
+
+Some requirements cannot be read from the b-values at all, because they depend on extra
+volumes, extra files, or metadata. They are collected below for reference.
+
+:::{dropdown} Requirements the b-value table cannot show
 | Analysis | Needs | Chapter |
 |---|---|---|
-| ADC, MD | ≥ 3 directions, 1 b=0 | 15 |
-| DTI: FA, principal direction | ≥ 30 directions at b ≈ 1000 (6 minimum) | 6, 15 |
-| Diffusion kurtosis | ≥ 2 non-zero shells, top shell ≥ 2000 | 15 |
-| MAP-MRI, propagator | ≥ 3 shells, directions spread across them, pulse timing recorded | 15 |
-| Q-ball, single-shell CSD | 1 shell at b ≥ 2000, ≥ 45–60 directions | 16 |
-| Multi-tissue CSD | ≥ 2 shells, ≥ 45 directions on the top shell, tissue masks | 16 |
-| DSI | Cartesian grid, 200+ points, strong gradients | 6, 16 |
-| Free water, NODDI, spherical mean | ≥ 2 shells, top shell ≥ 2000 | 17 |
-| IVIM | several shells at b < 200 | 17 |
-| Deterministic tractography | any DTI or fODF scheme | 18 |
-| Probabilistic tractography with ACT | fODF scheme plus a registered tissue segmentation | 18 |
-| Complex-domain denoising | phase saved | 3, 8 |
-| Distortion correction (topup) | reverse-polarity volumes and correct metadata | 10 |
-| Eddy correction with prediction | full, well-spread direction set | 11 |
-| Gradient nonlinearity correction | coefficient file | 13 |
+| IVIM (perfusion signal) | several shells at b < 200 | 17 |
+| Deterministic tractography | any scheme with a "yes" for the tensor or a fiber ODF | 18 |
+| Probabilistic tractography with ACT (anatomically constrained tractography) | a fiber ODF plus a registered tissue segmentation | 18 |
+| Distortion correction with topup (FSL's field-map estimator) | reverse-polarity volumes and correct phase-encoding metadata | 10 |
+| Eddy-current and motion correction with eddy (FSL's correction tool), using its prediction | a full, well-spread direction set | 11 |
+| Gradient nonlinearity correction | the scanner's gradient coefficient file | 13 |
+:::
 
 ## Complex data revisited
 
 Three chapters used the phase, and the case for saving it is now complete:
 
-- **Denoising without bias** ([Chapter 8](../03-preprocessing/08-noise.md)): the largest gain, and the one that reaches
-  every model fitted at high b, since the Rician floor biases exactly the volumes those
-  models depend on.
+- **Denoising without bias** ([Chapter 8](../03-preprocessing/08-noise.md) and
+  [Chapter 8b](../03-preprocessing/08-real-valued-dwi.md)): the largest gain, and the one
+  that reaches every model fitted at high b. Taking the magnitude turns noise into a
+  positive floor (the pictures in [Chapter 3](../01-mri-physics/03-reconstruction.md),
+  section "Noise in magnitude images"), and that floor raises exactly the weak, high-b
+  signals those models depend on. Chapter 8b shows the floor disappearing when the phase
+  is used.
 - **Diagnostics** (Chapters [11](../03-preprocessing/11-eddy-currents.md) and [12](../03-preprocessing/12-motion-and-dropout.md)): the eddy-current and motion phase are visible per
   volume before any correction.
 - **Averaging** repeated acquisitions without the floor.
 
-The costs are storage (twice the data), a phase image that needs a reference and unwraps
-poorly in noise, and pipeline support: not every tool accepts complex input, and the
-denoising must be run before the magnitude is taken, which fixes its position in the
-pipeline. None of these costs applies at the scanner.
+The costs are all downstream. Storage doubles. The phase cannot be used as recorded: it
+contains a smooth background that must be estimated and removed first, and in noisy
+voxels it is close to random. And not every tool accepts complex input; the denoising
+must run before the magnitude is taken, which fixes its place at the start of the
+pipeline. None of these costs is paid at the scanner: saving the phase adds no scan time,
+only a reconstruction setting.
 
 ## Worked retrospective cases
 
-Datasets are more often inherited than designed. Three common cases:
+Datasets are more often inherited than designed. The three cases below are the "Case 1",
+"Case 2", and "HBCD, phase" columns of the figure above; each paragraph says what to do
+with the dataset.
 
-**Single shell, b = 1000, 32 directions, one b=0, magnitude only.** DTI is fully
-supported and the study should stay there: FA, MD, the principal direction, deterministic
-tractography, tract-based statistics. Crossing-fiber models will run (CSD at b = 1000 is
-"marginal") but resolve few crossings; kurtosis and compartment models are not possible.
-With no reverse-polarity volumes, distortion correction falls to a fieldmap if one exists,
-otherwise to registration to the anatomical image. The one b=0 volume limits outlier
-detection and eddy's prediction; report motion carefully.
+**Case 1: single shell, b = 1000, 32 directions, one b=0, magnitude only.** Stay with the
+tensor: FA, mean diffusivity, the principal direction, deterministic tractography,
+tract-based statistics. Single-shell CSD runs but resolves few crossings at b = 1000.
+Without reverse-polarity volumes, correct distortion with a fieldmap if one exists,
+otherwise by registration to the anatomical image. The single b=0 volume weakens outlier
+detection and eddy's prediction, so report motion carefully.
 
-**Two shells, b = 1000 and 2500, 30 directions each, reverse-polarity b=0s.** Kurtosis,
-free-water, NODDI, and the spherical mean technique are supported; multi-tissue CSD is
-marginal on 30 directions at the top shell and should be run with a lower harmonic order;
-MAP-MRI is marginal with two shells. Fit the tensor to the b = 1000 shell only. Distortion
-correction with topup is available.
+**Case 2: two shells, b = 1000 and 2500, 30 directions each, reverse-polarity b=0s.** Fit
+kurtosis, free water, NODDI, and the spherical mean technique. Fit the tensor to the
+b = 1000 shell only. Run multi-tissue CSD with a lower harmonic order, since 30 directions
+at the top shell is marginal, and treat MAP-MRI results from two shells with caution.
+Correct distortion with topup.
 
-**Full HBCD-style multi-shell with phase, 1.7 mm, both polarities.** Everything in the
-table except DSI and IVIM. Denoise in the complex domain first; correct with topup and
-eddy using both polarities; fit multi-tissue CSD, kurtosis, MAP-MRI, and the compartment
-models; track probabilistically with ACT. The remaining limits are the ones no processing
-removes: the fixed diffusion time, the Gaussian assumptions of the models, and the
-resolution.
+**Case 3: HBCD-style multi-shell with phase, 1.7 mm, both polarities.** Everything in the
+figure except DSI, and the tensor is marginal: only 18 directions sit at b ≤ 1200, so
+tensor maps are noisier than from a 30-direction clinical scan. Denoise in the complex
+domain first; correct with topup and eddy using both polarities; fit multi-tissue CSD,
+kurtosis, MAP-MRI, and the compartment models; track probabilistically with ACT. The
+remaining limits are the ones no processing removes: the fixed diffusion time, the
+Gaussian assumptions of the models, and the resolution.
 
 ## Measure it: the simulated datasets
 
@@ -126,11 +255,12 @@ maps, so that "marginal" is a number rather than a word.
 
 ## What this implies for acquisition
 
-- **Decide the analyses, then read the matrix from the left**; the cheapest scheme that
-  says "yes" to all of them is the protocol.
-- **Multi-shell with the top shell at b ≥ 2000, 45 or more directions there, reverse
-  polarity, and the phase saved** supports every analysis in the table except DSI and
-  IVIM, at a scan time under ten minutes ([Chapter 7](../02-diffusion-encoding/07-acquisition-parameters.md)).
+- **Decide the analyses, then read the matrix along their rows**; the cheapest scheme
+  that says "yes" to all of them is the protocol.
+- **Multi-shell with a b ≈ 1000 shell of 30 or more directions, the top shell at
+  b ≥ 2000 with 45 or more directions, reverse polarity, and the phase saved** supports
+  every analysis in the matrix except DSI (and IVIM, which needs several shells below
+  b = 200), at a scan time under ten minutes ([Chapter 7](../02-diffusion-encoding/07-acquisition-parameters.md)).
 - **Record the metadata**: phase-encode direction, readout time, diffusion timing, and
   the gradient coefficient file.
 

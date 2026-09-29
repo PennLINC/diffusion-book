@@ -31,7 +31,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from dwibook import kspace, phantoms
-from dwibook.plotting import PALETTE, set_style, show_image, show_kspace
+from dwibook.plotting import PALETTE, complex_noise_cloud, set_style, show_image, show_kspace
 
 set_style()
 N = 128
@@ -238,12 +238,53 @@ fig.tight_layout()
 ## Noise in magnitude images
 
 Thermal noise enters the data as independent Gaussian noise in k-space, and the Fourier
-transform preserves that: the complex image also has Gaussian noise with zero mean. Taking
-the magnitude changes the statistics {cite:p}`gudbjartsson1995`:
+transform preserves that: the complex image also has Gaussian noise with zero mean. A
+voxel's measured value is therefore a complex number, the true value plus a random complex
+offset. Imagine measuring the same voxel many times. Each measurement is a point in the
+complex plane (real part horizontal, imaginary part vertical), and together they form a
+round cloud centered on the true value, with a radius set by the noise standard deviation
+$\sigma$. The magnitude of a measurement is its distance from the origin.
 
-- With a single coil the magnitude follows a Rician distribution. Where there is no signal,
-  the magnitude is not zero but has a positive mean (the noise floor). Where the signal is
-  strong, the noise is approximately Gaussian again.
+The figure measures three voxels 3000 times each, with the same noise and a true signal of
+6, 1, and 0 times $\sigma$ (the signal-to-noise ratio, SNR). The top row is the complex
+plane: gray dots are the measurements, the black × is the true value, the black + is the
+origin (with no signal the two coincide), and the yellow line is the distance from the origin to one measurement, swung down
+onto the real axis by the dashed arc to show the magnitude it gives. The bottom row is the
+histogram of all the magnitudes, on the same horizontal scale as the plane above it, with
+the true value (dashed) and the mean magnitude (yellow) marked. Watch the gap between the
+two lines as the cloud moves toward the origin.
+
+```{code-cell} python
+:tags: [hide-input]
+fig, axes = plt.subplots(2, 3, figsize=(11, 5.0), gridspec_kw={"height_ratios": [1.1, 1]})
+stats = {}
+for col, (snr, label) in enumerate([(6, "strong signal"), (1, "weak signal"), (0, "no signal")]):
+    stats[snr] = complex_noise_cloud(axes[0, col], axes[1, col], snr, sigma=1.0, seed=3, extent=(-4, 10, -4, 4))
+    axes[0, col].set_title(f"{label}: SNR {snr}")
+    axes[1, col].set_xlabel("magnitude (units of σ)")
+fig.tight_layout()
+for snr in [6, 1, 0]:
+    s = stats[snr]
+    print(f"SNR {snr}: true value {s['true']:.2f} σ, mean magnitude {s['mean_magnitude']:.2f} σ")
+```
+
+For the strong signal the cloud is far from the origin. Moving a measurement up or down
+barely changes its distance from the origin, moving it left or right changes that distance
+by the same amount, so the magnitudes scatter symmetrically around the true value and their
+mean is correct. For a weak signal the cloud reaches the origin. A measurement pushed past
+the origin by the noise does not give a negative magnitude; it gives a positive one on the
+other side, because a distance cannot be negative. Every such measurement adds to the
+average instead of cancelling the ones that landed high, so the mean magnitude is too
+large: 1.57 σ instead of 1 σ here. With no signal at all the cloud surrounds the origin,
+and the magnitudes still average 1.26 σ in this sample (1.25 σ in the long run), although
+the true value is zero. That offset is the **noise floor**,
+and the upward error it causes is the **magnitude bias**.
+
+Statisticians have names for these distributions {cite:p}`gudbjartsson1995`:
+
+- With a single coil the magnitude follows a **Rician** distribution. With no signal it
+  reduces to the **Rayleigh** distribution, whose mean is $\sigma\sqrt{\pi/2} \approx 1.25\,\sigma$:
+  the noise floor. Where the signal is strong, the noise is approximately Gaussian again.
 - A root-sum-of-squares combination of $L$ coils follows a non-central chi distribution
   {cite:p}`constantinides1997`, and its noise floor rises with the number of coils.
 - After GRAPPA the noise varies across the image and is correlated between coils, so neither
@@ -281,7 +322,7 @@ fig.tight_layout()
 ```
 
 The right panel gives the practical numbers. The magnitude overestimates the true signal by
-about 30 % at SNR 1, 5 % at SNR 3, and 2 % at SNR 5:
+about 55 % at SNR 1, 6 % at SNR 3, and 2 % at SNR 5:
 
 ```{code-cell} python
 :tags: [hide-input]

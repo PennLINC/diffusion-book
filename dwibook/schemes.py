@@ -152,7 +152,10 @@ def analysis_matrix(bvals: np.ndarray, complex_data: bool = False, n_dirs_min: i
     else: add("DTI (FA, direction)", "no", "fewer than 6 directions")
     add("diffusion kurtosis", "yes" if n_shells >= 2 and b_max >= 2000 and dirs_total >= 30 else ("marginal" if n_shells >= 2 else "no"),
         f"{n_shells} non-zero shell(s), b_max {b_max:.0f}")
-    add("single-shell CSD", "yes" if dirs_high >= 45 else ("marginal" if dirs_total >= 30 else "no"), f"{dirs_high} directions at b >= 1800")
+    csd_reason = f"{dirs_high} directions at b >= 1800"
+    if dirs_high < 45 and dirs_total >= 30:
+        csd_reason += f"; {dirs_total} in all, enough for broad, low-contrast ODFs"
+    add("single-shell CSD", "yes" if dirs_high >= 45 else ("marginal" if dirs_total >= 30 else "no"), csd_reason)
     add("multi-tissue CSD", "yes" if n_shells >= 2 and dirs_high >= 45 else ("marginal" if n_shells >= 2 else "no"), f"{n_shells} shells, {dirs_high} high-b directions")
     add("NODDI / spherical mean / free water", "yes" if n_shells >= 2 and b_max >= 2000 else ("marginal" if n_shells >= 2 else "no"), f"{n_shells} shells, b_max {b_max:.0f}")
     add("MAP-MRI / propagator", "yes" if n_shells >= 3 and dirs_total >= 60 else ("marginal" if n_shells >= 2 else "no"), f"{n_shells} shells, {dirs_total} directions")
