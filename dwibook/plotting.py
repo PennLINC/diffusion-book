@@ -88,6 +88,96 @@ def animate(fig, update, frames, alt: str, fps: float = 2, width: int = 480, dpi
     return HTML(f'<img src="data:image/gif;base64,{gif_b64}" alt="{html.escape(alt)}" style="width: {width}px; max-width: 100%;">')
 
 
+def complex_noise_cloud(
+    ax_plane,
+    ax_hist,
+    signal: float,
+    sigma: float = 1.0,
+    phase: float = 0.0,
+    n: int = 3000,
+    seed: int = 0,
+    show: tuple[str, ...] = ("magnitude",),
+    rotated: float = 0.0,
+    extent: tuple[float, float, float, float] | None = None,
+    hist_xlim: tuple[float, float] | None = None,
+    hist_ymax: float | None = None,
+    bins: int = 40,
+    legend: bool = True,
+) -> dict[str, float]:
+    """One voxel measured ``n`` times: the complex plane and the histogram of what is kept.
+
+    Each measurement is the true complex value ``signal * exp(i phase)`` plus complex Gaussian
+    noise with standard deviation ``sigma`` in each of the real and imaginary parts, so the
+    samples form a round cloud around the true point. ``ax_plane`` shows the cloud, the true
+    point, the origin, and for one sample the line from the origin whose length is that
+    sample's magnitude, swung down onto the positive real axis. ``ax_hist`` shows histograms of
+    the quantities named in ``show``: ``"magnitude"`` (the distance from the origin) and
+    ``"real"`` (the real part of the cloud as drawn), with the true value and the mean of each
+    marked. ``rotated`` in [0, 1] rotates every sample by ``-rotated * phase``: 0 draws the
+    cloud as measured, 1 rotates it onto the real axis, which is when its real part is the
+    phase-corrected, real-valued measurement. The magnitude does not depend on it.
+
+    ``extent`` is the plane's ``(xmin, xmax, ymin, ymax)``; by default it covers the cloud
+    before and after the rotation, and the origin. The histogram's horizontal range defaults
+    to the plane's, so a histogram drawn under the plane lines up with its real axis. Pass
+    fixed ``extent``, ``hist_xlim`` and ``hist_ymax`` to compare panels or animation frames.
+
+    Colors are fixed so the picture reads the same wherever it appears: samples gray, true
+    value black, magnitude ``PALETTE[3]``, real part ``PALETTE[0]``. Returns the means, in the
+    units of ``signal``.
+    """
+    from matplotlib.patches import Arc
+
+    rng = np.random.default_rng(seed)
+    noise = sigma * (rng.standard_normal(n) + 1j * rng.standard_normal(n))
+    z = signal * np.exp(1j * phase) + noise
+    mag = np.abs(z)
+    shown = z * np.exp(-1j * phase * rotated)
+    real = shown.real
+    true_pt = signal * np.exp(1j * phase * (1 - rotated))
+    colors = {"magnitude": PALETTE[3], "real": PALETTE[0]}
+
+    if extent is None:
+        pts = np.array([0, signal * np.exp(1j * phase), signal])
+        pad = 3.6 * sigma
+        extent = (pts.real.min() - pad, pts.real.max() + pad, pts.imag.min() - pad, pts.imag.max() + pad)
+    ax_plane.axhline(0, color=INK["secondary"], lw=0.8, zorder=1)
+    ax_plane.axvline(0, color=INK["secondary"], lw=0.8, zorder=1)
+    ax_plane.scatter(shown.real, shown.imag, s=3, color="0.55", alpha=0.35, lw=0, rasterized=True, zorder=2)
+    # one example sample, placed up and to the right of the true point, to show its distance
+    target = (signal + sigma * (0.6 + 1.3j)) * np.exp(1j * phase * (1 - rotated))
+    k = int(np.argmin(np.abs(shown - target)))
+    ex, r = shown[k], mag[k]
+    ang = np.degrees(np.angle(ex))
+    ax_plane.plot([0, ex.real], [0, ex.imag], color=colors["magnitude"], lw=1.6, zorder=4)
+    ax_plane.add_patch(Arc((0, 0), 2 * r, 2 * r, theta1=min(0, ang), theta2=max(0, ang),
+                           color=colors["magnitude"], lw=1.2, ls="--", zorder=4))
+    ax_plane.plot([ex.real], [ex.imag], "o", ms=5, color=colors["magnitude"], mec="white", mew=0.8, zorder=5)
+    ax_plane.plot([r], [0], "|", ms=12, mew=2, color=colors["magnitude"], zorder=5)
+    ax_plane.plot([0], [0], "+", ms=10, mew=1.5, color=INK["primary"], zorder=5)
+    ax_plane.plot([true_pt.real], [true_pt.imag], "x", ms=9, mew=2.2, color=INK["primary"], zorder=6)
+    ax_plane.set(xlim=extent[:2], ylim=extent[2:], xlabel="real part", ylabel="imaginary part")
+    ax_plane.set_aspect("equal", adjustable="box")
+
+    out = {"true": float(signal), "mean_magnitude": float(mag.mean()), "mean_real": float(real.mean())}
+    values = {"magnitude": mag, "real": real}
+    names = {"magnitude": "magnitude", "real": "real part"}
+    hist_xlim = hist_xlim if hist_xlim is not None else extent[:2]
+    edges = np.linspace(hist_xlim[0], hist_xlim[1], bins + 1)
+    for name in show:
+        ax_hist.hist(values[name], bins=edges, density=True, color=colors[name], alpha=0.45, lw=0)
+    ymax = hist_ymax if hist_ymax is not None else ax_hist.get_ylim()[1] * 1.12
+    ax_hist.axvline(signal, color=INK["primary"], lw=1.4, ls="--", zorder=5, label=f"true value: {signal / sigma:.1f} σ")
+    for name in show:
+        mu = values[name].mean()
+        ax_hist.axvline(mu, color=colors[name], lw=2.2, label=f"mean {names[name]}: {mu / sigma:.2f} σ")
+    ax_hist.set(xlim=hist_xlim, ylim=(0, ymax), xlabel="value", yticks=[])
+    ax_hist.spines["left"].set_visible(False)
+    if legend:
+        ax_hist.legend(loc="best", fontsize=7, handlelength=1.2)
+    return out
+
+
 def show_kspace(ax, ksp: np.ndarray, title: str | None = None, voxel_mm: float | None = None, phase: bool = False):
     """Display k-space as log magnitude (the only way to see anything beyond the center).
 
