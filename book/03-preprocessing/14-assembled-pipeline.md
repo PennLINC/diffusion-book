@@ -95,7 +95,10 @@ phase error between odd and even lines.
 A discharge in the scanner room or a loose connection during the readout adds one bright
 sample to k-space. Because every k-space sample is a plane wave across the whole image, a
 single spike appears as a stripe pattern (a "herringbone" or "corduroy" artifact) covering
-the entire slice. It affects only the volume and slice in which it occurred.
+the entire slice. It affects only the volume in which it occurred, and within it only the
+slice being read out, or, with multiband, every slice of that shot: the slices excited
+together share one k-space readout, so the spike is carried into each of them when they are
+separated.
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -118,15 +121,21 @@ fig.tight_layout()
 The bottom row is k-space, where the spike is a single bright point (circled). Its
 distance from the center sets the stripe spacing: a spike far from the center makes fine
 stripes a centimeter apart, and a spike near the center makes broad bands that look like
-a smooth shading error. With raw data the sample can be replaced; with magnitude images the
-slice is treated as an outlier and replaced from the model ([Chapter 12](./12-motion-and-dropout.md)), which is what the
-outlier detection of eddy and SHORELine does with it.
+a smooth shading error. With raw data the sample can be replaced. With magnitude images
+the slice can only be treated as an outlier and replaced from the model
+([Chapter 12](./12-motion-and-dropout.md)), but the pipelines will not usually do this on
+their own. FSL eddy's outlier detection, by default, looks only for slices that are
+*darker* than their prediction (signal loss, as in dropout), and a spike's stripes add
+bright and dark bands that leave the slice's average nearly unchanged. Spikes are
+therefore found by looking: in the images, where the stripes are easy to see once you know
+the pattern, or in the raw k-space if it was saved.
 
 ## Receive-field bias
 
 The sensitivity of the coil array varies smoothly across the head ([Chapter 3](../01-mri-physics/03-reconstruction.md)), so the
-images are brighter near the coils and darker in the center. This does not affect
-diffusion measures, which are ratios between volumes of the same voxel, but it affects
+images are brighter near the coils and darker in the center. As long as the head holds
+still, this does not affect diffusion measures, which are ratios between volumes of the
+same voxel (a moving head is discussed after the next figure), but it affects
 everything that uses intensity across voxels: brain masking, tissue segmentation of the
 b=0 image, and the estimation of the single-fiber response that spherical deconvolution
 needs ([Chapter 16](../04-modeling/16-fiber-orientation.md)).
@@ -177,8 +186,17 @@ captures that pattern, and dividing it out leaves white matter nearly uniform: i
 brightness varies by 15 % across the slice before correction and 2.5 % after. The FA map
 from the biased series is identical to the unbiased one (the largest difference is at the
 level of rounding error): the field multiplies every volume of a voxel by the same number,
-and FA depends only on ratios between those volumes. Because the correction is a smooth multiplicative field applied identically to all
-volumes, its placement in the pipeline does not matter.
+and FA depends only on ratios between those volumes.
+
+That holds only for a still head. The receive field belongs to the coil, which stays put,
+so when the head moves, each part of the head passes through a differently weighted part of
+the field. After motion correction has realigned the head, each volume carries the bias in
+a slightly different place, and a voxel's brightness then changes from volume to volume for
+a reason that has nothing to do with diffusion. Because the field is smooth, the effect of
+millimeter movements is small, but it is not zero, and one bias field estimated from the
+b=0 image and divided out of every volume cannot remove it. For a still head the placement
+of the correction in the pipeline does not matter; for a moving head no placement is
+exact, and pipelines divide out one field after the geometric corrections.
 
 ## The order of operations
 
@@ -235,9 +253,11 @@ In words:
 2. **Unringing** ([Chapter 9](./09-gibbs-ringing.md)) second, because it operates on the acquired grid and the
    ripple structure it relies on is destroyed by resampling.
 3. **The geometric corrections together**: susceptibility ([Chapter 10](./10-susceptibility-distortion.md)), eddy currents and
-   motion (Chapters [11](./11-eddy-currents.md) and [12](./12-motion-and-dropout.md)), and gradient nonlinearity ([Chapter 13](./13-gradient-nonlinearity.md)). Each is a
-   displacement field or a transform; they are composed into one map and the data are
-   resampled once. Outlier detection and replacement happen inside this step, because
+   motion (Chapters [11](./11-eddy-currents.md) and [12](./12-motion-and-dropout.md)), and gradient nonlinearity ([Chapter 13](./13-gradient-nonlinearity.md)). The
+   susceptibility and eddy-current fields add into one displacement along the
+   phase-encode axis; that displacement, the head motion, and the gradient-nonlinearity
+   warp are chained into one map, and the data are resampled once. Outlier detection and
+   replacement happen inside this step, because
    the model that predicts each volume is fitted to the aligned data.
 4. **Bias-field correction and masking** on the corrected b=0 image.
 5. **The gradient-deviation image and the rotated b-vectors** are written out with the
@@ -293,49 +313,96 @@ Composing the corrections into one map keeps the blur at the level of a single r
 however many corrections are applied (orange line; it wobbles because the blur of one
 resampling depends on the fraction of a voxel it moves).
 
-Composing is not the same as adding the shift maps together. The corrections happen one
-after another in the scanner's forward model: the susceptibility field moves a point
-first, and the eddy-current distortion then acts on the image as it already is. So the
-eddy shift that applies to a point is the one at the place where the susceptibility shift
-carried it, not the one at its true position. The composed map follows each point
-through both steps.
+Composing the corrections into one map needs care, because the maps do not all combine
+the same way.
 
-The same comparison on the brain slice, with a susceptibility distortion and an
-eddy-current shear:
+- **Susceptibility and eddy currents add.** Both are unwanted fields present during the
+  same readout. At each point of the head the two fields simply add, and the signal there
+  is displaced along the phase-encode axis by the summed off-resonance times the readout
+  time ([Chapter 10](./10-susceptibility-distortion.md)), evaluated at the spin's true
+  position. FSL eddy models the field of each volume the same way: the topup field plus
+  that volume's eddy field {cite:p}`andersson2016`. Neither distortion happens "first".
+- **Motion must be chained.** The susceptibility field is made by the head itself (the
+  air-tissue boundaries of [Chapter 10](./10-susceptibility-distortion.md)), so it moves
+  when the head moves, while the eddy field and the readout belong to the scanner. For a
+  volume acquired with the head turned, each point of the head must first be carried to
+  where it was in the scanner, and the field it experienced looked up there. The same holds
+  for gradient nonlinearity, which is fixed to the scanner ([Chapter 13](./13-gradient-nonlinearity.md)).
+
+The toy below does this for one volume on the brain slice: the head turned 3° and shifted,
+its susceptibility field turning and shifting with it, and an eddy-current shear from a
+b = 2000 volume on top. It corrects the volume three ways: in two resamplings (remove the
+summed shift, then undo the motion), in one resampling with the chain composed correctly,
+and in one resampling with the field left where it was before the head moved.
 
 ```{code-cell} python
 :tags: [hide-input]
-fmap = synth.synthetic_fieldmap(mask, 2.0, amplitude_hz=80.0)
-sdc_shift = fmap * presets.READOUT_HBCD_MS / 1000
+fmap = synth.synthetic_fieldmap(mask, 2.0, amplitude_hz=80.0)   # Hz, attached to the head
+T_S = presets.READOUT_HBCD_MS / 1000                            # effective total readout time (s)
 yy, xx = np.indices(mask.shape, dtype=float)
-eddy_shear = 0.04 * (xx - 63.5)  # a b = 2000 volume with a gradient along the columns
-acquired = synth.displace_along_pe(synth.displace_along_pe(img, sdc_shift), eddy_shear)
+cy, cx = (mask.shape[0] - 1) / 2, (mask.shape[1] - 1) / 2
+TURN_DEG, SHIFT_VOX = 3.0, (2.0, -1.5)                           # the head's pose in this volume
+ca, sa = np.cos(np.radians(TURN_DEG)), np.sin(np.radians(TURN_DEG))
 
-# Pipelines resample with linear (trilinear) interpolation, which is used here for both routes.
-sequential = synth.undistort_along_pe(synth.undistort_along_pe(acquired, eddy_shear, order=1), sdc_shift, order=1)
-# composed: one map from the acquired grid to the true grid. The eddy shift acts on the
-# already-distorted image, so the total shift at a true position is the susceptibility shift
-# there plus the eddy shift evaluated where the susceptibility shift moved it.
-y_after_sdc = yy + sdc_shift
-idx = np.array([np.clip(y_after_sdc, 0, mask.shape[0] - 1), xx])
-total_shift = sdc_shift + ndimage.map_coordinates(eddy_shear, idx, order=1, mode="nearest")
-composed = synth.undistort_along_pe(acquired, total_shift, order=1)
+def to_head(y, x):
+    """The point of the head (in its reference pose) at scanner position (y, x)."""
+    dy, dx = y - cy - SHIFT_VOX[0], x - cx - SHIFT_VOX[1]
+    return cy + ca * dy + sa * dx, cx - sa * dy + ca * dx
 
-e_seq, e_comp = np.abs(sequential - img)[mask].mean(), np.abs(composed - img)[mask].mean()
-print(f"mean error vs truth: two sequential resamplings {e_seq:.4f}, one composed resampling {e_comp:.4f} "
-      f"({100 * (1 - e_comp / e_seq):.0f} % smaller)")
-fig, axes = plt.subplots(1, 3, figsize=(9.5, 3.2))
-show_image(axes[0], acquired, "acquired: distortion + eddy shear", vmin=0, vmax=0.5)
-show_image(axes[1], np.abs(sequential - img) * mask, "error, two resamplings", vmin=0, vmax=0.1)
-show_image(axes[2], np.abs(composed - img) * mask, "error, one composed resampling", vmin=0, vmax=0.1)
+def to_scanner(y, x):
+    """The scanner position of head point (y, x) in this volume."""
+    dy, dx = y - cy, x - cx
+    return cy + ca * dy - sa * dx + SHIFT_VOX[0], cx + sa * dy + ca * dx + SHIFT_VOX[1]
+
+# forward model: move the head (and its field), then ONE displacement by the summed shift
+hy, hx = to_head(yy, xx)
+moved = ndimage.map_coordinates(img, [hy, hx], order=3, mode="nearest")
+field_moved = ndimage.map_coordinates(fmap, [hy, hx], order=3, mode="nearest")   # the field moves with the head
+eddy_shear = 0.04 * (xx - cx)                    # a b = 2000 volume, gradient along the columns; fixed to the scanner
+total_shift = field_moved * T_S + eddy_shear     # both fields act during the same readout: the shifts add
+acquired = synth.displace_along_pe(moved, total_shift)
+
+# Pipelines resample with linear (trilinear) interpolation, which is used for every route here.
+sy, sx = to_scanner(yy, xx)                      # for each true head point, where it was in the scanner
+
+def one_resampling(shift_scanner):
+    """Composed map from the true grid to the acquired grid: follow the motion, then the shift."""
+    s = ndimage.map_coordinates(shift_scanner, [sy, sx], order=1, mode="nearest")
+    jac = ndimage.map_coordinates(1 + np.gradient(shift_scanner, axis=0), [sy, sx], order=1, mode="nearest")
+    return ndimage.map_coordinates(acquired, [sy + s, sx], order=1, mode="nearest") * jac
+
+sequential = ndimage.map_coordinates(synth.undistort_along_pe(acquired, total_shift, order=1), [sy, sx], order=1, mode="nearest")
+composed = one_resampling(total_shift)
+field_not_moved = one_resampling(fmap * T_S + eddy_shear)   # the field used where it was before the head moved
+
+errs = {"two resamplings": sequential, "one resampling, chained": composed, "one resampling, field not moved": field_not_moved}
+errs = {k: np.abs(v - img)[mask].mean() for k, v in errs.items()}
+print(f"shifts in the brain: susceptibility up to {np.abs(field_moved * T_S)[mask].max():.1f} voxels, "
+      f"eddy shear up to {np.abs(eddy_shear)[mask].max():.1f} voxels")
+print("mean error vs truth: " + ", ".join(f"{k} {e:.4f}" for k, e in errs.items()))
+print(f"one chained resampling vs two: {100 * (1 - errs['one resampling, chained'] / errs['two resamplings']):.0f} % smaller error; "
+      f"field not moved: {errs['one resampling, field not moved'] / errs['one resampling, chained']:.1f} times the chained error")
+misplaced = np.abs(ndimage.map_coordinates((field_moved - fmap) * T_S, [sy, sx], order=1, mode="nearest"))
+print(f"shift error from leaving the field where it was: up to {misplaced[mask].max():.1f} voxels")
+fig, axes = plt.subplots(1, 4, figsize=(12, 3.5))
+show_image(axes[0], acquired, "acquired", vmin=0, vmax=0.5)
+for ax, (title, im_c) in zip(axes[1:], [("error: two resamplings", sequential), ("error: one, chained", composed),
+                                         ("error: one, field not moved", field_not_moved)]):
+    show_image(ax, np.abs(im_c - img) * mask, title, vmin=0, vmax=0.1)
 fig.tight_layout()
 ```
 
-The two error maps look alike at this scale; the printed means tell them apart. For two
-smooth corrections on one slice, composing makes the error 12 % smaller. The saving grows
-with the number of steps (susceptibility, eddy, motion, gradient nonlinearity, and the
-final resampling to the anatomical grid would be five), as the edge profile showed, and
-with the roughness of the fields. The second reason to compose is that the corrections are not independent: the
+The first two error maps look alike at this scale; the printed means tell them apart.
+Much of the error is common to every route: interpolation at tissue edges, and signal that
+the susceptibility shift piled up, which no resampling can fully separate again. On top of
+that, composing the two steps into one resampling makes the error 12 % smaller. The saving
+grows with the number of steps (the summed susceptibility and eddy shift, motion, gradient
+nonlinearity, and the final resampling to the anatomical grid would be four), as the edge
+profile showed, and with the roughness of the fields. The last map shows why the chain must
+be followed: with the field left where it was before the head moved, each point is
+corrected with the shift of a neighboring point, wrong by up to 1.7 voxels, and the error is
+1.3 times as large, with the extra error in the frontal lobe, where the field changes
+fastest. The second reason to compose is that the corrections are not independent: the
 eddy and motion parameters are estimated from images whose susceptibility distortion has
 already been accounted for, so the tools that estimate them also apply them together.
 
@@ -361,16 +428,19 @@ whether a dataset is usable:
 
 | Measure | What it flags | Typical action | Chapter |
 |---|---|---|---|
-| Framewise displacement per volume | between-volume motion | exclude subjects above a threshold (often 1–2 mm mean) | [12](./12-motion-and-dropout.md) |
-| Outlier slices per volume | dropout, spikes | exclude subjects with more than a few percent of slices replaced | [12](./12-motion-and-dropout.md), this chapter |
-| Residual distortion at the frontal lobe | wrong metadata or failed topup | check `PhaseEncodingDirection` and `TotalReadoutTime` | [10](./10-susceptibility-distortion.md) |
+| Framewise displacement (or eddy's RMS displacement) per volume | between-volume motion | exclude subjects above a threshold set in advance for that measure, population, and analysis | [12](./12-motion-and-dropout.md) |
+| Outlier slices per volume | dropout (spikes are usually missed, see above) | exclude subjects with more than a few percent of slices replaced | [12](./12-motion-and-dropout.md), this chapter |
+| Residual distortion at the frontal lobe | wrong metadata or failed topup | check `PhaseEncodingDirection` first (axis and sign), then `TotalReadoutTime` | [10](./10-susceptibility-distortion.md) |
 | b=0 SNR in white matter | noise level | denoise; question high-b results when the white-matter SNR of the highest-b images falls below about 3, where the noise floor dominates | [8](./08-noise.md) |
 | Ghost level in the background | readout calibration | rescan or exclude the volume | this chapter |
 | Model residuals across the brain | anything not modeled | inspect the residual map | — |
 
-*Framewise displacement* (FD) is one number per volume that summarizes how far the head
-moved since the previous volume, adding the three translations and the three rotations
-(converted to millimeters of movement at the surface of a 50 mm sphere).
+*Framewise displacement* (FD) {cite:p}`power2012` is one number per volume that
+summarizes how far the head moved since the previous volume, adding the three translations
+and the three rotations (converted to millimeters of movement at the surface of a 50 mm
+sphere). FSL eddy reports a root-mean-square displacement instead; the two are not
+interchangeable, and a threshold set on one does not transfer to the other
+([Chapter 12](./12-motion-and-dropout.md)).
 
 ### Reading a report: one simulated subject
 
@@ -417,8 +487,9 @@ print(f"ghost level: median {100 * np.median(ghost):.1f} %, volume {np.argmax(gh
 The walk-through reads the three traces in turn.
 
 - **Motion.** One spike stands out at volume 38, where the head moved suddenly by more
-  than 1 mm; the rest of the trace is small drift. The mean FD over the run is 0.23 mm, well
-  below the subject-level thresholds in the table. The subject is kept; eddy has already
+  than 1 mm; the rest of the trace is small drift. The mean FD over the run is 0.23 mm.
+  Whether that passes depends on the threshold the study set in advance for this measure;
+  suppose, for this example, that it was 0.5 mm. The subject is kept; eddy has already
   realigned volume 38 to the others.
 - **Outlier slices.** Replacements cluster in volume 38 and the one after it, the same
   volumes as the motion spike: motion during the diffusion encoding causes signal dropout
@@ -453,8 +524,15 @@ after each step, and the error that returns if a step is skipped.
   volumes, spread b=0 volumes, a full direction set, the phase, and the gradient
   coefficient file are acquisition-side decisions that determine which corrections are
   possible.
-- **Check the metadata before processing.** Most catastrophic failures are a wrong
-  phase-encode direction or readout time.
+- **Check the metadata before processing.** The catastrophic errors concern the
+  phase-encode direction. A wrong axis makes the field estimate meaningless. A wrong sign
+  cancels if it is wrong everywhere, since topup then estimates the field with the opposite
+  sign and applies it the same way, but a sign that disagrees between the b=0 pair and the
+  diffusion series, or a fieldmap in Hz applied with the wrong sign, doubles the
+  distortion instead of removing it. A wrong readout time matters much less when topup's
+  field is applied by applytopup or eddy, because both read the same acquisition-parameter
+  file and the error largely cancels; it matters when a fieldmap measured in Hz is
+  converted to a displacement.
 - **Plan for exclusions.** Motion and dropout thresholds remove subjects; the sample size
   should allow for it.
 

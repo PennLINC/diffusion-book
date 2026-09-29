@@ -131,10 +131,10 @@ fitted quantities follow directly:
   high. Fitted diffusivities come out too low, most of all along the fibers.
 - **Anisotropy is wrong.** In white matter the floor raises the along-fiber signal the most,
   which shrinks the difference between directions that the tensor fit reads as anisotropy,
-  so FA fitted from high-b volumes comes out too low.
+  so FA fitted from high-b volumes comes out too low {cite:p}`jones2004squashing`.
   In nearly isotropic tissue such as gray matter, the random spread of the noise does the
   opposite: the fit always ranks the three diffusivities from largest to smallest, so noise
-  pulls them apart and produces anisotropy that is not there {cite:p}`jones2004squashing`.
+  pulls them apart and produces anisotropy that is not there {cite:p}`pierpaoli1996`.
 - **Kurtosis and multi-compartment fits**, which read the curvature of the decay above
   b = 1500, are affected most, because the floor adds curvature of its own: the bend of
   the dotted line above.
@@ -313,6 +313,22 @@ rebuilds each voxel from what is left. Because the height of the band depends on
 same fit also estimates the noise level. The method needs no model of the tissue and is the
 standard first step of current pipelines.
 
+Two preconditions come with it, both from the assumption that the noise is independent
+between voxels and that there are enough volumes to tell it apart from signal:
+
+- **The noise must not already be correlated between neighboring voxels.** Any
+  interpolation smears one voxel's noise into its neighbors, and so does zero-filling
+  k-space to a finer matrix at reconstruction (on Siemens scanners, "interpolation" in the
+  resolution settings). Correlated noise no longer spreads evenly over all components, the
+  Marchenko-Pastur range no longer describes it, and both the noise estimate and the cut
+  between signal and noise go wrong, so less noise is removed. Turn scanner-side
+  interpolation off for diffusion scans, and denoise before any resampling in
+  preprocessing.
+- **There must be enough volumes.** The number of components is the number of volumes, and
+  the noise range is estimated from the components that fall inside it. With few volumes
+  (roughly fewer than 30) there are too few noise components to pin the range down and the
+  separation from signal is poor; denoising a short series does little.
+
 ```{code-cell} python
 :tags: [hide-input]
 den_mag, sigma_est = mppca(noisy, patch_radius=2, return_sigma=True)
@@ -327,9 +343,19 @@ and the magnitude is taken afterward, from a series with far less noise
 {cite:p}`corderogrande2019`. The same MP-PCA can be applied by treating the real and
 imaginary parts as additional volumes. This requires that the phase was saved ([Chapter 3](../01-mri-physics/03-reconstruction.md)).
 
+The demonstration below makes one simplification that real data do not allow: its true
+phase is zero in every voxel and every volume, so the signal lies along the real axis
+throughout. In a real acquisition the phase changes from volume to volume, with the motion
+during each diffusion encoding ([Chapter 2](../01-mri-physics/02-spatial-encoding-kspace.md)) and the eddy currents of each
+diffusion gradient ([Chapter 3](../01-mri-physics/03-reconstruction.md)). To PCA, a phase that differs
+between volumes is extra structure: the real and imaginary parts of one voxel no longer
+follow a few shared curves, more components are needed to describe the block, and less
+noise is removed. Complex denoising of real data therefore first removes or models the
+per-volume phase, for example with the smooth-phase estimate of the [next page](./08-real-valued-dwi.md) {cite:p}`corderogrande2019`.
+
 ```{code-cell} python
 :tags: [hide-input]
-complex_noisy = synth.add_complex_noise(clean, sigma, seed=0)
+complex_noisy = synth.add_complex_noise(clean, sigma, seed=0)  # true phase zero in every volume
 stacked = np.concatenate([complex_noisy.real, complex_noisy.imag], axis=-1)
 den_stacked = mppca(stacked, patch_radius=2)
 den_complex = np.abs(den_stacked[..., : len(bvals)] + 1j * den_stacked[..., len(bvals) :])
@@ -401,7 +427,8 @@ kept as real values, in which case no floor arises in the first place. The two u
 complementary. Complex denoising removes most of the fluctuation, and because a magnitude
 is still taken at the end, a small floor remains where the denoised signal is weakest; the
 real part removes the floor but not the fluctuation. Pipelines that have the phase do both:
-denoise the complex data, then take the phase-corrected real part.
+remove a smooth estimate of each volume's phase, denoise the complex data, and keep the real
+part of the result.
 
 ## Residual error versus truth
 
@@ -455,7 +482,14 @@ compare MP-PCA's noise estimate with the noise map TRXScan wrote.
 ## What acquisition choices reduce it
 
 - **Shorter TE** is the largest lever on SNR ([Chapter 7](../02-diffusion-encoding/07-acquisition-parameters.md)); gradient strength, partial
-  Fourier, and in-plane acceleration all shorten it.
+  Fourier, and in-plane acceleration all shorten it. The last two are a trade, not a free
+  gain: both acquire fewer k-space samples, and fewer samples mean more noise (SNR scales
+  roughly with the square root of the number of samples), and parallel imaging adds a
+  further, spatially varying noise amplification, the **g-factor**, where the coils cannot
+  tell the unfolded locations apart ([Chapter 3](../01-mri-physics/03-reconstruction.md)). They raise SNR only where the T2 decay
+  saved by the shorter TE outweighs that loss, so the net gain is often small; in-plane
+  acceleration is chosen mainly for its shorter readout and smaller distortion
+  ([Chapter 10](./10-susceptibility-distortion.md)).
 - **Larger voxels** raise SNR in proportion to their volume, at the cost of partial volume.
 - **Fewer coils do not help.** With a root-sum-of-squares combination every coil adds its
   own noise to the sum, so the floor rises with the number of coils (roughly as its square

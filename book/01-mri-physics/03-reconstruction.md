@@ -139,7 +139,10 @@ reconstruction unfold it:
   central lines (the autocalibration signal, ACS) is used to learn how each missing line can
   be predicted from neighboring acquired lines across all coils; the learned weights are then
   applied throughout k-space. TRXScan simulates GRAPPA with 24 ACS lines, so the simulated brain data
-  in later chapters went through this reconstruction.
+  in later chapters went through this reconstruction. The simulator acquires the ACS lines
+  inside each volume's EPI train, as the figures here do; scanners usually acquire them
+  once, in a separate short calibration scan before the diffusion series, so that the
+  diffusion readouts stay as short as possible.
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -543,17 +546,29 @@ k-space, simulated live, is shown at the end of [Chapter 2](./02-spatial-encodin
 
 ## Complex data: what phase makes possible
 
-Every step in this chapter before the magnitude operation is linear, and the noise stays
-Gaussian with zero mean. Keeping the complex image, which BIDS supports as `part-mag` and
-`part-phase` pairs and which TRXScan writes by default, preserves that property:
+The Fourier transform, GRAPPA, and a sensitivity-weighted coil combination are all linear:
+each output value is a weighted sum of the measured samples, so the noise in the complex
+image stays Gaussian with zero mean. Not every step in this chapter is. A root-sum-of-squares
+combination is itself a magnitude, and the phase-aware partial-Fourier reconstructions
+(homodyne and POCS) estimate the phase from the data and use it, so they are not linear
+either. Keeping the complex image, which BIDS supports as `part-mag` and `part-phase` pairs
+and which TRXScan writes by default, keeps the zero-mean noise available to what comes next,
+with one condition. The diffusion encoding leaves each volume a phase of its own, from
+motion during the encoding, that changes from volume to volume and from repeat to repeat
+(the same random phase that ruled out multi-shot EPI in [Chapter 2](./02-spatial-encoding-kspace.md)).
+Complex values from different volumes cannot be combined until that phase has been
+estimated and removed, which is what [Chapter 8b](../03-preprocessing/08-real-valued-dwi.md)
+does. After that:
 
 - **Denoising in the complex domain** operates on Gaussian noise without a floor, so the
   low-SNR high-b volumes that matter most for microstructure can be denoised without bias
   ([Chapter 8](../03-preprocessing/08-noise.md)).
 - **Averaging** repeated acquisitions in the complex domain reduces noise toward zero;
   averaging magnitudes converges to the noise floor instead. For a voxel at SNR 1 averaged
-  over 16 repeats (printed below), the complex average is almost unbiased, while the
-  average of the magnitudes stays as biased as a single measurement.
+  over 16 repeats whose phases have been aligned (printed below), the complex average is
+  almost unbiased, while the average of the magnitudes stays as biased as a single
+  measurement. Averaged without that alignment, repeats with different phases partly
+  cancel, and the complex average is too low instead.
 - **The phase is diagnostic.** Eddy-current and motion-related phase can be inspected per
   volume before any correction is attempted (Chapters [11](../03-preprocessing/11-eddy-currents.md) and [12](../03-preprocessing/12-motion-and-dropout.md)).
 

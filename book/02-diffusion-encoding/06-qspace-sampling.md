@@ -9,7 +9,7 @@ kernelspec:
 :class: note
 - **Built in this page:** single-voxel signals under each sampling scheme, generated in the page ([Appendix B](../appendices/b-data-manifest.md#app-b-package-data)).
 - **`ref-clean`** (pending): the artifact-free, noise-free reference series with its truth maps and true fiber orientations ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-ref-clean)).
-- **`ref-schemes`** (pending): the simulated brain under the 30-direction, 64-direction, HBCD, DSI, and CS-DSI schemes at matched scan time ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-ref-schemes)).
+- **`ref-schemes`** (pending): the simulated brain under the 30-direction, 64-direction, HBCD, and DSI schemes, compared at equal total scan time (the per-volume noise is scaled with the number of volumes), plus a CS-DSI subset of the DSI run, which takes about a quarter of its time ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-ref-schemes)).
 
 Pipeline-tier datasets are simulated offline by TRXScan ([Chapter 0.2](../00-frontmatter/the-simulated-datasets.md)) and are marked *pending* until their release; the figures that need them say so where they will appear.
 :::
@@ -44,11 +44,13 @@ Each diffusion-weighted volume applies one gradient direction at one b-value. Th
 all (direction, b-value) pairs in an acquisition is its sampling scheme. It is convenient to
 picture each measurement as a point in a three-dimensional space whose direction is the
 gradient direction and whose distance from the origin is $q$, the tightness of the phase
-winding set by the gradient strength and pulse duration ([Chapter 5](./05-diffusion-encoding.md)). This is q-space. The
+winding set by the gradient strength and pulse duration, $q = \gamma G \delta / 2\pi$
+([Chapter 5](./05-diffusion-encoding.md)). This is q-space. The
 b-value grows with the square of the winding, so with the pulse timing held fixed the
 distance from the origin grows with $\sqrt{b}$, not with $b$: the b = 4000 shell lies only
 twice as far out as the b = 1000 shell. [Chapter 4](./04-diffusion-in-tissue.md) noted that the signal is the Fourier
-transform of the displacement distribution evaluated at one such spatial frequency, so the
+transform of the displacement distribution evaluated at one such spatial frequency (exactly
+so when the pulses are brief compared with their separation, [Chapter 5](./05-diffusion-encoding.md)), so the
 diffusion signal is a function defined on q-space: every point has a value, and a scheme
 is a choice of where to read it. Every model in Part IV needs a particular kind of
 coverage.
@@ -117,8 +119,9 @@ diffusion-weighted direction, divided by the b=0 image, gives one equation in th
 unknowns. That count sets the first rule below.
 
 - **Six directions** is the mathematical minimum for a tensor fit: six equations for six
-  unknowns. It is never used in practice because every measurement then influences the
-  result with no redundancy, so noise in any one volume passes straight into the tensor.
+  unknowns. Some quick clinical protocols still use it, but research protocols avoid it:
+  every measurement then influences the result with no redundancy, so noise in any one
+  volume passes straight into the tensor, and a single corrupted volume cannot be dropped.
 - **Around 30 directions** gives a tensor fit whose precision no longer depends on how the
   fibers are oriented relative to the directions {cite:p}`jones2004`.
 - **60–90 directions at b ≥ 2000** resolves crossing fibers with the orientation models of
@@ -231,10 +234,12 @@ Two design details matter:
 - **Directions should be spread across shells as well as within them**, so that the
   combined set covers the sphere uniformly {cite:p}`caruyer2013`.
 - **Shells should be interleaved in acquisition order** and b=0 volumes spread throughout,
-  so that motion or scanner drift affects all shells equally ([Chapter 5](./05-diffusion-encoding.md)). Not every protocol
-  does this: the HBCD reference scheme spreads its b=0 volumes through the series (about
-  one in every eight volumes) but acquires the shells in blocks of increasing b, so motion
-  late in the scan falls mostly on the b = 3000 shell.
+  so that motion or scanner drift affects all shells equally ([Chapter 5](./05-diffusion-encoding.md)). The acquired HBCD
+  protocol (76 volumes, the one the live tier simulates) does this: six b=0 volumes, then
+  all four shells interleaved. The bundled 75-volume copy this book uses for its figures is
+  sorted by b instead, in blocks of increasing b with a b=0 about every eight volumes,
+  because that makes the shells easy to see; acquired in that order, motion late in the
+  scan would fall mostly on the b = 3000 shell.
 
 ## DSI
 
@@ -294,12 +299,15 @@ fig.tight_layout()
 
 Compressed-sensing DSI acquires a random subset of the grid points, typically a quarter to
 a third of them, and fills in the rest during reconstruction {cite:p}`menzel2011`. The
-fill-in rests on an assumption, the sparsity prior of [Chapter 3](../01-mri-physics/03-reconstruction.md): the displacement
-distribution is smooth and simple enough that a few numbers in a suitable basis describe
-it, so the reconstruction looks for the simplest distribution that agrees with the samples
-that were measured. The same three requirements apply as in [Chapter 3](../01-mri-physics/03-reconstruction.md): the subset must be
-irregular, the distribution must be compressible in some basis, and the reconstruction is
-iterative. The result is DSI-like information in a multi-shell-like scan time.
+fill-in rests on an assumption, called a *sparsity prior*: the displacement distribution
+is smooth and simple enough that a few numbers in a suitable basis describe it, the way a
+few frequencies describe a chord. The reconstruction therefore looks for the simplest
+distribution that agrees with the samples that were measured. This works only under three
+conditions: the subset must be irregular (random gaps leave noise-like errors that the
+search can remove, where regular gaps leave copies that it cannot tell from real
+structure), the distribution must really be compressible in the chosen basis, and the
+reconstruction must be run as an iterative search rather than a single Fourier transform.
+The result is DSI-like information in a multi-shell-like scan time.
 
 ## See it: the schemes
 
@@ -355,8 +363,8 @@ fig.tight_layout()
 ## Free-form and multidimensional sampling
 
 The families above vary direction and b-value. Other acquisitions add further dimensions:
-several diffusion times ([Chapter 22](../05-advanced/22-multi-diffusion-time.md)), several echo times ([Chapter 20](../05-advanced/20-multi-te.md)), or the shape of the
-encoding (b-tensor encoding, [Chapter 23](../05-advanced/23-frontiers.md)). Each adds sensitivity to a tissue property that
+several diffusion times ([Chapter 21](../05-advanced/21-multi-diffusion-time.md)), several echo times ([Chapter 20](../05-advanced/20-echo-time.md)), or the shape of the
+encoding (b-tensor encoding, [Chapter 22](../05-advanced/22-frontiers.md)). Each adds sensitivity to a tissue property that
 direction and b-value alone cannot separate.
 
 ## Measure it: direction count and tensor precision
@@ -401,16 +409,18 @@ print(f"gray matter, 30 directions: FA {fa_gm.mean():.3f} ± {fa_gm.std():.3f}  
 ```
 
 Precision improves roughly with the square root of the number of measurements, as it does
-for any average. The mean also shifts upward with few directions, because noise adds
-apparent anisotropy. The reason is that the fit reports the tensor's three diffusivities
+for any average. With only six directions the mean also shifts upward (0.859 against the
+noise-free 0.850); from twelve directions on it sits on the true value. The upward shift
+comes from noise adding apparent anisotropy, and it is small here only because this
+voxel's FA is already high. The reason is that the fit reports the tensor's three diffusivities
 (the lengths of the ellipsoid's axes) sorted from largest to smallest. Noise pushes each of
 them up or down at random, and the sorting always puts whichever one noise pushed up in
 first place and whichever it pushed down in last place, so the three come out more
 different from each other than they really are. FA measures exactly that difference. The
 effect is clearest in gray matter, where water moves equally in all directions and the
 true FA is 0: the last line above shows the fit reporting FA of about 0.1 from noise alone
-{cite:p}`jones2004squashing`.
-(At high b the noise floor has the opposite effect on white matter, lowering its FA;
+{cite:p}`pierpaoli1996`.
+(At high b the noise floor has the opposite effect on white matter, lowering its FA {cite:p}`jones2004squashing`;
 [Chapter 8](../03-preprocessing/08-noise.md) shows both.)
 
 Precision depends on how the directions are spread as well as on how many there are. A fit
@@ -483,9 +493,54 @@ directions are noisier, and their precision depends on how the fiber happens to 
 relative to the six (an SD between 0.049 and 0.081 here). The clustered set is the
 cautionary case: it has as many volumes as the spread set of 30, yet when the fiber runs
 through the cluster its FA is more than four times noisier (SD 0.120 against 0.027), because the directions all measure
-nearly the same thing and nothing constrains the ellipsoid across the cluster. The
-spreading method only needs to cover half the sphere, since each direction also measures
-its opposite; directions clustered in one region are what cost precision.
+nearly the same thing and nothing constrains the ellipsoid across the cluster.
+
+For the tensor, or for a fiber orientation distribution, half the sphere is enough, since
+each direction also measures its opposite; directions clustered in one region are what
+cost precision. The direction generator used in this book (`schemes.electrostatic_directions`)
+produces such half-sphere sets. Eddy-current correction is a different matter. The
+distortion an eddy current causes flips sign when the gradient does, while the diffusion
+signal does not, so a scheme whose directions are spread over the whole sphere (most
+directions then have a near-opposite partner) lets the correction of
+[Chapter 11](../03-preprocessing/11-eddy-currents.md) tell eddy-current distortion from
+real anatomy. Acquisition schemes are therefore best designed on the whole sphere, as FSL
+recommends for eddy {cite:p}`andersson2016`; a half-sphere set can be spread over the whole
+sphere by flipping about half of its directions to their opposites, chosen so the flipped
+ones are spread evenly, which changes nothing for the models.
+
+:::{admonition} In practice: the b-value and b-vector files
+:class: tip
+A scheme travels with the image as two small text files in FSL's format. The `.bval` file
+holds one b-value per volume (s/mm², 0 for the b=0 volumes). The `.bvec` file holds three
+rows, x, y, and z, with one column per volume: the unit gradient direction of that volume
+(zeros for b=0). The converter that makes the NIfTI image from the scanner's DICOM files
+(usually `dcm2niix`) writes both.
+
+- **The directions are in the image's frame, not the scanner's.** FSL's b-vectors are
+  given along the image's voxel axes (first, second, third array dimension), and when the
+  image's affine has a positive determinant (the voxel order FSL calls neurological) the
+  x component is also negated. So a b-vector file belongs to one particular image: if a
+  tool reorders, flips, or reslices the voxel axes, the b-vectors must be changed to match.
+  MRtrix's own format (`-grad`) instead uses scanner coordinates and converts on reading
+  and writing.
+- **Typical errors** are one axis with the wrong sign (after a reorientation or a format
+  conversion), two axes swapped (after the image is transposed), the file transposed (one
+  row per volume), and b-values or b-vectors left out of step with the volumes after some
+  are removed or series are concatenated.
+- **These errors hide.** Applying the same flip or swap to every direction leaves the
+  tensor's three diffusivities, and so MD and FA, unchanged; only the fitted directions are
+  wrong, and with them tractography.
+- **Check every new protocol.** MRtrix's `dwigradcheck` tries every flip and axis swap and
+  keeps the one whose fiber directions join up into the longest streamlines
+  {cite:p}`jeurissen2014grad,tournier2019`. A quick manual check is to fit the tensor and display the
+  principal direction, colored red for left-right, green for anterior-posterior, blue for
+  inferior-superior ([Chapter 15](../04-modeling/15-signal-representations.md)): the corpus
+  callosum at the midline should be red, the corticospinal tract blue, the cingulum green,
+  and the direction lines should follow the tracts rather than cross them.
+- **Motion rotates the directions.** When motion correction rotates a volume to match the
+  others, its b-vector must rotate with it; eddy writes the rotated set as
+  `*.eddy_rotated_bvecs` ([Chapter 12](../03-preprocessing/12-motion-and-dropout.md)).
+:::
 
 ## Scan time
 
@@ -503,7 +558,9 @@ for name, (b, v) in examples.items():
 ```
 
 Reverse phase-encode acquisitions for distortion correction ([Chapter 10](../03-preprocessing/10-susceptibility-distortion.md)) add either a few
-b=0 volumes or a full second copy of the scheme.
+b=0 volumes or a full second copy of the scheme, which doubles the number of volumes (not
+the number of directions: the copy repeats the same directions with the opposite
+phase-encode polarity).
 
 ## Table 6.1: scheme to model
 
@@ -513,25 +570,65 @@ methods are marginal there; any single shell gives one point per direction on th
 curve, so every model of how the decay bends (kurtosis, multi-tissue CSD, NODDI, MAP-MRI)
 is ruled out.
 
-The rows are grouped by what the analysis needs from the data, and each analysis carries a
-few words on what it measures; Part IV introduces each one properly.
+The other entries count directions per shell. Fiber-orientation methods such as
+constrained spherical deconvolution (CSD) fit one shell at a time, so what matters is the
+best single high-b shell, not the total over all shells: the rule used here asks for 45
+directions on one shell at b of about 2000 or more, the number of unknowns in the order-8 fit that CSD
+software uses by default ([Chapter 16](../04-modeling/16-fiber-orientation.md)). With
+fewer, CSD still runs but its fiber orientation distributions come out broader. Likewise
+the tensor is fit to the low shells (b ≤ 1000), where its assumptions hold, and the
+"around 30 directions" rule applies to those.
+
+The verdicts in the table are those of `schemes.analysis_matrix`, which
+applies these counting rules to a scheme's b-values; the same function builds the table
+of [Chapter 19](../04-modeling/19-what-your-data-allow.md). Its output for the five schemes:
+
+```{code-cell} python
+:tags: [hide-input]
+table_schemes = {
+    "30 dirs": examples["single-shell, 30 dirs, b = 1000 (DTI)"][0],
+    "64 dirs": examples["single-shell, 64 dirs, b = 2000 (HARDI)"][0],
+    "HBCD": b_hbcd,
+    "DSI-257": b_dsi,
+    "CS-DSI-64": b_dsi[cs_idx],
+}
+verdicts = {name: schemes.analysis_matrix(b) for name, b in table_schemes.items()}
+analyses = [row[0] for row in verdicts["HBCD"]][:-1]  # the last row, complex denoising, is not about the scheme
+print(f"{'':>36}" + "".join(f"{name:>11}" for name in table_schemes))
+for i, analysis in enumerate(analyses):
+    print(f"{analysis:>36}" + "".join(f"{verdicts[name][i][1]:>11}" for name in table_schemes))
+print()
+for name in ("HBCD", "CS-DSI-64"):
+    for analysis, verdict, reason in verdicts[name][1:5]:
+        print(f"{name}, {analysis}: {verdict} ({reason})")
+```
+
+The table spells these out. The rows are grouped by what the analysis needs from the data,
+and each analysis carries a few words on what it measures; Part IV introduces each one
+properly. The two tractography rows are not in the function; each follows the model it
+traces (the tensor, or single-shell CSD).
 
 | Analysis | 30 dirs, b = 1000 | 64 dirs, b = 2000 | multi-shell (HBCD) | DSI-257 | CS-DSI-64 |
 |---|---|---|---|---|---|
 | ***Needs one shell*** | | | | | |
 | ADC / mean diffusivity (average rate of diffusion) | yes | yes (b-dependent value) | yes | yes | yes |
-| DTI: FA, principal direction (the tensor ellipsoid) | yes | marginal: high b breaks the Gaussian assumption | yes, using the b ≤ 1000 shells | yes, inner shells | yes, inner points |
-| Deterministic tractography, tensor-based (tracing along the ellipsoid's long axis) | yes | yes | yes | yes | yes |
+| DTI: FA, principal direction (the tensor ellipsoid) | yes | marginal: high b breaks the Gaussian assumption | marginal: 18 directions at b ≤ 1000 (6 + 12) | yes, inner shells | marginal as acquired (9 inner points)\* |
+| Deterministic tractography, tensor-based (tracing along the ellipsoid's long axis) | yes | marginal | marginal | yes | marginal\* |
 | ***Needs high angular contrast (b ≥ 2000, many directions)*** | | | | | |
-| Constrained spherical deconvolution, single-tissue (fiber directions within a voxel) | marginal: low angular contrast at b = 1000 | yes | yes, highest shell | yes | yes |
-| Probabilistic tractography on fODFs (tracing along the fiber directions found by deconvolution) | marginal | yes | yes | yes | yes |
+| Constrained spherical deconvolution, single-tissue (fiber directions within a voxel) | marginal: low angular contrast at b = 1000 | yes | marginal: best shell (b = 3000) has 29 directions | yes | marginal as acquired\* |
+| Probabilistic tractography on fODFs (tracing along the fiber directions found by deconvolution) | marginal | yes | marginal | yes | marginal\* |
 | ***Needs two or more non-zero shells*** | | | | | |
-| Diffusion kurtosis (how much the decay bends) | no: needs ≥ 2 non-zero shells | no | yes | yes | marginal |
-| Multi-tissue CSD (fiber directions, with gray matter and CSF separated out) | no: needs multiple shells | no | yes | yes | yes |
-| NODDI, spherical mean, free-water models (sizes of the water pools) | no | no | yes | yes | marginal |
+| Diffusion kurtosis (how much the decay bends) | no: needs ≥ 2 non-zero shells | no | yes | yes | yes |
+| Multi-tissue CSD (fiber directions, with gray matter and CSF separated out) | no: needs multiple shells | no | marginal: 29 directions on the best shell | marginal: grid points must be binned into shells | no as acquired\* |
+| NODDI, spherical mean, free-water models (sizes of the water pools) | no | no | yes | yes | yes |
 | MAP-MRI / propagator (the displacement distribution, from a fitted basis) | no | no | yes, ≥ 3 shells preferred | yes | yes |
 | ***Needs a q-space grid*** | | | | | |
-| DSI / model-free propagator (the displacement distribution, by Fourier transform) | no | no | no | yes | yes |
+| DSI / model-free propagator (the displacement distribution, by Fourier transform) | no | no | no | yes | no as acquired\* |
+
+\* The function judges only the points that were measured and knows nothing of
+compressed-sensing reconstruction. CS-DSI is acquired in order to be reconstructed onto
+the full grid; once that fill-in succeeds, the starred cells behave like the DSI column,
+with the quality of the reconstruction as the extra uncertainty.
 
 "Marginal" means the fit runs but its assumptions are strained or its precision is poor;
 Part IV shows each case on the simulated datasets. [Chapter 19](../04-modeling/19-what-your-data-allow.md) extends this table with acquisition
@@ -542,7 +639,7 @@ parameters beyond the scheme.
 :::{admonition} Simulated dataset pending
 :class: note
 This section will load the `ref-schemes` dataset, the simulated brain under the 30-direction,
-64-direction, HBCD, DSI, and CS-DSI schemes at matched scan time, and show the same slice at
+64-direction, HBCD, and DSI schemes at equal total scan time (plus the CS-DSI subset), and show the same slice at
 matched b-values for each. Part IV fits every model of Table 6.1 to these data.
 :::
 
@@ -553,8 +650,8 @@ matched b-values for each. Part IV fits every model of Table 6.1 to these data.
   directions buy precision in proportion to the square root of their number.
 - **Any model of non-Gaussian diffusion needs at least two non-zero shells**, one of them
   at b ≥ 2000.
-- **Full DSI is a strong-gradient, long-scan acquisition**; CS-DSI recovers most of it at a
-  third of the volumes.
+- **Full DSI is a strong-gradient, long-scan acquisition**; CS-DSI recovers most of it from a
+  quarter to a third of the volumes.
 - **Interleave shells and b=0 volumes** and spread directions across shells.
 - **Scan time is volumes times TR**; [Chapter 7](./07-acquisition-parameters.md) shows what sets TR.
 

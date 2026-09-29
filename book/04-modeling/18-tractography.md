@@ -9,7 +9,7 @@ kernelspec:
 :class: note
 - **Built in this page:** a synthetic series on the packaged 3 mm volume, tracked against its known fiber orientations ([Appendix B](../appendices/b-data-manifest.md#app-b-package-data)).
 - **`ref-clean`** (pending): the artifact-free, noise-free reference series with its truth maps and true fiber orientations ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-ref-clean)).
-- **`ref-schemes`** (pending): the simulated brain under the 30-direction, 64-direction, HBCD, DSI, and CS-DSI schemes at matched scan time ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-ref-schemes)).
+- **`ref-schemes`** (pending): the simulated brain under the 30-direction, 64-direction, HBCD, and DSI schemes, compared at equal total scan time (the per-volume noise is scaled with the number of volumes), plus a CS-DSI subset of the DSI run, which takes about a quarter of its time ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-ref-schemes)).
 - **`truth`** (pending): the 27 analytic ground-truth maps and the true fiber orientations ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-truth), [Appendix E](../appendices/e-truth-map-catalogue.md)).
 
 Pipeline-tier datasets are simulated offline by TRXScan ([Chapter 0.2](../00-frontmatter/the-simulated-datasets.md)) and are marked *pending* until their release; the figures that need them say so where they will appear.
@@ -57,7 +57,7 @@ sphere = get_sphere(name="repulsion724")
 Tractography turns the per-voxel fiber orientations of [Chapter 16](./16-fiber-orientation.md) into curves. Starting
 from a seed point, a streamline is grown by stepping a fixed distance along the local
 orientation, re-evaluating the orientation at the new position, and repeating until a
-stopping rule applies {cite:p}`basser2000`. Each streamline is grown in both directions
+stopping rule applies {cite:p}`mori1999,conturo1999,basser2000`. Each streamline is grown in both directions
 from its seed, and the two halves are joined.
 
 The animation below runs this recipe on a small two-dimensional toy. A curved bundle arches
@@ -217,7 +217,7 @@ The decisions that shape a tractogram, and where the animation shows them:
   voxels; the seeding density sets the number of streamlines and biases the density toward
   the seeded region.
 - **Filtering.** The density of streamlines does not measure the density of fibers.
-  SIFT and SIFT2 {cite:p}`smith2015` weight or remove streamlines so that their density
+  SIFT {cite:p}`smith2013` removes streamlines and SIFT2 {cite:p}`smith2015` weights them so that their density
   matches the fiber density the ODFs imply; this is how the simulated brain's tractogram was
   built.
 
@@ -420,10 +420,13 @@ segmentation ([Chapter 10](../03-preprocessing/10-susceptibility-distortion.md))
 Tractography compounds every earlier choice. Angular precision of the peaks ([Chapter 16](./16-fiber-orientation.md))
 sets how far a streamline drifts per step; voxel size sets which crossings are resolved at
 all and how well the segmentation aligns; distortion and motion residuals (Part III)
-misplace the fibers relative to the anatomy that ACT uses to accept them. The tractography
-challenge of {cite:t}`maierhein2017` showed that even with careful methods, tractograms
-contain many plausible-looking streamlines that do not exist, and that the acquisition
-sets the floor on that rate.
+misplace the fibers relative to the anatomy that ACT uses to accept them. Better data do
+not remove every error, though. In the tractography challenge of {cite:t}`maierhein2017`,
+run on simulated data with a known answer, most submissions found most of the true
+bundles, but they also produced more invalid bundles than valid ones: plausible-looking
+streamline bundles that do not exist. The authors traced this to an ambiguity inherent in
+inferring long-range connections from local orientations, which no method or acquisition
+removes on its own.
 
 One way such false bundles arise needs no noise at all. In the figure below, two bundles
 meet at a shallow angle. In anatomy (a) they cross: the purple fibers run from upper left
@@ -511,6 +514,34 @@ fig.tight_layout()
 The evaluation on the simulated datasets, whose tractogram generated the data, is the
 direct test of how often this happens.
 
+## From streamlines to a connectome
+
+A **structural connectome** is a table with one row and one column per gray matter region
+(from a parcellation of the anatomical image) and, in each cell, a number for the
+connection between those two regions, built by assigning each streamline's two ends to
+regions. Every step of that construction adds a choice that changes the answer {cite:p}`yeh2021`:
+
+- **Edge weights.** The raw cell value is a streamline count, and streamline counts are
+  not fiber counts: they depend on the seeding, the step size, the curvature limit, and
+  the number of streamlines generated. Common alternatives divide by region size or by
+  streamline length, weight by SIFT2 so that counts track the fiber density the ODFs
+  imply, or store the mean FA along the streamlines instead. Each answers a different
+  question, and they are not interchangeable across studies.
+- **Length and seeding biases.** Long connections are harder to track, since every step
+  is another chance to stop or turn off, so they are under-represented. Seeding from white
+  matter favors long bundles, which pass more seeds; seeding from the gray-white interface
+  favors large regions. Large regions also collect more streamline ends simply by being
+  large.
+- **Thresholding.** Every tractogram contains false connections (the kissing figure above,
+  and the invalid bundles of the challenge), so connectomes are usually thresholded to keep
+  only strong or consistent edges. A strict threshold removes false positives and true
+  weak connections with them; a lenient one keeps both. There is no setting that avoids
+  both errors, and the network measures computed afterward (hubs, path lengths,
+  modularity) change with the threshold chosen.
+
+Report the parcellation, the tracking parameters, the number of streamlines, the edge
+weight, and the threshold, and compare connectomes only when all of them match.
+
 ## Measure it: the simulated datasets
 
 :::{admonition} Simulated dataset pending
@@ -530,10 +561,11 @@ the simulated brain's true fiber density.
 - **The tissue segmentation is part of the tractography input**; distortion correction and
   registration to the anatomical image must be right for ACT to work.
 - **Streamline counts are not fiber counts**; use SIFT2 or an equivalent and report the
-  filtering.
+  filtering, and for connectomes report the edge weight and the threshold.
 
 ## Further reading
 
-The first streamline tractography {cite:p}`basser2000`, anatomical constraints
-{cite:p}`smith2012`, SIFT2 {cite:p}`smith2015`, the tractography challenge
+The first streamline tractography {cite:p}`mori1999,conturo1999` and an early in vivo
+tensor implementation {cite:p}`basser2000`, anatomical constraints {cite:p}`smith2012`,
+SIFT {cite:p}`smith2013` and SIFT2 {cite:p}`smith2015`, the tractography challenge
 {cite:p}`maierhein2017`, and the review by {cite:t}`jeurissen2019`.

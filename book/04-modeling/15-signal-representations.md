@@ -9,7 +9,7 @@ kernelspec:
 :class: note
 - **Built in this page:** a synthetic multi-shell series built from the packaged tissue maps ([Appendix B](../appendices/b-data-manifest.md#app-b-package-data)).
 - **`ref-clean`** (pending): the artifact-free, noise-free reference series with its truth maps and true fiber orientations ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-ref-clean)).
-- **`ref-schemes`** (pending): the simulated brain under the 30-direction, 64-direction, HBCD, DSI, and CS-DSI schemes at matched scan time ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-ref-schemes)).
+- **`ref-schemes`** (pending): the simulated brain under the 30-direction, 64-direction, HBCD, and DSI schemes, compared at equal total scan time (the per-volume noise is scaled with the number of volumes), plus a CS-DSI subset of the DSI run, which takes about a quarter of its time ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-ref-schemes)).
 - **`truth`** (pending): the 27 analytic ground-truth maps and the true fiber orientations ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-truth), [Appendix E](../appendices/e-truth-map-catalogue.md)).
 
 Pipeline-tier datasets are simulated offline by TRXScan ([Chapter 0.2](../00-frontmatter/the-simulated-datasets.md)) and are marked *pending* until their release; the figures that need them say so where they will appear.
@@ -159,6 +159,17 @@ short ones average to about the same as gray matter's three medium ones, even th
 cigar looks smaller. Shape and average are separate facts. The synthetic fibers
 all lie in the plane of the slice, so the color map has no blue (through-plane) component.
 
+AD and RD are often read as axon and myelin measures: a lower AD as axonal damage, a higher
+RD as demyelination. They are not that specific. Both are properties of the fitted
+ellipsoid, and anything that changes its shape changes them: swelling, edema, free water,
+fiber dispersion, or a second fiber population. The reading also assumes that the long
+axis runs along one coherent bundle. Where fibers cross, or where FA is low, the long axis
+is not along any fiber (the crossing figure of [Chapter 16](./16-fiber-orientation.md)
+shows a tensor that points between two bundles), so AD and RD are no longer "along" and
+"across" anything, and a change in one crossing bundle can move both
+{cite:p}`wheelerkingshott2009`. Report them in voxels of one coherent bundle, and as
+descriptions of the signal, not of the membranes.
+
 The Gaussian assumption holds only at low b-value. Above about b = 1500 the curvature of
 the true decay ([Chapter 5](../02-diffusion-encoding/05-diffusion-encoding.md), and the
 one-shell-versus-four-shells figure of [Chapter 6](../02-diffusion-encoding/06-qspace-sampling.md))
@@ -219,13 +230,17 @@ measured ones; the methods differ in which measurements they trust most.
 
 - **Weighted least squares** (WLS) is the default in most tools. It trusts bright
   measurements more than dim ones, because the dim ones are the noisiest.
-- **RESTORE** {cite:p}`chang2005` is WLS that also sets aside measurements that disagree
-  badly with the rest, which protects the tensor from dropout slices and spikes that were
-  not caught upstream ([Chapter 12](../03-preprocessing/12-motion-and-dropout.md)).
+- **RESTORE** {cite:p}`chang2005` fits the tensor by nonlinear least squares, then
+  repeatedly down-weights the measurements that disagree most with the current fit;
+  measurements that still disagree by more than the noise allows are declared outliers and
+  left out of a final fit. It needs the noise level as an input. This protects the tensor
+  from dropout slices and spikes that were not caught upstream
+  ([Chapter 12](../03-preprocessing/12-motion-and-dropout.md)).
 
 Two other methods appear in software: ordinary least squares, which trusts every
-measurement equally and is less accurate than WLS, and nonlinear least squares, which is
-slightly more accurate than WLS at low SNR but slower.
+measurement equally and is less accurate than WLS, and nonlinear least squares (NLLS),
+which fits the signal itself rather than its logarithm and is slightly more accurate than
+WLS at low SNR but slower.
 
 The figure plants a dropout that preprocessing missed: in one b = 1000 volume, twenty rows
 of the slice keep only 30 % of their signal (left panel). The other panels show how far the
@@ -407,8 +422,8 @@ every direction at once; its two variants ask it for motion across the fiber onl
 Mean apparent propagator MRI {cite:p}`ozarslan2013` estimates this distribution in three
 dimensions from the measured signal, by representing it in a basis of functions, and
 computes these summaries from it. Because it represents the whole distribution it needs the
-whole q-space: at least two shells, preferably three or more, with directions spread across
-them. A Laplacian regularization, a penalty on fits that wiggle more than the data justify,
+whole q-space: two shells at minimum, which gives a fit of marginal quality, and three or
+more recommended, with directions spread across them. A Laplacian regularization, a penalty on fits that wiggle more than the data justify,
 keeps the fit stable at the sampling densities of typical protocols {cite:p}`fick2016`. The
 displacements grow with the diffusion time, so the pulse timing must be known to report
 these maps in physical units.
@@ -453,7 +468,7 @@ The printed errors say what a third shell buys. RTOP error in white matter falls
 b = 3000. Non-Gaussianity behaves differently: its two-shell error (0.021) is systematic,
 present even without noise (0.023 noise-free), because b ≤ 2000 hardly sees the non-Gaussian
 part of the decay; with the third shell the error doubles to 0.040, and the white matter
-mean rises from 0.193 to 0.224, because at SNR 25 the Rician noise floor at b = 3000 adds
+mean rises from 0.193 (noise-free) to 0.224, because at SNR 25 the Rician noise floor at b = 3000 adds
 curvature of its own that the fit reads as non-Gaussianity. The highest shell carries both
 the information and the noise, so a protocol that reports non-Gaussianity needs enough SNR
 at its top shell, or denoising ([Chapter 8](../03-preprocessing/08-noise.md)).
@@ -469,7 +484,7 @@ orientation) from orientation dispersion (how spread those orientations are), a
 distinction the tensor cannot make: to the tensor, many randomly oriented sticks and a
 ball of free water both look isotropic. The simulated brain's
 truth maps include these quantities, but the simulator does not yet produce b-tensor
-acquisitions, so this book states the idea ([Chapter 23](../05-advanced/23-frontiers.md)) without fitting it.
+acquisitions, so this book states the idea ([Chapter 22](../05-advanced/22-frontiers.md)) without fitting it.
 
 ## Measure it: the simulated datasets
 
@@ -484,10 +499,11 @@ MK, AK, RK, RTOP, RTAP, RTPP, MSD, and non-Gaussianity.
 ## What this implies for acquisition
 
 - **A tensor needs 30 directions at b ≈ 1000**, and its values are specific to that b.
+  AD and RD are meaningful only in voxels of one coherent bundle.
 - **Kurtosis needs two shells with the upper one at b ≥ 2000**, and benefits more from
   denoising than any other representation.
-- **Propagator representations need three or more shells** with directions spread across
-  them, and the pulse timing recorded.
+- **Propagator representations need two shells at minimum (a marginal fit) and three or
+  more for a good one**, with directions spread across them, and the pulse timing recorded.
 - **Fit the tensor to the low shell of a multi-shell scheme**, not to all of it.
 - **Use a robust fit** if outlier replacement was not run.
 

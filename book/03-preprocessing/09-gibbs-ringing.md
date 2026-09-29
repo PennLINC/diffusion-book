@@ -318,9 +318,19 @@ least removes most of the ringing without blurring the edge. In practice the ima
 recomputed at a handful of sub-voxel shifts (a shift in the image is a phase ramp, a
 multiplication by a linearly changing phase, in k-space), the total variation is measured in
 a small window on either side of each voxel, and each voxel takes its value from the shift
-that minimizes it. It is applied per 2-D slice, volume by volume. Because it is a local
-operation on the magnitude image, it belongs immediately after denoising and before anything
-that resamples the data.
+that minimizes it. It is applied per 2-D slice, volume by volume.
+
+The method works only because the ringing has one exact shape: the response of a sharp edge
+to the k-space truncation of this acquisition, one ripple per voxel of the acquisition grid.
+That fixes where unringing belongs in a pipeline. It runs immediately after denoising and
+before anything that resamples the data, because motion or distortion correction,
+reslicing, or a change of voxel size interpolates between voxels and moves the ripples off
+the grid they were tied to, and the shift search then no longer finds them. For the same
+reason the 2-D planes must be the acquisition's own in-plane axes, the two axes that were
+encoded in k-space, with the slice axis left alone. Data stored in the scanner's slice
+orientation are fine by default; if the images were reoriented on conversion, tell the
+software which axes are which (`slice_axis` in dipy's `gibbs_removal` names the slice
+axis; `-axes` in MRtrix's `mrdegibbs` names the two in-plane axes).
 
 The next cell applies dipy's implementation to the synthetic series and compares it with the
 acquisition-side alternative, *apodization*: multiplying k-space by a window that falls
@@ -371,8 +381,9 @@ sharp ventricle walls, the apodized one is visibly softer.
 
 Apodization removes the ripples because the truncation is no longer abrupt, and it costs
 resolution: the edges are blurred. Unringing keeps the resolution.
-Most scanners apply a mild filter by default; check the reconstruction settings, because
-unringing data that were already apodized does nothing useful.
+Whether the scanner applies such a filter by default depends on the vendor, the sequence,
+and the site's protocol; check the reconstruction settings, because unringing data that
+were already apodized does nothing useful.
 
 ## Residual error versus truth
 
@@ -395,13 +406,15 @@ fig.tight_layout()
 ```
 
 The error map of the acquired data shows the striped over- and underestimation along the
-ventricles and the cortex. Unringing removes the stripes, which the ripple measure above
-confirms; the error against the block-averaged reference falls less, because part of that
-error is not ringing at all but the difference between a band-limited image and a
-box-averaged one, which no unringing method addresses. What remains of the ringing sits at
-corners and where two boundaries are within a few voxels of each other. Apodization removes
-the stripes too, but replaces them with a blur that biases every boundary voxel toward its
-neighbor, which the MD error shows as a systematic offset rather than a spread.
+ventricles and the cortex. Unringing helps less in MD than the ripple measure above
+suggests. The ripple in the signal fell from 0.0524 to 0.0363, but in the rim the spread
+of the MD error falls only from 0.283 to 0.256 (x10⁻³ mm²/s), about a tenth, and its mean
+moves from +0.008 to +0.044. In the maps, the faint stripes a few voxels into the tissue
+fade, while the errors in the voxels right at each boundary remain. Most of that rim error
+is not ringing at all but the difference between a band-limited image and a box-averaged
+one, which no unringing method addresses. Apodization leaves a spread of the same size (0.249)
+and adds a blur that biases every boundary voxel toward its neighbor, which the MD error
+shows as a systematic offset, a mean of +0.178.
 
 ## Measure it: one slice, simulated live
 
@@ -451,13 +464,19 @@ simulated brain's 2.5 mm voxels already average over the sharpest edges.
   so larger voxels ring over a larger distance. Higher resolution helps.
 - **Partial Fourier changes the ringing** along the phase-encode axis, because the
   reconstruction fills in the skipped part of k-space from the acquired part
-  (see "Partial Fourier reconstruction" in [Chapter 3](../01-mri-physics/03-reconstruction.md));
-  the unringing method has a partial-Fourier-aware variant.
+  (see "Partial Fourier reconstruction" in [Chapter 3](../01-mri-physics/03-reconstruction.md)).
+  Along that axis k-space is cut off asymmetrically, closer to the center on one side, so
+  the ripples are wider than one voxel and no longer match the shape that standard
+  unringing (`mrdegibbs`, dipy's `gibbs_removal`) searches for; it then removes the ringing
+  along the frequency-encode axis but only partly along phase-encode. A method built for
+  partial-Fourier data, RPG {cite:p}`lee2021`, models the asymmetric cut-off; use it when the
+  diffusion series was acquired with partial Fourier.
 - **Do not apodize at the scanner** if the data will be unrung; do check whether the
   scanner already did.
 - **Order matters:** denoise, then unring, then everything that resamples.
 
 ## Further reading
 
-Sub-voxel-shift unringing {cite:p}`kellner2016` and its implementation in dipy and MRtrix
-{cite:p}`garyfallidis2014,tournier2019`.
+Sub-voxel-shift unringing {cite:p}`kellner2016`, its implementation in dipy and MRtrix
+{cite:p}`garyfallidis2014,tournier2019`, and its extension to partial-Fourier data
+{cite:p}`lee2021`.

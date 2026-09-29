@@ -69,7 +69,8 @@ plane, precesses, and induces a voltage in the receive coil. That voltage is the
 The animation follows the net magnetization of a voxel, drawn as one arrow, through one such
 cycle. Two things are changed so that it fits in a few seconds: the precession is slowed down
 enormously (the real arrow turns 128 million times per second at 3 T), and the relaxation is
-compressed, with T1 only three times T2 rather than ten or more times as in tissue. The
+compressed, with T1 only three times T2 rather than ten or more times as in white and gray
+matter (in CSF, whose T2 is very long, T1 is only about twice T2). The
 orange line is the arrow's shadow on the transverse plane. That component is what the
 receive coil detects, so it is the signal.
 

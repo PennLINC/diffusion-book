@@ -251,7 +251,7 @@ the ADC by about the same factor at any clinical diffusion time. The restricted 
 their displacement has stopped growing while $2t$ has not; at 40 ms, water trapped across
 the channel has an ADC hundreds of times smaller than free water. Values measured at
 different diffusion times are therefore not interchangeable, even in the same tissue.
-[Chapter 22](../05-advanced/22-multi-diffusion-time.md) covers acquisitions that vary the
+[Chapter 21](../05-advanced/21-multi-diffusion-time.md) covers acquisitions that vary the
 diffusion time deliberately.
 
 ## Compartments in brain tissue
@@ -261,7 +261,7 @@ direction, so the cloud of displacements is round, and **anisotropic** when they
 farther in some directions than others, so the cloud is stretched into an ellipse. The
 channel above is the extreme case: long along its length, almost nothing across.
 
-A white matter voxel, about 2 mm across, holds hundreds of thousands of axons running
+A white matter voxel, about 2 mm across, holds on the order of a million axons running
 roughly in one direction, and its water sits in several environments at once. The sketch
 below shows a small piece of one, not to scale, with an ellipse drawn in each environment
 whose shape shows how far a typical molecule gets in each direction during a measurement.
@@ -402,7 +402,8 @@ fig.tight_layout()
 ```
 
 In the language of mathematics, the signal is the Fourier transform of the displacement
-distribution, the same operation that links an image to its k-space in
+distribution (exactly so only when the gradient pulses are brief compared with the time
+between them, a condition [Chapter 5](./05-diffusion-encoding.md) returns to), the same operation that links an image to its k-space in
 [Chapter 2](../01-mri-physics/02-spatial-encoding-kspace.md), and the gradient strength
 picks which spatial frequency is read. Sampling the signal at one gradient strength
 measures a single number, the apparent diffusion coefficient in that direction; sampling

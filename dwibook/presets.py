@@ -45,7 +45,9 @@ ADULT_FRACTIONS = {"WM_intra": 0.55, "GM_restricted": 0.20, "d_soma": 0.0003}
 #: Echo time (ms) of the HBCD-like protocol TRXScan simulates by default.
 TE_HBCD_MS = 88.0
 
-#: Total EPI readout duration (ms) of the HBCD-like protocol, pinned by TRXScan for any matrix.
+#: HBCD's effective total readout time (ms): BIDS TotalReadoutTime, effective echo spacing times
+#: (phase-encode matrix - 1), with its in-plane acceleration already included. It sets the
+#: susceptibility displacement; TRXScan applies it as the effective value for any matrix.
 READOUT_HBCD_MS = 91.7
 
 #: Maximum gradient amplitude (mT/m) of representative gradient systems.

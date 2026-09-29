@@ -8,7 +8,7 @@ kernelspec:
 :::{admonition} Simulated datasets in this chapter
 :class: note
 - **Built in this page:** the synthetic series of [Chapter 8](./08-noise.md) with a simulated object phase ([Appendix B](../appendices/b-data-manifest.md#app-b-package-data)).
-- **Simulated live in this page:** one slice of the simulated brain under the full HBCD scheme, with the simulator's object phase and eddy-current phase ramp, phase-corrected and scored against its noise-free run.
+- **Simulated live in this page:** one slice of the simulated brain under the acquired 76-volume HBCD protocol (six b=0 volumes, then the shells interleaved; not the b-sorted 75-volume teaching scheme of [Chapter 5](../02-diffusion-encoding/05-diffusion-encoding.md)), with the simulator's object phase and eddy-current phase ramp, phase-corrected and scored against its noise-free run.
 - **`noise-sweep`** (pending): four noise levels with one coil, plus an 8-coil run reconstructed with GRAPPA, the parallel-imaging method of [Chapter 3](../01-mri-physics/03-reconstruction.md) that fills in skipped k-space lines from the coil data ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-noise-sweep)).
 - **`truth`** (pending): the 27 analytic ground-truth maps and the true fiber orientations ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-truth), [Appendix E](../appendices/e-truth-map-catalogue.md)).
 
@@ -153,9 +153,16 @@ over all 39 volumes so that the random noise mostly cancels and any bias remains
 narrower than a voxel (left), the estimate follows the noise: the phase error is speckle,
 each measurement is rotated partly by its own noise, and the real part drifts back toward
 the magnitude, too bright (red) everywhere. With a filter much wider than the features of
-the phase (right), the estimate is smooth but cannot follow the true phase where it changes
-fastest, across the left of the slice and at the edge of the brain; the signal there is
-rotated partly onto the imaginary axis, and the real part comes out too dark (blue). A width
+the phase (right), the estimate is smooth but wrong in two ways that add up. It averages
+across the edge of the brain into the empty background, so the estimate at each voxel is
+centered on a point shifted toward the middle of the brain, and along the in-plane phase
+ramp that shift turns into an error that grows toward the edges, positive on one side and
+negative on the other. And it averages through the slices, where the simulated phase
+follows a gentle curve; the average over a curve misses the curve's value at the displayed
+slice, which offsets the whole slice. In this volume the two
+errors add on the left and largely cancel on the right. Wherever the phase is wrong, the
+signal is rotated partly onto the imaginary axis, and the real part comes out too dark
+(blue), most of all at the edge of the brain. A width
 of about two voxels (middle) sits between the two. The printed numbers put the same result
 in white matter at b = 3000: a bias of about +4 % with the narrow filter, −4 % with the wide
 one, and almost none at two voxels.
@@ -258,17 +265,22 @@ print(f"real part at b = 0, relative to the true signal: within 3 voxels of the 
 Real-valued conversion and complex-domain denoising ([Chapter 8](./08-noise.md)) solve different halves of
 the problem and are used together. Complex denoising removes most of the random
 fluctuation; the real part removes the floor, which denoising alone makes small but cannot
-eliminate, because a magnitude is still taken at the end. The usual order is to denoise the
-complex data first, then estimate the phase from the denoised series, where it is far less
-noisy, and take the real part.
+eliminate, because a magnitude is still taken at the end. The phase matters for the
+denoising too: the complex demonstration of [Chapter 8](./08-noise.md) had no phase at all, but in real
+data the phase changes from volume to volume, and denoising treats that change as structure
+to keep, so it removes less noise. The phase is therefore dealt with first: a smooth
+estimate of each volume's phase is removed, the complex series is denoised, and the real
+part is taken, with the phase estimate refined from the denoised series if needed
+{cite:p}`corderogrande2019`.
 
 ## Measure it: one slice, simulated live
 
 What the simulator adds to the toy example is a phase that behaves like a scanner's: an
 object phase modeled on real HBCD scans, plus an eddy-current phase ramp that changes with
 the diffusion direction, so that no single phase map serves every volume. The same
-per-volume correction as above, applied to one simulated slice under the full 76-volume
-protocol, is scored against the noise-free run of the same slice.
+per-volume correction as above, applied to one simulated slice under the acquired 76-volume
+HBCD protocol (in acquisition order, with the shells interleaved), is scored against the
+noise-free run of the same slice.
 
 ```{code-cell} python
 :tags: [hide-input]

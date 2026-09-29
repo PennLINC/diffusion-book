@@ -14,10 +14,11 @@ to the reconstructed complex image, and the same simulated brain yields analytic
 
 :::{admonition} Status
 :class: note
-All chapters and appendices are written and execute at the toy tier, on synthetic data
-built from the simulated brain's tissue maps with a known answer key. Sections marked *Simulated dataset pending* await the first release of the full TRXScan simulations, which the
-offline pipeline is being built to produce. See the
-[implementation plan](https://github.com/PennLINC/diffusion-book/blob/main/docs/implementation-plan.md).
+All chapters and appendices are written and execute at the toy and live tiers, on synthetic
+data built from the simulated brain's tissue maps and on single slices simulated in the page,
+each with a known answer key. Sections marked *Simulated dataset pending* await the first
+release of the full TRXScan simulations, which the offline pipeline is being built to
+produce.
 :::
 
 ## What is in the book
@@ -29,13 +30,15 @@ offline pipeline is being built to produce. See the
 | II. Diffusion physics and encoding | 4–7 | derive the diffusion signal, design a q-space scheme (single-shell, multi-shell, DSI, CS-DSI), choose TE/TR/voxel/b |
 | III. Artifacts and preprocessing | 8–14 | recognize noise, Gibbs ringing, susceptibility distortion, eddy currents, motion and dropout, and gradient nonlinearity in simulated data, correct them, and measure what remains |
 | IV. Reconstruction and modeling | 15–19 | fit DTI/DKI/MAP-MRI, estimate fiber orientations, fit microstructure models, run tractography, and decide what a given acquisition allows |
-| V. Advanced acquisitions | 20–23 | reason about multi-TE, multi-echo and multi-diffusion-time DWI, and where the field is heading |
+| V. Advanced acquisitions | 20–22 | reason about echo time (multi-TE and multi-echo) and multi-diffusion-time DWI, and where the field is heading |
 
-## Two kinds of simulation
+## Three kinds of simulation
 
 Small **toy** simulations (a Bloch equation, the k-space of one brain slice, a random walk) are
-written in the notebook and run when the book builds. Brain-level **pipeline** data come from TRXScan
-runs made offline and versioned; notebooks download them. [Chapter 0.2](00-frontmatter/the-simulated-datasets.md) explains both.
+written in the notebook and run when the book builds. **Live** simulations acquire one slice
+of the simulated brain with TRXScan inside the page, in a few seconds. Brain-level **pipeline**
+data come from full TRXScan runs made offline and versioned; notebooks download them.
+[Chapter 0.2](00-frontmatter/the-simulated-datasets.md) explains all three.
 
 ```{code-cell} python
 :tags: [hide-input]

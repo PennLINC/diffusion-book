@@ -54,6 +54,12 @@ def test_analysis_matrix_rules():
     assert verdict(hbcd, "NODDI / spherical mean / free water") == "yes"
     assert verdict(hbcd, "DSI (model-free propagator)") == "no"
     assert verdict(hbcd, "complex-domain denoising") == "yes"
+    # HBCD's shells are summed to 47 high-b directions, but no single shell has 45
+    assert verdict(hbcd, "single-shell CSD") == "marginal"
+    assert verdict(hbcd, "multi-tissue CSD") == "marginal"
+    assert verdict(hbcd, "DTI (FA, direction)") == "marginal"
+    hardi = schemes.analysis_matrix(schemes.single_shell(2000, 64, n_b0=4)[0])
+    assert verdict(hardi, "single-shell CSD") == "yes"
     dsi = schemes.analysis_matrix(schemes.dsi_grid(radius=4)[0])
     assert verdict(dsi, "DSI (model-free propagator)") == "yes"
 

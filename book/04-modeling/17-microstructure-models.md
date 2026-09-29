@@ -9,7 +9,7 @@ kernelspec:
 :class: note
 - **Built in this page:** a synthetic multi-shell series built from the packaged tissue maps, with known compartment fractions ([Appendix B](../appendices/b-data-manifest.md#app-b-package-data)).
 - **`ref-clean`** (pending): the artifact-free, noise-free reference series with its truth maps and true fiber orientations ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-ref-clean)).
-- **`ref-schemes`** (pending): the simulated brain under the 30-direction, 64-direction, HBCD, DSI, and CS-DSI schemes at matched scan time ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-ref-schemes)).
+- **`ref-schemes`** (pending): the simulated brain under the 30-direction, 64-direction, HBCD, and DSI schemes, compared at equal total scan time (the per-volume noise is scaled with the number of volumes), plus a CS-DSI subset of the DSI run, which takes about a quarter of its time ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-ref-schemes)).
 - **`truth`** (pending): the 27 analytic ground-truth maps and the true fiber orientations ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-truth), [Appendix E](../appendices/e-truth-map-catalogue.md)).
 
 Pipeline-tier datasets are simulated offline by TRXScan ([Chapter 0.2](../00-frontmatter/the-simulated-datasets.md)) and are marked *pending* until their release; the figures that need them say so where they will appear.
@@ -138,7 +138,7 @@ print(f"cylinder {2 * R_UM:.0f} µm across, signal with the gradient across it: 
   wall after a few micrometers, so it loses a little signal: for an axon 6 µm across, wide
   for the human brain, the signal is still 0.95 at b = 3000 on an 80 mT/m scanner. That is
   why most models use the stick: at ordinary gradient strengths the width is nearly
-  invisible ([Chapter 22](../05-advanced/22-multi-diffusion-time.md)).
+  invisible ([Chapter 21](../05-advanced/21-multi-diffusion-time.md)).
 - The **ball** is water free to move equally in every direction, as in CSF. It moves
   farthest (15.5 µm) and its signal falls fastest, to almost nothing by b = 2000.
 - The **zeppelin** is the water between axons: hindered but not trapped, it moves farther
@@ -167,7 +167,18 @@ A **tortuosity rule** ties the zeppelin's radial diffusivity to the stick fracti
 more of the voxel the axons fill, the longer the detours water between them must take to
 move across them, so the slower its radial diffusion. It removes one unknown at the price
 of one assumption. Fixing diffusivities is what lets NODDI fit from two shells, and it is
-also what makes its values depend on those fixed numbers. The spherical mean technique averages the signal
+also what makes its values depend on those fixed numbers. The default of 1.7 × 10⁻³ mm²/s
+along the neurites was chosen for adult white matter, and it is known to fit poorly
+elsewhere: in gray matter a lower value, around 1.1 × 10⁻³ mm²/s, fits the data better and
+is often used instead {cite:p}`guerrero2019`, and in the neonatal and infant brain, where water content is higher
+and myelination incomplete, the adult value is not appropriate either {cite:p}`jelescu2015`. When the fixed
+value is wrong the fit compensates by moving the fractions, so neurite density and
+dispersion absorb the error. Report the value used, and compare NODDI maps only between
+fits that used the same one. Note also that **ICVF**, the "intra-cellular volume
+fraction", is a fraction of the *signal* (of the non-free-water signal, at the echo time of
+the scan), not of the tissue volume: compartments with different T2 contribute to the
+signal in different proportions from their volumes, as the free-water section below shows
+for CSF. The spherical mean technique averages the signal
 over all directions of each shell, which removes the orientation distribution entirely, so
 crossings do not matter and the diffusivity can be fitted. Free-water elimination with one
 shell is ill-posed and needs a spatial prior; with two or more shells it is determined.
@@ -512,8 +523,8 @@ decay is the only information in a single-diffusion-time acquisition that separa
 parameters.
 
 The other ways to break the degeneracy add a different kind of information rather than
-more of the same: several diffusion times ([Chapter 22](../05-advanced/22-multi-diffusion-time.md)), several echo times ([Chapter 20](../05-advanced/20-multi-te.md)), or
-b-tensor encoding ([Chapter 23](../05-advanced/23-frontiers.md)).
+more of the same: several diffusion times ([Chapter 21](../05-advanced/21-multi-diffusion-time.md)), several echo times ([Chapter 20](../05-advanced/20-echo-time.md)), or
+b-tensor encoding ([Chapter 22](../05-advanced/22-frontiers.md)).
 
 ## NODDI and ball-and-stick on the simulated datasets
 
@@ -529,7 +540,7 @@ finite axon diameters (the cylinder above), **exchange** (water crossing between
 compartments, for example through the axon membrane, during the measurement, so a molecule
 does not stay in one compartment), and **time-dependent diffusion** (an apparent
 diffusivity that changes with how long the water is watched, because a longer diffusion
-time gives it more chances to meet membranes and other obstacles; [Chapter 4](../02-diffusion-encoding/04-diffusion-in-tissue.md), [Chapter 22](../05-advanced/22-multi-diffusion-time.md)).
+time gives it more chances to meet membranes and other obstacles; [Chapter 4](../02-diffusion-encoding/04-diffusion-in-tissue.md), [Chapter 21](../05-advanced/21-multi-diffusion-time.md)).
 None of these is in the simulated brain. A model that assumes restriction (a cylinder with a diameter) fits the
 simulated brain differently than it fits tissue, and its parameters on simulated data should not be
 read as validation of what they mean in vivo. The simulated brain is useful for a narrower
@@ -548,10 +559,15 @@ This section will fit the free-water, spherical-mean, NODDI (AMICO), and ball-an
 
 ## What this implies for acquisition
 
-- **Two shells are the minimum for any compartment model**, and the upper shell should be
-  at b ≥ 2000; three shells make the fit well determined.
+- **Models that fit fractions and diffusivities together need two or more shells**, the
+  upper at b ≥ 2000, and three shells make the fit well determined. The exceptions in the
+  table above get by with one shell by fixing or tying parameters: ball-and-stick shares
+  one diffusivity across its compartments, and single-shell free-water elimination leans on
+  a spatial prior. What one shell cannot do is separate a fraction from a diffusivity (the
+  degeneracy figure above).
 - **Fixed diffusivities (NODDI) make a model fit from less data** and make its values
-  depend on those fixed numbers; report them.
+  depend on those fixed numbers; report them, and do not reuse the adult white matter
+  value in gray matter or in infants without saying so.
 - **Free-water correction needs multi-shell data** to be well posed.
 - **IVIM needs its own low-b shells** (b = 0 to 200 in several steps); no standard
   diffusion protocol contains them.

@@ -44,7 +44,7 @@ says where the term is explained properly.
 | $\Delta k$, $k_{\mathrm{max}}$ | k-space sampling interval and extent; FOV $= 1/\Delta k$, voxel $= 1/(2k_{\mathrm{max}})$ | 1/mm | 2 |
 | $N_x$, $N_y$ | matrix size along readout and phase-encode axes | – | 2 |
 | $\Delta t_\mathrm{esp}$ | echo spacing of the EPI train | ms | 2 |
-| TotalReadoutTime | duration of the EPI train, as recorded in the JSON sidecar | s | 2, 10 |
+| TotalReadoutTime | effective readout time recorded in the JSON sidecar: the effective echo spacing $\Delta t_\mathrm{esp}/R$ times ($N_y - 1$), with $N_y$ the reconstructed phase-encode matrix; shortened by $R$ but not by partial Fourier, so it differs from the duration of the EPI train | s | 2, 10 |
 | $R$ | in-plane (parallel imaging) acceleration factor | – | 3 |
 | $\sigma$ | noise standard deviation of one channel | signal units | 3, 8 |
 | $L$ | number of receive coils | – | 3 |
@@ -61,7 +61,7 @@ says where the term is explained properly.
 | Symbol | Meaning | Unit | Chapter |
 |---|---|---|---|
 | $D$ | diffusion coefficient; free water 3 × 10⁻³ mm²/s = 3 µm²/ms | mm²/s | 4 |
-| ADC | apparent diffusion coefficient (measured, depends on b, direction, time) | mm²/s | 4, 22 |
+| ADC | apparent diffusion coefficient (measured, depends on b, direction, time) | mm²/s | 4, 21 |
 | $D_\parallel$, $D_\perp$ | diffusivity along and across a fiber | mm²/s | 5 |
 | $f$ | volume or signal fraction of a compartment (intra-axonal unless stated) | – | 17 |
 | $\mathbf{D}$ | diffusion tensor | mm²/s | 15 |
@@ -94,7 +94,8 @@ says where the term is explained properly.
 - Unless stated otherwise, tissue parameters are the simulated brain's `adult` preset ([Chapter 1](../01-mri-physics/01-spins-and-signal.md)):
   T2 of 68 ms (white matter), 76 ms (gray matter), 2000 ms (CSF); white matter
   intra-axonal fraction 0.55 with diffusivity 1.7 × 10⁻³ mm²/s, extra-axonal 1.7 and
-  0.6 × 10⁻³, gray matter 0.85 × 10⁻³, CSF 3.0 × 10⁻³.
+  0.6 × 10⁻³, gray matter two components (80 % at 0.85 × 10⁻³ and a 20 % cell-body
+  component at 0.3 × 10⁻³), CSF 3.0 × 10⁻³.
 
 ```{code-cell} python
 :tags: [remove-cell]

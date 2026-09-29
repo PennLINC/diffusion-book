@@ -118,9 +118,11 @@ def read_fsl(stem: str | Path) -> tuple[np.ndarray, np.ndarray]:
 def hbcd() -> tuple[np.ndarray, np.ndarray]:
     """The HBCD-style multi-shell scheme bundled with the phantom (75 volumes, AP polarity).
 
-    Ten b=0 volumes and four shells (b = 500, 1000, 2000, 3000 with 6, 12, 18, 29 directions),
-    acquired in blocks of increasing b with the b=0 volumes spread through the series (about
-    one every eight volumes); the shells are not interleaved. This is the scheme TRXScan simulates by default and the
+    Ten b=0 volumes and four shells (b = 500, 1000, 2000, 3000 with 6, 12, 18, 29 directions).
+    This bundled copy is sorted by b, in blocks of increasing b with a b=0 about every eight
+    volumes, which makes it easy to read. It is not the order HBCD acquires: the acquired
+    protocol (76 volumes, used by the live tier) starts with six b=0 volumes and interleaves
+    the shells throughout the series. This is the scheme TRXScan simulates by default and the
     reference protocol of the book.
     """
     return read_fsl(Path(__file__).with_name("data") / "schemes" / "hbcd_ap")
@@ -142,8 +144,13 @@ def analysis_matrix(bvals: np.ndarray, complex_data: bool = False, n_dirs_min: i
     b_max = max(shells) if shells else 0.0
     n_shells = len(shells)
     dirs_low = sum(n for b, n in shells.items() if b <= 1200)
-    dirs_high = sum(n for b, n in shells.items() if b >= 1800)
+    # single-shell CSD fits one shell, so what matters is the best single high-b shell, not the sum
+    # over shells; the multi-tissue rule reuses it as a conservative criterion (multi-tissue CSD fits
+    # all shells jointly and can do well on several smaller shells, Chapter 16). b >= 1800 so that a
+    # nominal b = 2000 shell rounded down still counts.
+    top_high = max((n for b, n in shells.items() if b >= 1800), default=0)
     dirs_total = sum(shells.values())
+    is_grid = n_shells >= 5  # a Cartesian q-space grid: many radii, few points on each
     rows = []
     def add(name, verdict, reason): rows.append((name, verdict, reason))
     add("mean diffusivity / ADC", "yes" if dirs_total >= 3 and n_b0 >= 1 else "no", f"{dirs_total} directions, {n_b0} b=0")
@@ -153,11 +160,16 @@ def analysis_matrix(bvals: np.ndarray, complex_data: bool = False, n_dirs_min: i
     else: add("DTI (FA, direction)", "no", "fewer than 6 directions")
     add("diffusion kurtosis", "yes" if n_shells >= 2 and b_max >= 2000 and dirs_total >= 30 else ("marginal" if n_shells >= 2 else "no"),
         f"{n_shells} non-zero shell(s), b_max {b_max:.0f}")
-    csd_reason = f"{dirs_high} directions at b >= 1800"
-    if dirs_high < 45 and dirs_total >= 30:
+    csd_reason = f"best shell at b >= 1800 has {top_high} directions"
+    if top_high < 45 and dirs_total >= 30:
         csd_reason += f"; {dirs_total} in all, enough for broad, low-contrast ODFs"
-    add("single-shell CSD", "yes" if dirs_high >= 45 else ("marginal" if dirs_total >= 30 else "no"), csd_reason)
-    add("multi-tissue CSD", "yes" if n_shells >= 2 and dirs_high >= 45 else ("marginal" if n_shells >= 2 else "no"), f"{n_shells} shells, {dirs_high} high-b directions")
+    add("single-shell CSD", "yes" if top_high >= 45 else ("marginal" if dirs_total >= 30 else "no"), csd_reason)
+    if is_grid:
+        add("multi-tissue CSD", "marginal" if top_high >= 20 else "no",
+            f"a q-space grid, not shells: {n_shells} radii, at most {top_high} points on one at b >= 1800; needs binning into shells")
+    else:
+        add("multi-tissue CSD", "yes" if n_shells >= 2 and top_high >= 45 else ("marginal" if n_shells >= 2 else "no"),
+            f"{n_shells} shells; best shell at b >= 1800 has {top_high} directions")
     add("NODDI / spherical mean / free water", "yes" if n_shells >= 2 and b_max >= 2000 else ("marginal" if n_shells >= 2 else "no"), f"{n_shells} shells, b_max {b_max:.0f}")
     add("MAP-MRI / propagator", "yes" if n_shells >= 3 and dirs_total >= 60 else ("marginal" if n_shells >= 2 else "no"), f"{n_shells} shells, {dirs_total} directions")
     add("DSI (model-free propagator)", "yes" if n_shells >= 5 and dirs_total >= 200 else "no", f"{n_shells} shells, {dirs_total} directions (Cartesian grid needed)")

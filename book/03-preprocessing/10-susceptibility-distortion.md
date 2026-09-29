@@ -55,12 +55,20 @@ another for the whole length of the readout, tens of milliseconds, the small ext
 adds up to a large displacement. Along the other axis each line takes well under a
 millisecond, and the same offset moves signal by a small fraction of a voxel.
 
-The size of the error is the frequency offset times the total readout time of the EPI train:
+The size of the error is the frequency offset times the **total readout time**:
 
 $$\text{displacement (voxels)} = \Delta f\ (\text{Hz}) \times \text{TotalReadoutTime}\ (\text{s}).$$
 
-For the HBCD readout of 92 ms, 100 Hz moves signal by nine voxels, close to 2 cm at the
-2 mm voxels used on this page. The direction of the displacement follows the sign of the
+The total readout time here is not simply how long the EPI train lasts. As the BIDS
+metadata standard defines it, it is the *effective* echo spacing (the time from one
+k-space line to the next, divided by the in-plane acceleration factor) times one less than
+the number of lines in the reconstructed image along phase-encode. It is the time the
+readout would take to step across the whole of k-space, one line per voxel. In-plane
+acceleration shortens it, because the scanner skips lines and so steps through k-space
+faster; partial Fourier does not, because it leaves the spacing of the acquired lines and
+the size of the reconstructed image unchanged and only omits lines at one edge. For HBCD's
+effective total readout time of 91.7 ms, 100 Hz moves signal by nine voxels, close to 2 cm
+at the 2 mm voxels used on this page. The direction of the displacement follows the sign of the
 field offset and the polarity of the phase-encode blips, which set whether the lines are
 traversed front to back (AP) or back to front (PA): reversing the blips reverses the
 displacement. Where the displacement varies across neighboring voxels, signal from several
@@ -194,7 +202,7 @@ def arrow(x0, y0, x1, y1):
     ax.annotate("", xy=(x1, y1), xytext=(x0, y0), arrowprops=dict(arrowstyle="->", color=INK["secondary"], lw=1))
 
 rows = [
-    (3.2, "measured fieldmap\n(gradient echo at two echo times)", "phase difference ÷ echo-time difference\n→ unwrap, register to the EPI\n→ field (Hz) × readout time"),
+    (3.2, "measured fieldmap\n(gradient echo at two echo times)", "unwrap phase difference, ÷ (2π ΔTE)\n→ register to the EPI\n→ field (Hz) × readout time"),
     (1.85, "blip-up/blip-down pair\n(a few b = 0 volumes, AP and PA)", "find the smooth field that makes the\nAP and PA images agree\n(FSL topup, TORTOISE DRBUDDI)"),
     (0.5, "b = 0 image + T1-weighted image\n(no extra acquisition)", "warp the b = 0 image along phase-encode\nuntil it matches the T1-weighted image\n(fieldmap-less, SyN)"),
 ]
@@ -212,42 +220,66 @@ fig.tight_layout()
 
 - **Measured fieldmap** {cite:p}`jezzard1995`: a short gradient-echo acquisition at two
   echo times. Between the two echoes each voxel's phase advances in proportion to its field
-  offset, so the phase difference divided by the echo-time difference is the field (TRXScan
-  writes such a fieldmap with its `--gre-out` option). Phase is only known up to whole
+  offset, one full turn (2π radians) for every cycle it gains, so the field in hertz is the
+  phase difference divided by 2π times the echo-time difference,
+  $\Delta f = \Delta\varphi / (2\pi\,\Delta\mathrm{TE})$ (TRXScan writes such a fieldmap
+  with its `--gre-out` option). Phase is only known up to whole
   turns, so wherever it passes 180° it jumps to −180°, and the jumps must first be removed,
   which is called **unwrapping**. The fieldmap must also be registered (aligned) to the EPI
   data, since it is a separate scan. This works with a single polarity.
 - **Blip-up/blip-down estimation** (FSL topup, TORTOISE DRBUDDI): the field is estimated
   as the smooth displacement that makes the two polarities agree {cite:p}`andersson2003`.
-  The corrected image combines both, so signal lost to stretching in one polarity is
-  recovered from the other. This is the method of most current pipelines and needs only a
-  few extra b=0 volumes of the opposite polarity.
+  This is the method of most current pipelines and needs only a few extra b=0 volumes of the
+  opposite polarity. Those b=0 volumes serve to *estimate* the field. The diffusion-weighted
+  volumes, acquired in one polarity only, are then corrected from that polarity alone: each
+  voxel's signal is moved back and its intensity rescaled by the local stretch, just as
+  with a measured fieldmap, so signal that was compressed into a pile-up stays blurred.
 - **Fieldmap-less** (registration to the anatomical image, with a nonlinear registration
   method such as SyN): the b=0 image is warped to match the T1- or T2-weighted image, with
   the warp allowed only along the phase-encode axis. It works when no fieldmap or
   reverse-polarity data were acquired and is the least accurate, because the two images
   have different contrast.
 
-With the field known, the correction is the inverse of the forward model. With both
-polarities, one more step helps. Each corrected polarity is good where it was stretched
-during acquisition, since stretched signal was spread out but kept, and poor where it was
-compressed, since compressed signal was summed and cannot be separated again. And where one
-polarity was compressed, the other was stretched. So the two are averaged with weights that
-trust each polarity where it was stretched, not where it was compressed. The weight is the
-local stretch factor, called the **Jacobian** of the displacement: above 1 where the image
-was stretched, below 1 where it was compressed.
+With the field known, the correction is the inverse of the forward model. The local stretch
+factor that rescales the intensity is called the **Jacobian** of the displacement: above 1
+where the image was stretched, below 1 where it was compressed.
 
-The printed errors compare four versions with the undistorted series. The figure shows the
-AP image before and after correction, the share of the combined image taken from the AP
-polarity (yellow where AP was stretched and is trusted, dark where PA is trusted), the
-combined result, and what remains of the error.
+One more step is possible when *every* diffusion-weighted volume was acquired twice, once in
+each polarity with the same b-value and direction, which takes twice as many volumes. Each
+corrected polarity is good where it was stretched during acquisition, since stretched
+signal was spread out but kept, and poor where it was compressed, since compressed signal
+was summed and cannot be separated again. And where one polarity was compressed, the other
+was stretched. FSL combines such pairs by **least-squares restoration** (`applytopup
+--method=lsr`, or `eddy --resamp=lsr`): rather than averaging two corrected images, it
+solves for the one undistorted image that, distorted the AP way and the PA way, reproduces
+both acquired images as closely as possible. The stretched polarity supplies the detail
+that the compressed one summed away, without any weights being chosen. The toy below
+computes this restoration column by column. It is exact here, because the toy images are
+noise-free and the solver inverts the very model that made them; with noise and an
+estimated field it is not.
+
+A simpler combination makes the same idea visible: average the two corrected images with
+weights that trust each polarity where it was stretched, using the Jacobian of each as its
+weight. The printed errors compare the versions with the undistorted series. The figure
+shows the AP image before and after correction, the share of this weighted average taken
+from the AP polarity (yellow where AP was stretched and is trusted, dark where PA is
+trusted), the weighted average, and what remains of its error.
 
 ```{code-cell} python
 :tags: [hide-input]
 ap_corr = synth.undistort_along_pe(ap, shift)
 pa_corr = synth.undistort_along_pe(pa, -shift)
-# combine the two polarities weighted by the local stretch of each: where AP was compressed
-# (and lost information), PA was stretched (and kept it), and vice versa; topup does the same
+# least-squares restoration (the idea of applytopup --method=lsr): per column, find the one
+# undistorted profile that, distorted each way, best reproduces both acquired profiles
+ny, nx = mask.shape
+unit = np.zeros((ny, nx, ny))
+unit[np.arange(ny), :, np.arange(ny)] = 1.0          # one unit of signal in each row, all columns
+op_ap = synth.displace_along_pe(unit, shift)         # op_ap[:, c, j]: where row j of column c lands
+op_pa = synth.displace_along_pe(unit, -shift)
+lsr = np.stack([np.linalg.lstsq(np.vstack([op_ap[:, c], op_pa[:, c]]), np.vstack([ap[:, c], pa[:, c]]), rcond=None)[0]
+                for c in range(nx)], axis=1)
+# a simpler stand-in that shows the idea: average the two corrected images, weighted by the
+# local stretch of each; where AP was compressed (and lost information), PA was stretched
 w_ap = np.clip(1.0 + np.gradient(shift, axis=0), 0.05, None)[..., None]
 w_pa = np.clip(1.0 - np.gradient(shift, axis=0), 0.05, None)[..., None]
 combined = (w_ap * ap_corr + w_pa * pa_corr) / (w_ap + w_pa)
@@ -258,7 +290,8 @@ def err(s):
 plain_avg = (ap_corr + pa_corr) / 2
 print("mean absolute error inside the brain, all volumes (b = 0 white matter signal is about 0.2):")
 for label, s in [("AP distorted", ap), ("AP corrected from the known field", ap_corr), ("PA corrected from the known field", pa_corr),
-                 ("AP and PA, plain average", plain_avg), ("AP and PA, weighted toward the stretched one", combined)]:
+                 ("AP and PA, plain average", plain_avg), ("AP and PA, weighted toward the stretched one", combined),
+                 ("AP and PA, least-squares restoration", lsr)]:
     print(f"  {label:>45}: {err(s):.4f}")
 
 fig, axes = plt.subplots(1, 5, figsize=(14, 3.2))
@@ -266,24 +299,37 @@ show_image(axes[0], ap[..., 0], "AP distorted", vmin=0, vmax=0.5)
 show_image(axes[1], ap_corr[..., 0], "AP corrected", vmin=0, vmax=0.5)
 show_image(axes[2], np.where(mask, (w_ap / (w_ap + w_pa))[..., 0], np.nan), "share taken from AP", kind="scalar", vmin=0, vmax=1)
 fig.colorbar(axes[2].images[0], ax=axes[2], shrink=0.7)
-show_image(axes[3], combined[..., 0], "AP + PA corrected, combined", vmin=0, vmax=0.5)
-show_image(axes[4], np.abs(combined[..., 0] - series[..., 0]) * mask, "remaining error", vmin=0, vmax=0.1)
+show_image(axes[3], combined[..., 0], "AP and PA, weighted average", vmin=0, vmax=0.5)
+show_image(axes[4], np.abs(combined[..., 0] - series[..., 0]) * mask, "remaining error, weighted average", vmin=0, vmax=0.1)
 fig.tight_layout()
 ```
 
 The first line is the error of doing nothing; correcting either polarity alone removes most
-of it, and the weighted combination is the best of the five. The remaining error sits at
-tissue boundaries, where any resampling is least accurate, and is largest where the
-displacement converged most: there, several voxels of tissue were summed into one during
-acquisition, and no resampling can separate them again. The share map shows how the
+of it, and the weighted average does better than either polarity alone or than their plain
+average. The least-squares restoration goes to zero, which only a noise-free toy allows.
+The remaining error of the weighted average sits at tissue boundaries, where any resampling
+is least accurate, and is largest where the displacement converged most: there, several
+voxels of tissue were summed into one during acquisition, and resampling one corrected
+image cannot separate them again; only the restoration, which solves for both acquired
+images at once, can. The share map shows how the
 weighting handles this: just in front of the frontal focus, where AP was stretched, the
 combination leans on AP, and just behind it, where AP piled up, it leans on PA. A plain
 average mixes the good estimate with the bad one everywhere.
 
-What happens when the correction is applied with the wrong sign, as when the
-`PhaseEncodingDirection` in the image metadata is recorded backward, is shown next: the
-software moves the signal the same way the field did, instead of back, and the displacement
-doubles. The yellow outline is again the true edge of the brain.
+Every correction learns the direction of the phase-encode axis from the image metadata,
+the `PhaseEncodingDirection` field of the JSON sidecar. It is written in the image's own
+voxel axes, `i`, `j`, or `k` for the first, second, or third array axis, with a minus sign
+for the reverse direction (`j-`). If the NIfTI file is reoriented or resliced after
+conversion and the sidecar is not updated, the label silently points the wrong way, or
+along the wrong axis. How much harm a wrong label does depends on where the field comes
+from. For topup, a b=0 pair whose two labels are both flipped is still self-consistent:
+topup simply estimates the field with the opposite sign, and the correction comes out
+right. The damage is done when the field and the label disagree: a measured fieldmap
+applied with a flipped label, or a diffusion series whose label does not match the labels
+of the b=0 pair the field was estimated from. The software then moves the signal the same
+way the field did, instead of back, and the displacement doubles, as the next figure shows.
+(A fieldmap-less registration told the wrong axis fails differently: it can only warp
+along an axis where there is almost no distortion to undo.) The yellow outline is again the true edge of the brain.
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -302,13 +348,14 @@ is not much affected: FA and MD are computed from ratios between volumes of the 
 and those ratios survive a displacement that is common to all volumes. What is wrong is
 where the values are. The FA map of the distorted series is a distorted FA map. The first
 panel is the reference FA; the other two are the error, FA minus reference FA, for the
-distorted and the corrected series, with the true outline of the white matter drawn in
+distorted AP series and for the same series corrected from the known field (one polarity, as
+a diffusion series usually is), with the true outline of the white matter drawn in
 black.
 
 ```{code-cell} python
 :tags: [hide-input]
 ref_fit = synth.dti_maps(series, bvals, bvecs, mask=mask)
-fits = {label: synth.dti_maps(s, bvals, bvecs, mask=mask) for label, s in [("AP distorted", ap), ("corrected", combined)]}
+fits = {label: synth.dti_maps(s, bvals, bvecs, mask=mask) for label, s in [("AP distorted", ap), ("AP corrected", ap_corr)]}
 wm_ref = t["wm"] > 0.5
 fig, axes = plt.subplots(1, 3, figsize=(10, 3.3))
 show_image(axes[0], ref_fit["fa"], "FA, reference", kind="scalar", vmin=0, vmax=0.9)
@@ -327,8 +374,9 @@ matter, most of all at the front of the brain: white matter values have landed o
 matter (red, FA too high there) and gray matter values on white matter (blue). The mean
 error in white matter of 0.21 is therefore almost all misplacement, a correct value in the
 wrong voxel, rather than a wrong value, with some blending where pile-up summed several
-voxels into one. After correction the error drops to 0.045, most of
-it a thin fringe at tissue edges left by resampling.
+voxels into one. After correction the error drops to 0.065. Most of what remains is a thin
+fringe at tissue edges left by resampling, and a patch at the front of the brain where the
+AP image piled signal up and correction from that one polarity cannot separate it again.
 
 Two caveats limit that reassurance. Eddy currents ([Chapter 11](./11-eddy-currents.md)) add a displacement that
 differs per volume, which a correction estimated from the b=0 images does not remove.
@@ -353,10 +401,15 @@ outputs, and compare the estimated field with the field TRXScan used.
   shortens the echo time but not the displacement, because the lines it keeps are as far
   apart in time as before.
 - **Acquire the opposite polarity.** A few b=0 volumes with reversed blips are enough for
-  topup; a full second copy of the scheme also doubles the directions.
+  topup to estimate the field; the diffusion-weighted volumes are then corrected from their
+  one polarity. A full second copy of the scheme in the opposite polarity doubles the number
+  of volumes, not the number of directions, since each direction is repeated; what it buys
+  is the least-squares restoration of pile-up regions.
 - **Record the metadata.** `PhaseEncodingDirection` and `TotalReadoutTime` in the JSON
-  sidecar are what every correction reads; a wrong sign applies the correction backward and
-  doubles the displacement, as the wrong-sign panel above shows.
+  sidecar are what every correction reads. Keep them in step with the image: reorienting or
+  reslicing the NIfTI file changes which voxel axis is phase-encode, and a sidecar that is
+  not updated along with it can apply the correction backward and double the displacement,
+  as the wrong-sign panel above shows.
 - **Shim.** Better shimming lowers the field offsets at the source; it is set at the
   scanner and rarely revisited.
 

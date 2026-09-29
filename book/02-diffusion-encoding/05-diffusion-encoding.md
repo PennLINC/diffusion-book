@@ -52,12 +52,13 @@ more and reduce the signal more.
 fig, ax = plt.subplots(figsize=(9, 3.2))
 t = np.linspace(0, 100, 2000)
 TE, delta, Delta = 88.0, 20.0, 40.0
-t1 = (TE / 2) - 3 - delta  # first pulse ends 3 ms before the 180°
-t2 = t1 + Delta            # second pulse starts Delta after the first
+t1 = TE / 2 - (Delta - delta) / 2 - delta  # pulses placed symmetrically about the 180°
+t2 = t1 + Delta                            # second pulse starts Delta after the first
+ro_half = 12.0                             # half the readout duration in this sketch
 
 rf = np.zeros_like(t); rf[(t > 0) & (t < 2)] = 1.0; rf[(t > TE / 2 - 1) & (t < TE / 2 + 1)] = 2.0
 diff = np.zeros_like(t); diff[(t > t1) & (t < t1 + delta)] = 1.0; diff[(t > t2) & (t < t2 + delta)] = 1.0
-epi = np.where((t > t2 + delta + 2) & (t < 100), np.sign(np.sin(2 * np.pi * (t - TE) / 1.4)), 0.0)  # readout after the second pulse; TE at its k-space center
+epi = np.where(np.abs(t - TE) < ro_half, np.sign(np.sin(2 * np.pi * (t - TE) / 1.4)), 0.0)  # readout after the second pulse, its k-space center at TE
 
 ax.fill_between(t, 6, 6 + rf, color="0.3"); ax.text(-1, 6.4, "RF", ha="right", fontsize=9)
 ax.fill_between(t, 3.5, 3.5 + 1.6 * diff, color=PALETTE[0], alpha=0.8); ax.text(-1, 4.1, "diffusion\ngradient", ha="right", fontsize=9)
@@ -74,8 +75,11 @@ fig.tight_layout()
 ```
 
 The blue blocks are the two diffusion-gradient pulses, each lasting $\delta$, with their
-starts separated by $\Delta$, one on each side of the 180° pulse. The image is read out
-after the second pulse, centered on the echo time.
+starts separated by $\Delta$, placed symmetrically on either side of the 180° pulse. The
+image is read out after the second pulse. The echo time is the moment the readout passes
+through the center of k-space ([Chapter 2](../01-mri-physics/02-spatial-encoding-kspace.md));
+in this sketch that is the middle of the readout, though partial Fourier, later in this
+chapter, moves the center earlier in the readout.
 
 The animation runs this sequence on three rows of molecules lined up along the gradient
 direction, each drawn as an arrow pointing in the direction of its phase. The first gradient
@@ -193,8 +197,25 @@ mm²/s and $b$ in s/mm², the product $bD$ is dimensionless; at $b = 1000$ s/mm�
 white matter fibers, diffusing across them ($D \approx 0.6 \times 10^{-3}$), retains about 55 %.
 White matter as a whole keeps more than that across the fibers, about 80 %, because the
 water inside the axons cannot move across them at all; a single $D$ does not describe it,
-as the next figure shows. The separation $\Delta$ is
-approximately the diffusion time of [Chapter 4](./04-diffusion-in-tissue.md).
+as the next figure shows.
+
+The diffusion time of [Chapter 4](./04-diffusion-in-tissue.md) is set mostly by the
+separation $\Delta$. Because molecules keep moving while each pulse is on, the time that
+counts is the *effective diffusion time* $\Delta - \delta/3$, the same bracket that appears
+in the formula for $b$. The winding also has a name of its own: the *q-value*,
+$q = \gamma G \delta / 2\pi$, counts how many turns of phase the pulse pair leaves per unit
+of displacement, so that $b = (2\pi q)^2 (\Delta - \delta/3)$. [Chapter 4](./04-diffusion-in-tissue.md)
+described the signal as the Fourier transform of the displacement distribution, read at
+spatial frequency $q$. That description is exact only when the pulses are brief compared
+with their separation ($\delta \ll \Delta$, the *narrow-pulse* condition), so that each
+molecule has a well-defined position during each pulse. With the 20 ms pulses and 40 ms
+separation of a clinical scanner (below) the molecules move during the pulses, and the
+signal instead reports, roughly, the displacement between each molecule's average position
+during the first pulse and during the second {cite:p}`mitra1995`. For freely diffusing water nothing is lost,
+because the formula for $b$ already accounts for the pulse length; for water in small
+compartments, and for methods that rebuild the displacement distribution from q-space
+([Chapter 6](./06-qspace-sampling.md)), long pulses make restricted displacements look
+smaller than they are.
 
 Gradient strength is measured in millitesla per meter (mT/m), and it is the scanner's
 hardware limit. The three lines below are example timings on three classes of system: a
@@ -407,14 +428,15 @@ treated in Part III; they are named here because they originate in the encoding.
 
 The pulse pair described here weights each image along one direction. Newer acquisitions
 shape the gradients to weight several directions within one image (b-tensor encoding);
-[Chapter 23](../05-advanced/23-frontiers.md) describes what that adds.
+[Chapter 22](../05-advanced/22-frontiers.md) describes what that adds.
 
 ## The reference scheme
 
-TRXScan's default protocol is the HBCD scheme bundled with the simulation inputs. It has 75 volumes
-per phase-encode direction, grouped into shells (sets of volumes that share a b-value but
-differ in gradient direction). The plot shows every volume in the order it is acquired,
-at the height of its b-value; the b=0 volumes are the black diamonds along the bottom.
+The book's reference scheme is the HBCD scheme bundled with the simulation inputs, which is
+also TRXScan's default. It has 75 volumes per phase-encode direction, grouped into shells
+(sets of volumes that share a b-value but differ in gradient direction). The plot shows
+every volume in the order it is stored in the bundled file, at the height of its b-value;
+the b=0 volumes are the black diamonds along the bottom.
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -428,18 +450,21 @@ for b_shell, color in zip(shells, ["k"] + PALETTE):
     label = f"b = 0 ({shells[b_shell]} volumes)" if b_shell == 0 else f"b = {b_shell:.0f} ({shells[b_shell]})"
     ax.vlines(idx[sel], 0, bvals[sel], color=color, lw=1, alpha=0.35)
     ax.plot(idx[sel], bvals[sel], "D" if b_shell == 0 else "o", color=color, ms=5, label=label)
-ax.set(xlabel="volume, in acquisition order", ylabel="b (s/mm²)", xlim=(-1, len(bvals)), ylim=(-150, 3300))
+ax.set(xlabel="volume, in the order of the bundled file (sorted by b; not HBCD's acquisition order)", ylabel="b (s/mm²)", xlim=(-1, len(bvals)), ylim=(-150, 3300))
 ax.legend(fontsize=8, ncol=5, loc="upper center", bbox_to_anchor=(0.5, 1.28), frameon=False)
 fig.tight_layout()
 ```
 
-The b=0 volumes are spread through the acquisition, about one every eight volumes, rather
-than collected at the start. Each one is a fresh reference image, so slow signal drift and
-head motion can be tracked across the whole scan. The shells, by contrast, are acquired in
-blocks of increasing b-value. That order has a cost: if the subject moves late in the scan,
-the damage falls mostly on the b = 3000 shell rather than being shared among all shells,
-which is why many protocols interleave the shells instead.
-[Chapter 6](./06-qspace-sampling.md) covers the design of schemes like this one.
+This bundled copy is sorted for teaching: the shells come in blocks of increasing b-value,
+with a b=0 volume about every eight volumes, so each shell is easy to pick out. It is
+**not** the order in which HBCD acquires its data. The acquired HBCD protocol, which the
+book's live tier simulates ([Chapter 0.2](../00-frontmatter/the-simulated-datasets.md)),
+has 76 volumes: it opens with six b=0 volumes and then interleaves all four shells through
+the rest of the series. The difference matters. If the shells were acquired in blocks and
+the subject moved late in the scan, the damage would fall mostly on the b = 3000 shell;
+interleaved, it is shared among all shells. Likewise, b=0 volumes spread through a
+series, as in the bundled copy, give fresh reference images for tracking slow signal drift
+and head motion across the whole scan. [Chapter 6](./06-qspace-sampling.md) covers the design of schemes like this one.
 
 ## What this implies for acquisition
 

@@ -94,9 +94,12 @@ def csf(b):
 def cylinder_sgp(q_per_mm, radius_um: float):
     """Signal across an impermeable cylinder in the long-diffusion-time, short-pulse limit.
 
-    ``E(q) = [2 J1(2 pi q R) / (2 pi q R)]^2`` with ``q`` in 1/mm and ``R`` in micrometers: the
-    displacement distribution is the cylinder's cross-section, and its Fourier transform is an
-    Airy pattern. Independent of diffusion time once molecules have reached the walls.
+    ``E(q) = [2 J1(2 pi q R) / (2 pi q R)]^2`` with ``q`` in 1/mm and ``R`` in micrometers. At long
+    times a molecule's start and end points are independent and uniform over the cross-section,
+    so the displacement distribution is the autocorrelation of the disc; the signal is the
+    squared magnitude of the disc's Fourier transform (an Airy pattern, squared). Independent of
+    diffusion time once molecules have reached the walls. Valid only for short pulses,
+    ``delta << R**2 / D``; with longer pulses the attenuation is much weaker (Neuman 1974).
     """
     from scipy.special import j1
 
