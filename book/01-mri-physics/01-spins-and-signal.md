@@ -30,15 +30,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from dwibook import phantoms, presets
-from dwibook.plotting import TISSUE_COLORS, set_style, show_image
+from dwibook.plotting import INK, PALETTE, TISSUE_COLORS, animate, set_style, show_image
 
 set_style()
 ```
 
 ## Magnetization and precession
 
-Hydrogen nuclei (protons) have a magnetic moment. In the scanner's static field $B_0$ the
-moments precess about the field direction at the Larmor frequency,
+Hydrogen nuclei (protons) behave like tiny bar magnets. In the scanner's static field $B_0$
+they do not simply line up with the field. Like a spinning top tilted in gravity, each one
+swings around the field direction, a motion called precession. The rate of that swing, the
+Larmor frequency, is proportional to the field:
 
 $$f_0 = \frac{\gamma}{2\pi} B_0, \qquad \frac{\gamma}{2\pi} = 42.6\ \mathrm{MHz/T},$$
 
@@ -64,16 +66,79 @@ A radio-frequency pulse at the Larmor frequency tips the magnetization away from
 direction by a chosen flip angle. After a 90° pulse the magnetization lies in the transverse
 plane, precesses, and induces a voltage in the receive coil. That voltage is the MR signal.
 
-Two processes then return the magnetization to equilibrium:
+The animation follows the net magnetization of a voxel, drawn as one arrow, through one such
+cycle. Two things are changed so that it fits in a few seconds: the precession is slowed down
+enormously (the real arrow turns 128 million times per second at 3 T), and the relaxation is
+compressed, with T1 only three times T2 rather than ten or more times as in tissue. The
+orange line is the arrow's shadow on the transverse plane. That component is what the
+receive coil detects, so it is the signal.
+
+```{code-cell} python
+:tags: [hide-input]
+from mpl_toolkits.mplot3d import Axes3D  # noqa: F401  (registers the 3-D projection)
+
+# display time runs in frames; precession is slowed and relaxation shortened so one cycle fits in a few seconds
+N_REST, N_TIP, N_FREE = 8, 16, 80
+PREC = 2 * np.pi / 10          # radians of precession per frame
+T1_DISP, T2_DISP = 60.0, 20.0  # relaxation times in frames
+path = [(0.0, 0.0, 1.0)] * N_REST
+for i in range(1, N_TIP + 1):  # the RF pulse tips the vector while it precesses
+    tip, phi = np.pi / 2 * i / N_TIP, PREC * i
+    path.append((np.sin(tip) * np.cos(phi), np.sin(tip) * np.sin(phi), np.cos(tip)))
+for i in range(1, N_FREE + 1):  # free precession: transverse part decays (T2), longitudinal part regrows (T1)
+    phi, mxy, mz = PREC * (N_TIP + i), np.exp(-i / T2_DISP), 1 - np.exp(-i / T1_DISP)
+    path.append((mxy * np.cos(phi), mxy * np.sin(phi), mz))
+path = np.array(path)
+
+fig = plt.figure(figsize=(8.4, 3.8))
+ax3 = fig.add_subplot(1, 2, 1, projection="3d")
+ax2 = fig.add_subplot(1, 2, 2)
+ax3.set_axis_off()
+ax3.set(xlim=(-1, 1), ylim=(-1, 1), zlim=(-0.05, 1.1))
+ax3.view_init(elev=22, azim=-60)
+ring = np.linspace(0, 2 * np.pi, 100)
+ax3.plot(np.cos(ring), np.sin(ring), 0, color="0.85", lw=0.8)
+ax3.plot([0, 0], [0, 0], [0, 1.1], color="0.6", lw=0.8, ls="--")
+ax3.text(0, 0, 1.15, "B₀", color="0.4", fontsize=9)
+ax3.text(1.05, 0, 0, "transverse\nplane", color="0.5", fontsize=7)
+trail, = ax3.plot([], [], [], color=PALETTE[0], lw=0.6, alpha=0.5)
+vec, = ax3.plot([], [], [], color=PALETTE[0], lw=3)
+shadow, = ax3.plot([], [], [], color=PALETTE[1], lw=2)
+stage = fig.text(0.26, 0.93, "", ha="center", va="top", fontsize=9)
+frames_t = np.arange(len(path))
+l_xy, = ax2.plot([], [], color=PALETTE[1], label="transverse (the signal the coil receives)")
+l_z, = ax2.plot([], [], color=PALETTE[0], label="longitudinal (along B₀)")
+ax2.set(xlim=(0, len(path)), ylim=(0, 1.05), xticks=[], xlabel="time", ylabel="magnetization")
+ax2.legend(loc="center right", fontsize=7)
+fig.tight_layout(rect=(0, 0, 1, 0.88))
+
+def frame(i):
+    x, y, z = path[i]
+    vec.set_data_3d([0, x], [0, y], [0, z])
+    shadow.set_data_3d([0, x], [0, y], [0, 0])
+    trail.set_data_3d(path[: i + 1, 0], path[: i + 1, 1], path[: i + 1, 2])
+    l_xy.set_data(frames_t[: i + 1], np.hypot(path[: i + 1, 0], path[: i + 1, 1]))
+    l_z.set_data(frames_t[: i + 1], path[: i + 1, 2])
+    stage.set_text("at rest: aligned with B₀" if i < N_REST else
+                   "RF pulse: tipped into the transverse plane" if i < N_REST + N_TIP else
+                   "precessing; transverse part decays (T2),\nlongitudinal part regrows (T1)")
+
+animate(fig, frame, range(len(path)), fps=12, width=680, dpi=80,
+        alt="an arrow representing the net magnetization points along the main field, is tipped into the transverse plane by an RF pulse while it precesses, then spirals back up: its transverse component shrinks with T2 while its longitudinal component regrows with T1; a plot alongside traces both components over time")
+```
+
+Two processes return the magnetization to equilibrium, and both are visible above:
 
 - **T1 (longitudinal relaxation)** rebuilds the component along the field. It sets how much
   signal is available again for the next excitation, and therefore constrains the repetition
   time TR.
 - **T2 (transverse relaxation)** is the loss of transverse magnetization as neighboring
   spins dephase one another. It sets how much signal remains at the echo time TE.
-- **T2\*** is the faster decay seen in practice: T2 plus the additional dephasing caused by
-  static field inhomogeneity. The inhomogeneity part is reversible, and the spin echo below
-  reverses it.
+
+In practice the transverse signal decays faster than T2 alone predicts, because the field
+is never perfectly uniform across a voxel and spins in slightly different fields drift out
+of phase. This faster decay is **T2\***. The part added by the static field is reversible, and
+the spin echo below reverses it.
 
 The tissue values used throughout this book are those of the simulated brain. The T2 values are
 TRXScan's `adult` compartment preset. TRXScan does not model T1, so the T1 values are 3 T
@@ -179,6 +244,79 @@ A 180° pulse applied at time TE/2 reverses the accumulated phase of every spin.
 continues to precess at its own rate, so at time TE the phases realign and a spin echo forms.
 The dephasing caused by the static field is undone; only the T2 loss remains. The echo
 amplitude depends on T2, not T2*.
+
+The animation shows the spins of one voxel as arrows in the transverse plane, viewed from
+above in a frame that turns at the average precession rate, so that a spin at exactly the
+average frequency stands still. Spins in a slightly stronger field run ahead, spins in a
+weaker field fall behind, and the fan spreads; the black arrow, their sum, is the signal,
+and it shrinks. The 180° pulse flips the fan over: the spins that were furthest ahead are
+now furthest behind. Each keeps its own speed, so, like runners who turn around at a whistle
+and run back at their own pace, they arrive together at the echo time.
+
+In the right panel each spin also takes small random steps in phase, as it does when its
+molecule moves while the diffusion gradients of [Chapter 5](../02-diffusion-encoding/05-diffusion-encoding.md) are on. Those steps are
+different for every spin and are not undone by the 180° pulse, so the echo comes back
+smaller. That missing signal is what diffusion MRI measures. T2 decay is left out of the
+animation so that only the phases are visible.
+
+```{code-cell} python
+:tags: [hide-input]
+from scipy.special import erfinv
+
+N_ENS, N_SHOW, N_FRAMES, TE_F = 600, 12, 100, 60
+rng = np.random.default_rng(1)
+omega = 0.07 * np.sqrt(2) * erfinv(np.linspace(-0.99, 0.99, N_ENS))  # each spin's off-resonance, radians per frame
+show = np.linspace(0, N_ENS - 1, N_SHOW).astype(int)
+kicks = rng.normal(scale=0.13, size=(N_FRAMES, N_ENS))  # random phase steps from molecular motion
+
+def phase_history(moving):
+    ph, out = np.zeros(N_ENS), []
+    for i in range(N_FRAMES):
+        if i == TE_F // 2:
+            ph = -ph  # the 180° pulse reverses every spin's phase
+        out.append(ph.copy())
+        ph = ph + omega + (kicks[i] if moving else 0.0)
+    return np.array(out)
+
+cases = {"field differences only": phase_history(False), "field differences + random motion": phase_history(True)}
+sums = {name: np.abs(np.exp(1j * ph).mean(axis=1)) for name, ph in cases.items()}
+colors = plt.cm.twilight(np.linspace(0.1, 0.9, N_SHOW))
+
+fig = plt.figure(figsize=(8, 5.6))
+gs = fig.add_gridspec(2, 2, height_ratios=[1.25, 1])
+fans, totals = [], []
+for col, name in enumerate(cases):
+    ax = fig.add_subplot(gs[0, col])
+    ax.add_patch(plt.Circle((0, 0), 1, fill=False, color="0.85"))
+    ax.set(xlim=(-1.1, 1.1), ylim=(-1.1, 1.1), aspect="equal", title=name)
+    ax.set_axis_off()
+    fans.append([ax.plot([], [], color=c, lw=1.4)[0] for c in colors])
+    totals.append(ax.annotate("", xy=(0, 1), xytext=(0, 0), arrowprops=dict(arrowstyle="-|>", color=INK["primary"], lw=2.2)))
+axs = fig.add_subplot(gs[1, :])
+lines = [axs.plot([], [], color=PALETTE[k], label=name)[0] for k, name in enumerate(cases)]
+for x, label in [(TE_F // 2, "180°"), (TE_F, "TE: echo")]:
+    axs.axvline(x, color="0.75", lw=1)
+    axs.text(x + 1, 1.0, label, fontsize=8, color="0.4", va="top")
+axs.set(xlim=(0, N_FRAMES), ylim=(0, 1.05), xticks=[], xlabel="time", ylabel="summed signal")
+axs.legend(loc="lower left", fontsize=8)
+stage = fig.suptitle("", fontsize=10)
+fig.tight_layout()
+
+def frame(i):
+    for fan, total, ph in zip(fans, totals, cases.values()):
+        for line, p in zip(fan, ph[i, show]):
+            line.set_data([0, -np.sin(p)], [0, np.cos(p)])
+        s = np.exp(1j * ph[i]).mean()
+        total.xy = (-s.imag, s.real)
+    for line, name in zip(lines, cases):
+        line.set_data(np.arange(i + 1), sums[name][: i + 1])
+    stage.set_text("the spins drift apart and the sum shrinks" if i < TE_F // 2 else
+                   "the 180° pulse reverses the phases: the fastest spins are now furthest behind" if i < TE_F - 6 else
+                   "spin echo: the phases line up again" if i <= TE_F + 3 else "and drift apart again")
+
+animate(fig, frame, range(N_FRAMES), fps=12, width=620, dpi=65,
+        alt="arrows for twelve spins start together, fan out because each precesses at a slightly different rate, are mirrored by the 180-degree pulse, and fan back into line at the echo time; in a second panel the spins also take random phase steps from molecular motion, and at the echo they only partly realign, so the echo is smaller")
+```
 
 Diffusion MRI is built on the spin echo for two reasons:
 

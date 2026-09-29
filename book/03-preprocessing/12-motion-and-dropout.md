@@ -40,7 +40,7 @@ from dipy.core.gradients import gradient_table
 from dipy.reconst.dti import TensorModel
 
 from dwibook import phantoms, schemes, synth
-from dwibook.plotting import PALETTE, set_style, show_image
+from dwibook.plotting import PALETTE, animate, set_style, show_image
 
 set_style()
 ```
@@ -98,12 +98,6 @@ would scroll through them; the outline is the true brain edge. Three volumes jum
 
 ```{code-cell} python
 :tags: [hide-input]
-import base64
-import os
-import tempfile
-from IPython.display import HTML
-from matplotlib.animation import FuncAnimation, PillowWriter
-
 fig, ax = plt.subplots(figsize=(3.6, 4.0))
 im = ax.imshow(moved[:, :, K, 2], cmap="gray", vmin=0, vmax=0.2)
 ax.contour(mask[:, :, K], levels=[0.5], colors=[PALETTE[1]], linewidths=0.8)
@@ -116,13 +110,8 @@ def frame(v):
     label.set_text(f"volume {v}" + (" (head moved)" if v in moved_volumes else ""))
     return im, label
 
-anim = FuncAnimation(fig, frame, frames=range(2, len(bvals)), interval=500)
-gif_path = os.path.join(tempfile.gettempdir(), "dwibook_motion.gif")
-anim.save(gif_path, writer=PillowWriter(fps=2))
-plt.close(fig)
-with open(gif_path, "rb") as f:
-    gif_b64 = base64.b64encode(f.read()).decode("ascii")
-HTML(f'<img src="data:image/gif;base64,{gif_b64}" alt="axial slice of successive diffusion-weighted volumes; three volumes are displaced" style="width: 320px;">')
+animate(fig, frame, range(2, len(bvals)), fps=2, width=320,
+        alt="axial slice of successive diffusion-weighted volumes; three volumes are displaced")
 ```
 
 ## Correction step by step: registration and b-vector rotation
@@ -256,9 +245,9 @@ downward and MD upward in a way that can masquerade as a group difference.
 
 ## Measure it: one slice, simulated live
 
-The simulator can move the head the way a real one moved. The phantom ships with the head
-motion that qsiprep estimated for its own subject, one rigid pose per volume; for each volume
-the streamlines and tissue maps are moved by that pose and the signal is re-simulated, so the
+The simulator can move the head the way a real one moved. The simulated brain was built from
+a real subject, and it comes with the head motion that qsiprep estimated for that subject,
+one rigid pose per volume; for each volume the fiber paths and tissue maps are moved by that pose and the signal is re-simulated, so the
 fibre-to-gradient angles change as they do in a moving head, not just the image position.
 Multiband dropout events are added on top, and the simulator records which shots dropped.
 

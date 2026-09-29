@@ -34,7 +34,7 @@ from dipy.core.gradients import gradient_table
 from dipy.reconst.dti import TensorModel
 
 from dwibook import phantoms, schemes, synth
-from dwibook.plotting import PALETTE, set_style, show_image
+from dwibook.plotting import PALETTE, animate, set_style, show_image
 
 set_style()
 ```
@@ -90,8 +90,8 @@ position for the gradient component along the slice axis, which shifts each slic
 different amount. The axial view shows the first two; the sagittal view shows the third, as
 a brain outline that is displaced by a different amount on every slice. Radiologists and
 quality-control tools look at sagittal reformats of diffusion-weighted volumes for this
-reason. The 3 mm volume shows both views of one volume whose gradient has a large
-slice-axis component:
+reason. The animation steps through a b = 2000 series on the 3 mm volume, one b=0 volume and
+six gradient directions, in both views; the orange outline is the true brain edge:
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -100,44 +100,60 @@ mask3 = vol["mask"]
 b_v, g_v = schemes.single_shell(2000, 6, n_b0=1)
 series3 = synth.synthetic_dwi(vol, b_v, g_v)
 shifts3 = synth.eddy_shift(b_v, g_v, mask3.shape, strength=0.06)  # twice the chapter's strength, for visibility at 3 mm
-v = 1 + int(np.argmax(np.abs(g_v[1:, 2])))  # the direction with the largest slice-axis component
-dist3 = synth.displace_along_pe(series3[..., v], shifts3[..., v])
+dist3 = np.stack([synth.displace_along_pe(series3[..., v], shifts3[..., v]) for v in range(len(b_v))], axis=-1)
 K, C = phantoms.VOLUME_VENTRICLE_SLICE, 26
 
-fig, axes = plt.subplots(1, 4, figsize=(12, 3.6))
-for ax, img_, m_, title in [
-    (axes[0], series3[:, :, K, v], mask3[:, :, K], "axial, undistorted"),
-    (axes[1], dist3[:, :, K], mask3[:, :, K], "axial, eddy-distorted: shear and scale"),
-    (axes[2], series3[:, C, :, v].T[::-1], mask3[:, C, :].T[::-1], "sagittal, undistorted"),
-    (axes[3], dist3[:, C, :].T[::-1], mask3[:, C, :].T[::-1], "sagittal, eddy-distorted: slice-dependent shift"),
-]:
-    ax.imshow(img_, cmap="gray", vmin=0, vmax=0.12)
+def views(v):
+    scale = np.percentile(dist3[..., v][mask3], 99)  # each volume on its own scale
+    return dist3[:, :, K, v] / scale, dist3[:, C, :, v].T[::-1] / scale
+
+fig, axes = plt.subplots(1, 2, figsize=(6.4, 3.9))
+ims = []
+for ax, img_, m_, title in zip(axes, views(0), [mask3[:, :, K], mask3[:, C, :].T[::-1]], ["axial: shear and scale", "sagittal: slice-dependent shift"]):
+    ims.append(ax.imshow(img_, cmap="gray", vmin=0, vmax=1))
     ax.contour(m_, levels=[0.5], colors=[PALETTE[1]], linewidths=0.8)
     ax.set_axis_off(); ax.set_title(title, fontsize=9)
-fig.tight_layout()
-print(f"gradient of volume {v}: ({g_v[v, 0]:+.2f}, {g_v[v, 1]:+.2f}, {g_v[v, 2]:+.2f}) in (anterior-posterior, left-right, slice); shift ranges from {shifts3[..., v][mask3].min():+.1f} to {shifts3[..., v][mask3].max():+.1f} voxels across the brain")
+fig.tight_layout(rect=(0, 0.06, 1, 0.97))
+stamp = fig.text(0.5, 0.02, "", ha="center", fontsize=9)
+
+def frame(v):
+    for im, img_ in zip(ims, views(v)):
+        im.set_data(img_)
+    g = g_v[v]
+    stamp.set_text("b = 0: no eddy field" if b_v[v] == 0 else
+                   f"volume {v}, b = {b_v[v]:.0f}, g = ({g[0]:+.2f}, {g[1]:+.2f}, {g[2]:+.2f}) in (A-P, L-R, slice); "
+                   f"shift {shifts3[..., v][mask3].min():+.1f} to {shifts3[..., v][mask3].max():+.1f} voxels")
+
+animate(fig, frame, range(len(b_v)), fps=1, width=620,
+        alt="axial and sagittal views of each volume of a b = 2000 series in turn; the axial brain shears and stretches and the sagittal brain outline shifts by a different amount on each slice, differently for each gradient direction")
 ```
 
 The rest of the chapter works on the single 2 mm slice, where the shear and scale are
-visible in the axial view and the correction can be scored voxel by voxel:
+visible in the axial view and the correction can be scored voxel by voxel. The animation
+steps through every volume of the series, as a viewer would scroll through them:
 
 ```{code-cell} python
 :tags: [hide-input]
-edge = mask & ~np.roll(mask, 3, axis=0)  # the anterior brain edge
-fig, axes = plt.subplots(1, 4, figsize=(12, 3.2))
-show_image(axes[0], series[..., 0], "b = 0 (undistorted)", vmin=0, vmax=0.5)
-for ax, v in zip(axes[1:], [3, 9, 20]):
-    d = distorted[..., v] / distorted[..., v].max()
-    ax.imshow(d, cmap="gray", vmin=0, vmax=1)
-    ax.contour(mask, levels=[0.5], colors=[PALETTE[1]], linewidths=0.8)
-    ax.set_axis_off()
-    ax.set_title(f"volume {v}, b = {bvals[v]:.0f}\ng = ({bvecs[v, 0]:+.2f}, {bvecs[v, 1]:+.2f}, {bvecs[v, 2]:+.2f})")
+fig, ax = plt.subplots(figsize=(3.4, 3.8))
+im = ax.imshow(distorted[..., 0], cmap="gray", vmin=0, vmax=1)
+ax.contour(mask, levels=[0.5], colors=[PALETTE[1]], linewidths=0.8)
+ax.set_axis_off()
+label = ax.set_title("\n", fontsize=9)
 fig.tight_layout()
+
+def frame(v):
+    im.set_data(distorted[..., v] / distorted[..., v].max())  # each volume on its own scale
+    label.set_text(f"volume {v}, b = {bvals[v]:.0f}\ng = ({bvecs[v, 0]:+.2f}, {bvecs[v, 1]:+.2f}, {bvecs[v, 2]:+.2f})")
+    return im, label
+
+animate(fig, frame, range(len(bvals)), fps=2, width=340,
+        alt="axial slice of each volume of the eddy-distorted series in turn; the diffusion-weighted volumes shear, stretch, and shift relative to the true brain outline, differently in each volume")
 ```
 
-The orange outline is the true brain edge. Each diffusion-weighted volume overhangs or
-falls short of it in a different pattern: a sheared brain, a stretched brain, a shifted
-brain, according to the gradient direction of that volume.
+The orange outline is the true brain edge. The two b=0 volumes fit it exactly. Each
+diffusion-weighted volume overhangs or falls short of it in a different pattern: a sheared
+brain, a stretched brain, a shifted brain, according to the gradient direction of that
+volume, and the b = 2000 volumes move twice as far as the b = 1000 volumes.
 
 ## Correction step by step
 

@@ -40,7 +40,10 @@ that a measurement reports is the mean squared displacement divided by the diffu
 so in anything but free water it depends on how long the molecules were allowed to move.
 At short diffusion times few molecules have met a wall and the ADC is close to the free
 value; at long times it settles toward the hindered value, or toward zero across a closed
-compartment. The rate at which it approaches its long-time value carries information about
+compartment. How soon it settles depends on how far apart the barriers are: between
+obstacles a micrometer apart it is over within a fraction of a millisecond, before any
+measurable diffusion time, while across a cell body ten micrometers wide it takes tens of
+milliseconds, as the figure below shows. The rate at which it approaches its long-time value carries information about
 the size and arrangement of the barriers {cite:p}`novikov2014,fieremans2016`.
 
 Standard diffusion protocols fix the diffusion time by the pulse timing, at 30–50 ms, and
@@ -151,8 +154,8 @@ absent from the simulated brain.
 
 The simulated brain's compartments are Gaussian: a stick, a tensor, and balls, with diffusivities
 that do not depend on time. Every diffusion-time-dependent effect in this chapter arises
-from barriers with a size, which the simulated brain does not have. A restricted compartment
-(implementation plan item T6) would add a cylinder with a radius and a time-dependent
+from barriers with a size, which the simulated brain does not have. A restricted compartment,
+a planned simulator extension, would add a cylinder with a radius and a time-dependent
 signal; until it exists, the toy random walks are the only simulation in this book that
 shows time dependence, and the simulated brain's ground truth for microstructure should be read as
 long-time-limit quantities.

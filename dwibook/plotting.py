@@ -59,6 +59,35 @@ def show_image(ax, img: np.ndarray, title: str | None = None, kind: str = "magni
         ax.set_title(title)
 
 
+def animate(fig, update, frames, alt: str, fps: float = 2, width: int = 480, dpi: float | None = None):
+    """Render a matplotlib animation as an inline looping GIF; returns an ``IPython.display.HTML``.
+
+    ``update(frame)`` redraws the figure for one frame. The GIF is embedded as a data URI, so
+    the built book needs no extra files and the animation plays in any browser without a kernel.
+    ``alt`` is the text description for screen readers; ``width`` is the display width in
+    pixels. A lower ``dpi`` keeps long or multi-panel animations small.
+    """
+    import base64
+    import html
+    import os
+    import tempfile
+
+    from IPython.display import HTML
+    from matplotlib.animation import FuncAnimation, PillowWriter
+
+    anim = FuncAnimation(fig, update, frames=frames, interval=1000 / fps)
+    fd, path = tempfile.mkstemp(suffix=".gif", prefix="dwibook_")
+    os.close(fd)
+    try:
+        anim.save(path, writer=PillowWriter(fps=fps), dpi=dpi)
+        with open(path, "rb") as f:
+            gif_b64 = base64.b64encode(f.read()).decode("ascii")
+    finally:
+        os.remove(path)
+    plt.close(fig)
+    return HTML(f'<img src="data:image/gif;base64,{gif_b64}" alt="{html.escape(alt)}" style="width: {width}px; max-width: 100%;">')
+
+
 def show_kspace(ax, ksp: np.ndarray, title: str | None = None, voxel_mm: float | None = None, phase: bool = False):
     """Display k-space as log magnitude (the only way to see anything beyond the center).
 

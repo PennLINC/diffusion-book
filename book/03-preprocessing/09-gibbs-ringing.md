@@ -223,7 +223,7 @@ for label, img in [("acquired", a), ("Hann apodized", c)]:
 The difference image is the ringing alone: stripes parallel to every CSF boundary, largest
 at the ventricles. Apodization removes the stripes and replaces them with a blur, exactly as
 on the synthetic series above; the numbers are smaller than in the toy case because the
-phantom's 2.5 mm voxels already average over the sharpest edges.
+simulated brain's 2.5 mm voxels already average over the sharpest edges.
 
 ## What acquisition choices reduce it
 

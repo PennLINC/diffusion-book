@@ -58,27 +58,6 @@ def regular_undersampling_mask(ny: int, nx: int, accel: int, acs_lines: int = 0)
     return mask
 
 
-def random_undersampling_mask(
-    ny: int, nx: int, accel: float, acs_lines: int = 0, seed: int = 0
-) -> np.ndarray:
-    """Compressed-sensing-style mask: random PE lines at rate ``1/accel`` with a central ACS band.
-
-    Lines are drawn with a variable density (more likely near the center) so low frequencies
-    stay well sampled, which is what makes the incoherent aliasing CS relies on.
-    """
-    rng = np.random.default_rng(seed)
-    ky = np.arange(ny) - ny / 2
-    density = np.exp(-((ky / (0.35 * ny)) ** 2))
-    density *= (ny / accel) / density.sum()
-    keep = rng.random(ny) < np.clip(density, 0, 1)
-    mask = np.zeros((ny, nx), dtype=bool)
-    mask[keep, :] = True
-    if acs_lines > 0:
-        lo = ny // 2 - acs_lines // 2
-        mask[lo : lo + acs_lines, :] = True
-    return mask
-
-
 def add_complex_noise(ksp: np.ndarray, sigma: float, seed: int = 0) -> np.ndarray:
     """Add i.i.d. complex Gaussian noise with per-component standard deviation ``sigma``."""
     rng = np.random.default_rng(seed)
@@ -132,23 +111,28 @@ def epi_trajectory(
 # ----------------------------------------------------------------------------- coils
 
 
-def ring_coil_sensitivities(n_coils: int, ny: int, nx: int, with_phase: bool = True) -> np.ndarray:
+def ring_coil_sensitivities(
+    n_coils: int, ny: int, nx: int, with_phase: bool = True, width: float = 0.9, floor: float = 0.15
+) -> np.ndarray:
     """Receive sensitivities of ``n_coils`` arranged on a ring, ``(n_coils, ny, nx)``.
 
-    The magnitude is the model TRXScan/mrsim-acq use (a Gaussian falloff from each coil position
-    plus a floor). A smooth coil-dependent phase is added by default so that magnitude-only and
-    complex combinations differ, as they do for real coils.
+    The magnitude is the model TRXScan/mrsim-acq use: a Gaussian falloff from each coil position
+    with SD ``width`` times the matrix size, plus a constant ``floor``. The defaults are
+    TRXScan's, which are broad (each coil sees the whole head almost evenly); ``width=0.3,
+    floor=0.02`` gives the steep falloff of a real head array. A smooth coil-dependent phase is
+    added by default so that magnitude-only and complex combinations differ, as they do for
+    real coils.
     """
     y, x = np.mgrid[0:ny, 0:nx].astype(float)
     cy, cx = ny / 2, nx / 2
     r = 0.6 * max(ny, nx)
-    sigma = 0.9 * max(ny, nx)
+    sigma = width * max(ny, nx)
     sens = np.zeros((n_coils, ny, nx), dtype=complex)
     for c in range(n_coils):
         ang = 2 * np.pi * c / n_coils
         py, px = cy + r * np.sin(ang), cx + r * np.cos(ang)
         d2 = (x - px) ** 2 + (y - py) ** 2
-        mag = np.exp(-d2 / (2 * sigma**2)) + 0.15
+        mag = np.exp(-d2 / (2 * sigma**2)) + floor
         phase = 0.0
         if with_phase:
             phase = 0.6 * np.pi * ((x - px) * np.cos(ang) + (y - py) * np.sin(ang)) / max(ny, nx)
@@ -278,73 +262,6 @@ def pocs(ksp: np.ndarray, mask: np.ndarray, iters: int = 20) -> np.ndarray:
         k = fft2c(est)
         img = ifft2c(np.where(mask, ksp, k))
     return img
-
-
-# ----------------------------------------------------------------------------- compressed sensing
-
-
-def haar2(x: np.ndarray, levels: int = 3) -> np.ndarray:
-    """Orthonormal 2-D Haar wavelet transform, ``levels`` deep, in the standard nested layout."""
-    out = np.array(x, dtype=complex)
-    ny, nx = out.shape
-    for _ in range(levels):
-        a = out[:ny, :nx]
-        lo_y = (a[0::2, :] + a[1::2, :]) / np.sqrt(2)
-        hi_y = (a[0::2, :] - a[1::2, :]) / np.sqrt(2)
-        ll = (lo_y[:, 0::2] + lo_y[:, 1::2]) / np.sqrt(2)
-        lh = (lo_y[:, 0::2] - lo_y[:, 1::2]) / np.sqrt(2)
-        hl = (hi_y[:, 0::2] + hi_y[:, 1::2]) / np.sqrt(2)
-        hh = (hi_y[:, 0::2] - hi_y[:, 1::2]) / np.sqrt(2)
-        ny, nx = ny // 2, nx // 2
-        out[:ny, :nx], out[:ny, nx : 2 * nx] = ll, lh
-        out[ny : 2 * ny, :nx], out[ny : 2 * ny, nx : 2 * nx] = hl, hh
-    return out
-
-
-def ihaar2(c: np.ndarray, levels: int = 3) -> np.ndarray:
-    """Inverse of :func:`haar2`."""
-    out = np.array(c, dtype=complex)
-    ny0, nx0 = out.shape
-    ny, nx = ny0 >> levels, nx0 >> levels
-    for _ in range(levels):
-        ll, lh = out[:ny, :nx].copy(), out[:ny, nx : 2 * nx].copy()
-        hl, hh = out[ny : 2 * ny, :nx].copy(), out[ny : 2 * ny, nx : 2 * nx].copy()
-        lo_y = np.empty((ny, 2 * nx), dtype=complex)
-        hi_y = np.empty((ny, 2 * nx), dtype=complex)
-        lo_y[:, 0::2], lo_y[:, 1::2] = (ll + lh) / np.sqrt(2), (ll - lh) / np.sqrt(2)
-        hi_y[:, 0::2], hi_y[:, 1::2] = (hl + hh) / np.sqrt(2), (hl - hh) / np.sqrt(2)
-        a = np.empty((2 * ny, 2 * nx), dtype=complex)
-        a[0::2, :], a[1::2, :] = (lo_y + hi_y) / np.sqrt(2), (lo_y - hi_y) / np.sqrt(2)
-        out[: 2 * ny, : 2 * nx] = a
-        ny, nx = 2 * ny, 2 * nx
-    return out
-
-
-def soft_threshold(x: np.ndarray, lam: float) -> np.ndarray:
-    mag = np.abs(x)
-    return np.where(mag > lam, x * (1 - lam / np.maximum(mag, 1e-30)), 0)
-
-
-def cs_reconstruct(
-    ksp: np.ndarray, mask: np.ndarray, lam: float = 0.01, iters: int = 100, levels: int = 3
-) -> np.ndarray:
-    """Compressed-sensing reconstruction: wavelet-sparse image consistent with the sampled k-space.
-
-    Solves ``min_x 0.5 ||M F x - y||^2 + lam ||W x||_1`` by FISTA (accelerated proximal
-    gradient) with an orthonormal Haar ``W`` and orthonormal ``F`` (so the step size is 1).
-    ``lam`` is relative to the largest wavelet coefficient of the zero-filled image.
-    """
-    y = np.where(mask, ksp, 0)
-    x = ifft2c(y)
-    scale = np.abs(haar2(x, levels)).max()
-    z, t = x.copy(), 1.0
-    for _ in range(iters):
-        grad = ifft2c(np.where(mask, fft2c(z) - y, 0))
-        x_new = ihaar2(soft_threshold(haar2(z - grad, levels), lam * scale), levels)
-        t_new = (1 + np.sqrt(1 + 4 * t**2)) / 2
-        z = x_new + ((t - 1) / t_new) * (x_new - x)
-        x, t = x_new, t_new
-    return x
 
 
 # ----------------------------------------------------------------------------- noise statistics

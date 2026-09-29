@@ -71,5 +71,5 @@ build ([Appendix A](./a-trxscan-cookbook.md)):
 
 Every number in the book comes from a seeded random number generator, so the toy-tier
 results are identical between builds on the same versions. Small differences between
-platforms are possible in the iterative fits (registration, free-water elimination,
-compressed sensing) and are reported to the precision printed.
+platforms are possible in the iterative fits (registration, free-water elimination) and
+are reported to the precision printed.

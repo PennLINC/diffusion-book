@@ -67,11 +67,12 @@ for name, t2s in t2star.items():
 ax2.set(xlabel="echo time (ms)", ylabel="signal relative to echo 1", title="T2* decay between echoes")
 ax2.legend()
 fig.tight_layout()
+print("signal at echo 3 relative to echo 1: " + ", ".join(f"{name} {np.exp(-(echo_times[2] - te1) / t2s):.2f}" for name, t2s in t2star.items()))
 ```
 
 With the readout shortened by partial Fourier and in-plane acceleration to about 34 ms,
-three echoes fit within 150 ms. White matter has lost about half of its signal by the
-third echo; CSF almost none.
+three echoes fit within 150 ms. By the third echo white matter keeps only about a fifth of
+its signal, while CSF, with its long T2*, keeps about four fifths.
 
 ## Echo combination and T2* mapping
 
@@ -84,9 +85,11 @@ Three uses follow from having several echoes of every volume:
   diffusion-weighted volume, so relaxation and diffusion are measured together. This is a
   gradient-echo relaxometry measurement, sensitive to iron and myelin, obtained inside the
   diffusion scan.
-- **Recovery of signal dropout.** Signal lost in one echo to a motion event or an RF spike
-  during that readout is present in the other echoes, so the volume can be repaired from
-  its own echoes rather than from the model prediction of [Chapter 12](../03-preprocessing/12-motion-and-dropout.md).
+- **Recovery of readout-time corruption.** Signal corrupted in one echo by an event during
+  that readout, such as an RF spike, is intact in the other echoes, so the volume can be
+  repaired from its own echoes rather than from the model prediction of [Chapter 12](../03-preprocessing/12-motion-and-dropout.md). This
+  does not extend to the usual motion dropout: motion during the diffusion encoding
+  dephases the signal before the first readout begins, so every echo loses it together.
 
 The synthetic slice demonstrates the T2* estimate from two echoes: tissue T2* values are
 assigned, noise is added to each echo, and T2* is estimated voxel by voxel from the ratio.
@@ -135,8 +138,8 @@ of its signal from the first echo where the later ones are dark.
 
 :::{admonition} Simulated dataset pending
 :class: note
-The simulator's readout model is single-echo. A multi-echo readout (implementation plan
-item T5) would add per-echo k-space with T2* decay and dephasing between echoes; until it
+The simulator's readout model is single-echo. A multi-echo readout, a planned
+simulator extension, would add per-echo k-space with T2* decay and dephasing between echoes; until it
 exists, this chapter is toy-only.
 :::
 
@@ -147,7 +150,7 @@ exists, this chapter is toy-only.
 - **Shorten the readout first** (partial Fourier, in-plane acceleration) so that the extra
   echoes arrive before the signal is gone.
 - **The gain is relaxometry and robustness**, not a large SNR increase; choose it when T2*
-  per volume or dropout recovery is wanted.
+  per volume or repair of readout-time corruption is wanted.
 - **Do not confuse it with multi-TE**: varying the spin-echo time ([Chapter 20](./20-multi-te.md)) measures T2
   per compartment; extra gradient echoes measure T2* per voxel.
 

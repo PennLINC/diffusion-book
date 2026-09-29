@@ -171,8 +171,8 @@ Three ways to shorten the acquisition, with different costs (Chapters [2](../01-
 
 | Option | What it shortens | Cost |
 |---|---|---|
-| Partial Fourier (6/8, 7/8) | EPI readout and TE | blurring along phase-encode; sensitive to rough phase |
-| In-plane acceleration (R = 2) | EPI readout and TE by R | noise up by more than √R; spatially varying |
+| Partial Fourier (6/8, 7/8) | EPI readout and TE, but not distortion | blurring along phase-encode; sensitive to rough phase |
+| In-plane acceleration (R = 2) | EPI readout, TE, and distortion, by R | noise up by more than √R; spatially varying |
 | Multiband (2–4) | TR by the factor | slice leakage; dropout affects several slices at once ([Chapter 12](../03-preprocessing/12-motion-and-dropout.md)) |
 
 ```{code-cell} python
@@ -185,13 +185,20 @@ for label, kw in [("full", {}), ("6/8", {"partial_fourier": 0.75}), ("R = 2", {"
 ```
 
 Partial Fourier and in-plane acceleration together halve the readout and reach the k-space
-center in a quarter of the time. The readout length is what sets susceptibility distortion,
-so the next section is the same trade viewed from the artifact side.
+center in a quarter of the time. Only one of them reduces susceptibility distortion. The
+displacement depends on how long the readout takes to step from one line of the *full*
+k-space grid to the next. In-plane acceleration skips every other line, so each step covers
+twice the distance in the same time and the distortion halves. Partial Fourier leaves out
+lines at one edge of k-space but keeps the spacing of the rest, so the distortion is the
+same as with full sampling; it buys a shorter TE, not a smaller displacement. The next
+section is the same trade viewed from the artifact side.
 
 ## Phase-encode direction and readout time
 
 Off-resonance displaces signal along the phase-encode axis by the frequency offset times
-the total readout time ([Chapter 2](../01-mri-physics/02-spatial-encoding-kspace.md)). Near the frontal sinuses and the ear canals the offset
+the total readout time ([Chapter 2](../01-mri-physics/02-spatial-encoding-kspace.md)). The total readout time is defined on the full matrix,
+as the time between adjacent lines times the number of lines, so it is shortened by
+in-plane acceleration but not by partial Fourier. Near the frontal sinuses and the ear canals the offset
 reaches 100–200 Hz.
 
 ```{code-cell} python
@@ -212,8 +219,8 @@ or the correction will be applied backward.
 
 ## Gradient hardware
 
-Maximum gradient amplitude sets the minimum TE at a given b ([Chapter 5](./05-diffusion-encoding.md)): about 15 ms and
-20 % of white matter signal between 40 and 80 mT/m at b = 3000. Stronger gradients also
+Maximum gradient amplitude sets the minimum TE at a given b ([Chapter 5](./05-diffusion-encoding.md)): at b = 3000, going
+from 40 to 80 mT/m shortens the TE by about 25 ms, which is 30 % of the white matter signal. Stronger gradients also
 bring larger deviations from linearity in the field they produce, which warp the image and
 alter the effective b-value and direction voxel by voxel, increasingly with distance from
 the isocenter. [Chapter 13](../03-preprocessing/13-gradient-nonlinearity.md) covers the correction; the acquisition-side decisions are to
@@ -266,8 +273,8 @@ decision that a later chapter tests: the TE against [Chapter 1](../01-mri-physic
 - **Compute before scanning.** TR from slices and multiband, TE from b-value and gradient
   amplitude, scan time from volumes and TR, SNR at the highest shell from the b=0 SNR and
   tissue decay, distortion from readout time. All are one-line calculations.
-- **Shorten the readout** with moderate partial Fourier and R = 2; both reduce TE and
-  distortion, and the noise cost is acceptable at R = 2.
+- **Shorten the readout** with moderate partial Fourier and R = 2. Both reduce TE; only
+  R = 2 reduces distortion, and its noise cost is acceptable.
 - **Use multiband** to bring TR to 3–4 s and spend the saved time on volumes.
 - **Acquire reverse-polarity volumes** and record the phase-encode metadata correctly.
 - **Save the phase.**
