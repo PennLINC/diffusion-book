@@ -22,7 +22,6 @@ After this chapter you can:
 - explain how multiple receive coils are combined and how they are used to shorten the
   readout (parallel imaging), and what that costs in noise
 - explain how partial-Fourier data are completed, and when that fails
-- recognize what compressed sensing requires
 - describe the noise in a magnitude image, and state how large the resulting bias is at the
   signal levels typical of high b-value diffusion data
 
@@ -80,23 +79,27 @@ in what they require:
   measured in a calibration scan or estimated from the center of k-space. It gives the best
   SNR and preserves the phase.
 
-The coil model used here is the one TRXScan uses: coils on a ring around the head, each with a
-Gaussian falloff, plus a smooth phase per coil.
+The coil model has the same form as TRXScan's: coils on a ring around the head, each with a
+Gaussian falloff, plus a smooth phase per coil. TRXScan's default falloff is broad, so that
+each of its coils sees the whole head almost evenly. The coils here fall off as the elements
+of a real head array do: each one sees the cortex beneath it brightly, and the far side of
+the head about seventeen times more weakly. Each coil image is shown on its own intensity
+scale.
 
 ```{code-cell} python
 :tags: [hide-input]
 NC = 8
-sens = kspace.ring_coil_sensitivities(NC, N, N)
+sens = kspace.ring_coil_sensitivities(NC, N, N, width=0.3, floor=0.02)
 coil_ksp = kspace.fft2c(sens * img)
 coil_img = kspace.ifft2c(coil_ksp)
 
-fig, axes = plt.subplots(2, 4, figsize=(10, 5))
-for c in range(4):
-    show_image(axes[0, c], coil_img[c], f"coil {c + 1} of {NC}")
-show_image(axes[1, 0], np.abs(sens[0]), "sensitivity of coil 1")
-show_image(axes[1, 1], kspace.sos_combine(coil_img), "root sum of squares")
-show_image(axes[1, 2], kspace.roemer_combine(coil_img, sens), "sensitivity-weighted")
-axes[1, 3].imshow(np.where(mask, np.angle(kspace.roemer_combine(coil_img, sens)), np.nan), cmap="twilight"); axes[1, 3].set_axis_off(); axes[1, 3].set_title("phase, sensitivity-weighted")
+fig, axes = plt.subplots(3, 4, figsize=(10, 7.5))
+for c in range(NC):
+    show_image(axes[c // 4, c % 4], coil_img[c], f"coil {c + 1} of {NC}")
+show_image(axes[2, 0], np.abs(sens[0]), "sensitivity of coil 1")
+show_image(axes[2, 1], kspace.sos_combine(coil_img), "root sum of squares")
+show_image(axes[2, 2], kspace.roemer_combine(coil_img, sens), "sensitivity-weighted")
+axes[2, 3].imshow(np.where(mask, np.angle(kspace.roemer_combine(coil_img, sens)), np.nan), cmap="twilight"); axes[2, 3].set_axis_off(); axes[2, 3].set_title("phase, sensitivity-weighted")
 fig.tight_layout()
 ```
 
@@ -138,9 +141,11 @@ fig.tight_layout()
 ```
 
 Without noise, both methods recover the image almost exactly. The cost of parallel imaging is
-noise. Fewer samples raise the noise by $\sqrt{R}$, and the unfolding amplifies it further by
-a spatially varying factor (the g-factor) that depends on how different the coil
-sensitivities are at the positions that fold together. The amplification can be measured
+noise. Fewer samples raise the noise by the square root of the reduction in samples: $\sqrt{R}$,
+or slightly less when the ACS lines are acquired in the same scan, as they are here. The
+unfolding amplifies it further by a spatially varying factor (the g-factor) that depends on
+how different the coil sensitivities are at the positions that fold together; coils with
+broad, overlapping sensitivities give a large g-factor. The amplification can be measured
 directly by adding noise and comparing the reconstructions:
 
 ```{code-cell} python
@@ -153,7 +158,9 @@ rec_r2 = kspace.roemer_combine(kspace.ifft2c(kspace.grappa_reconstruct(noisy_und
 noise_full = np.std((rec_full - ref)[mask])
 noise_r2 = np.std((rec_r2 - ref)[mask])
 print(f"noise SD inside the brain: R = 1: {noise_full:.4f}; R = 2 with GRAPPA: {noise_r2:.4f}; "
-      f"ratio {noise_r2 / noise_full:.2f} (sqrt(R) alone would give {np.sqrt(R):.2f})")
+      f"ratio {noise_r2 / noise_full:.2f}")
+print(f"from the fewer samples alone ({mask_r2[:, 0].sum()} of {N} lines): {np.sqrt(N / mask_r2[:, 0].sum()):.2f}; "
+      f"the rest, {noise_r2 / noise_full / np.sqrt(N / mask_r2[:, 0].sum()):.2f}, is the average g-factor")
 ```
 
 In practice, $R = 2$ is common in diffusion protocols because the shorter readout reduces
@@ -162,12 +169,32 @@ quickly with the coil geometry of a head array.
 
 ## Partial Fourier reconstruction
 
-A partial-Fourier acquisition ([Chapter 2](./02-spatial-encoding-kspace.md)) skips the lines whose mirror images were acquired.
-The reconstruction supplies them, and the methods differ in what they assume about the
-image phase:
+For an object with no phase, k-space is symmetric about its center, so half of the lines are
+redundant. A partial-Fourier acquisition ([Chapter 2](./02-spatial-encoding-kspace.md)) skips a fraction of the lines on one side,
+typically acquiring 5/8 to 7/8 of them, to shorten the readout and the echo time. The figure
+shows the full k-space of the slice, the same k-space with the first quarter and the first
+three eighths of the phase-encode lines skipped, and the image reconstructed from each when
+the missing lines are simply left at zero:
 
-- **Zero filling** assumes nothing. The missing lines are set to zero, which blurs the image
-  along the phase-encode direction.
+```{code-cell} python
+:tags: [hide-input]
+ksp_obj = kspace.fft2c(obj)
+fig, axes = plt.subplots(2, 3, figsize=(10.5, 7))
+for col, (label, frac) in enumerate([("full", 1.0), ("partial Fourier 6/8", 0.75), ("partial Fourier 5/8", 0.625)]):
+    pf_mask = kspace.partial_fourier_mask(N, N, frac)
+    acquired = np.where(pf_mask, ksp_obj, 0)
+    show_kspace(axes[0, col], acquired, f"k-space: {label} ({pf_mask[:, 0].sum()} of {N} lines)")
+    show_image(axes[1, col], kspace.ifft2c(acquired), f"image: {label}, zero-filled", vmin=0, vmax=1)
+fig.tight_layout()
+```
+
+Left at zero, the missing lines cost resolution along the phase-encode axis: the image blurs
+from top to bottom, more so the more lines are skipped. The symmetry can recover them, but
+real images do have phase (from field inhomogeneity, coil phase, eddy currents, and motion),
+so the symmetry is only approximate and the reconstruction has to estimate the phase from
+the acquired part. The methods differ in what they assume about that phase:
+
+- **Zero filling** assumes nothing and accepts the blur.
 - **Homodyne** assumes the phase is smooth. It estimates the phase from the fully sampled
   center, uses the acquired lines to stand in for their missing mirrors, and removes the
   estimated phase.
@@ -206,44 +233,6 @@ show_image(axes[1], kspace.homodyne(full_fast, pf_mask), "homodyne reconstructio
 show_image(axes[2], np.abs(np.abs(kspace.homodyne(full_fast, pf_mask)) - obj), "error", vmin=0, vmax=0.3)
 fig.tight_layout()
 ```
-
-## Compressed sensing
-
-Regular under-sampling produces coherent aliasing: neat copies of the object, which parallel
-imaging removes using coil information. Random under-sampling produces incoherent aliasing
-that resembles noise, and a different kind of information removes it: most medical images
-are compressible, meaning they can be represented by a small number of coefficients in a
-suitable transform (wavelets are the usual choice). A reconstruction that looks for the
-image with the fewest such coefficients among all images consistent with the sampled
-k-space can recover the object from far fewer samples than the Nyquist rule requires. The
-three requirements, incoherent sampling, a sparsifying transform, and an iterative
-nonlinear solver, define compressed sensing {cite:p}`lustig2007`.
-
-```{code-cell} python
-:tags: [hide-input]
-cs_mask = kspace.random_undersampling_mask(N, N, accel=3, acs_lines=12, seed=3)
-reg_mask = kspace.regular_undersampling_mask(N, N, 3)
-ksp_obj = kspace.fft2c(obj)
-zf_random = kspace.zero_fill(ksp_obj, cs_mask)
-zf_regular = kspace.zero_fill(ksp_obj, reg_mask) * 3
-cs = kspace.cs_reconstruct(ksp_obj, cs_mask, lam=0.01, iters=100)
-
-fig, axes = plt.subplots(1, 4, figsize=(11, 3))
-axes[0].imshow(cs_mask, cmap="gray", aspect="auto"); axes[0].set_axis_off(); axes[0].set_title(f"random lines, {cs_mask[:, 0].mean():.0%} sampled")
-show_image(axes[1], zf_regular, "regular R = 3: coherent aliasing")
-show_image(axes[2], zf_random, "random: incoherent aliasing")
-show_image(axes[3], cs, "compressed-sensing reconstruction")
-fig.tight_layout()
-print(f"mean error inside the brain: zero-filled random {np.abs(np.abs(zf_random) - obj)[mask].mean():.4f}, "
-      f"compressed sensing {np.abs(np.abs(cs) - obj)[mask].mean():.4f}")
-```
-
-The reconstruction above uses a simple wavelet and a short solver so that every step is
-visible; the residual blockiness comes from that choice, and production methods use better
-transforms. In diffusion MRI, compressed sensing in k-space is used mainly for multi-shot
-and 3-D readouts, since single-shot EPI already collects all of k-space in one pass. The more
-common use is in q-space: sampling diffusion directions and b-values sparsely and
-reconstructing with a sparsity prior, which is CS-DSI ([Chapter 6](../02-diffusion-encoding/06-qspace-sampling.md)).
 
 ## Noise in magnitude images
 
@@ -338,7 +327,7 @@ what complex data provide across the whole analysis chain.
 - **Save the phase.** It costs storage and nothing else at the scanner, and it cannot be
   recovered afterward.
 - **Parallel imaging is a noise decision.** $R = 2$ shortens the readout and TE, but the
-  noise increases by more than $\sqrt{2}$ and becomes spatially structured.
+  noise increases by about $\sqrt{2}$ times the g-factor and becomes spatially structured.
 - **Partial Fourier depends on smooth phase.** Moderate factors are safe; aggressive ones
   fail near sinuses and under strong eddy currents.
 - **More coils raise the noise floor** of magnitude images even as they raise SNR, and the
@@ -347,6 +336,5 @@ what complex data provide across the whole analysis chain.
 ## Further reading
 
 Phased arrays and their combination {cite:p}`roemer1990`, SENSE {cite:p}`pruessmann1999`,
-GRAPPA {cite:p}`griswold2002`, homodyne reconstruction {cite:p}`noll1991`, compressed
-sensing in MRI {cite:p}`lustig2007`, and the noise statistics of magnitude images
-{cite:p}`gudbjartsson1995,constantinides1997`.
+GRAPPA {cite:p}`griswold2002`, homodyne reconstruction {cite:p}`noll1991`, and the noise
+statistics of magnitude images {cite:p}`gudbjartsson1995,constantinides1997`.

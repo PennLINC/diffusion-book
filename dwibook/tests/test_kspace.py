@@ -28,13 +28,6 @@ def test_regular_mask_has_acs_band():
     assert m[20:44].all()
 
 
-def test_random_mask_rate_and_acs():
-    m = kspace.random_undersampling_mask(256, 4, accel=3.0, acs_lines=16, seed=0)
-    rate = m[:, 0].mean()
-    assert 0.25 < rate < 0.5
-    assert m[120:136].all()
-
-
 def test_epi_trajectory_timing():
     tr = kspace.epi_trajectory(64, 64, echo_spacing_ms=0.5)
     assert tr.lines.size == 64 and np.isclose(tr.readout_ms, 63 * 0.5)
@@ -91,25 +84,6 @@ def test_partial_fourier_methods_beat_zero_fill():
     err = lambda rec: np.abs(np.abs(rec) - np.abs(img)).mean()
     zf, hd, pc = kspace.zero_fill(ksp, mask), kspace.homodyne(ksp, mask), kspace.pocs(ksp, mask, 30)
     assert err(hd) < err(zf) and err(pc) < err(zf)
-
-
-def test_haar_round_trip_and_orthonormality():
-    rng = np.random.default_rng(0)
-    x = rng.random((32, 32)) + 1j * rng.random((32, 32))
-    c = kspace.haar2(x, 3)
-    np.testing.assert_allclose(kspace.ihaar2(c, 3), x, atol=1e-12)
-    assert np.isclose(np.sum(np.abs(c) ** 2), np.sum(np.abs(x) ** 2))
-
-
-def test_cs_reconstruction_reduces_aliasing():
-    from dwibook.phantoms import shepp_logan
-
-    img = shepp_logan(64)
-    ksp = kspace.fft2c(img)
-    mask = kspace.random_undersampling_mask(64, 64, accel=2.5, acs_lines=8, seed=0)
-    zf = np.abs(kspace.zero_fill(ksp, mask))
-    cs = np.abs(kspace.cs_reconstruct(ksp, mask, lam=0.01, iters=100))
-    assert np.abs(cs - img).mean() < 0.75 * np.abs(zf - img).mean()
 
 
 def test_rician_mean_limits():

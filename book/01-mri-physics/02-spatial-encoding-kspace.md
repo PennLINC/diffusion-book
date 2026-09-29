@@ -196,26 +196,10 @@ For an object with no phase, k-space is symmetric about its center, so half of t
 redundant. Partial Fourier acquisitions skip a fraction of the lines on one side, typically
 acquiring 5/8 to 7/8 of them. The timings printed above show the two benefits: the readout is
 shorter, and the center of k-space is reached sooner, which shortens the minimum echo time.
-The figure shows the full k-space of the slice, the same k-space with the first quarter and
-the first three eighths of the phase-encode lines skipped, and the image reconstructed from
-each when the missing lines are simply left at zero:
-
-```{code-cell} python
-:tags: [hide-input]
-fig, axes = plt.subplots(2, 3, figsize=(10.5, 7))
-for col, (label, frac) in enumerate([("full", 1.0), ("partial Fourier 6/8", 0.75), ("partial Fourier 5/8", 0.625)]):
-    pf_mask = kspace.partial_fourier_mask(ny, nx, frac)
-    acquired = np.where(pf_mask, ksp, 0)
-    show_kspace(axes[0, col], acquired, f"k-space: {label} ({pf_mask[:, 0].sum()} of {ny} lines)")
-    show_image(axes[1, col], kspace.ifft2c(acquired), f"image: {label}, zero-filled", vmin=0, vmax=1)
-fig.tight_layout()
-```
-
-Left at zero, the missing lines cost resolution along the phase-encode axis: the image blurs
-from top to bottom, more so the more lines are skipped. The symmetry can recover them, and
-[Chapter 3](./03-reconstruction.md) shows the reconstructions that do so. The cost is that real images do have phase
-(from field inhomogeneity, coil phase, eddy currents, and motion), so the symmetry is only
-approximate and the reconstruction has to estimate the phase from the acquired part. In-plane
+The price is that the skipped lines have to be supplied by the reconstruction, which relies
+on the symmetry, and real images do have phase (from field inhomogeneity, coil phase, eddy
+currents, and motion), so the symmetry is only approximate. [Chapter 3](./03-reconstruction.md) shows what the
+skipped lines cost in resolution and how the reconstruction recovers them. In-plane
 acceleration is the other way to shorten the readout: keep every $R$-th line and recover the
 missing ones using multiple receive coils.
 

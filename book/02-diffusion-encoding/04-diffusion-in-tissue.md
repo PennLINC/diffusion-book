@@ -27,7 +27,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from dwibook import phantoms, presets
-from dwibook.plotting import PALETTE, TISSUE_COLORS, set_style
+from dwibook.plotting import INK, PALETTE, TISSUE_COLORS, animate, set_style
 
 set_style()
 ```
@@ -52,6 +52,50 @@ for t in [1, 10, 50, 100]:
     print(f"{t:>4} ms: rms displacement per axis {np.sqrt(2 * D * t):5.1f} um")
 ```
 
+The animation follows 2000 molecules that all start at the same point, with no barriers, over
+those 50 ms. Individually they wander in all directions; together they form a cloud that
+stays centered where it started and spreads. The circle marks the root-mean-square distance
+from the start, $\sqrt{4 D t}$ in two dimensions, which grows as the square root of time: the
+cloud spreads quickly at first and then more slowly. On the right, the positions along one
+axis follow a Gaussian with variance $2 D t$, which widens in step.
+
+```{code-cell} python
+:tags: [hide-input]
+D_FREE = 3.0        # um^2/ms
+STEP = 1.0          # um per step
+DT = STEP**2 / (4 * D_FREE)  # ms per step, from <r^2> = 4 D t in two dimensions
+N_STEPS = 600       # 50 ms
+t_ms = np.arange(N_STEPS + 1) * DT
+free = phantoms.random_walk_2d(2000, N_STEPS, STEP, seed=0)
+
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 3.8), gridspec_kw={"width_ratios": [1, 1.2]})
+cloud = ax1.scatter(free[0, :, 0], free[0, :, 1], s=2, alpha=0.4, color=PALETTE[0])
+paths = [ax1.plot([], [], lw=0.8, color=PALETTE[c])[0] for c in (1, 3, 5)]
+ring = plt.Circle((0, 0), 0, fill=False, color=INK["primary"], lw=1, ls="--")
+ax1.add_patch(ring)
+ax1.set(aspect="equal", xlim=(-40, 40), ylim=(-40, 40), xlabel="µm", ylabel="µm")
+ax1.grid(False)
+x_axis = np.linspace(-45, 45, 300)
+bins = np.linspace(-45, 45, 46)
+
+def frame(i):
+    t = t_ms[i]
+    cloud.set_offsets(free[i])
+    for w, line in enumerate(paths):
+        line.set_data(free[: i + 1, w, 0], free[: i + 1, w, 1])
+    ring.set_radius(np.sqrt(4 * D_FREE * t))
+    ax1.set_title(f"t = {t:4.1f} ms")
+    ax2.cla()
+    ax2.hist(free[i, :, 0], bins=bins, density=True, color=PALETTE[0], alpha=0.5)
+    if t > 0:
+        ax2.plot(x_axis, np.exp(-x_axis**2 / (4 * D_FREE * t)) / np.sqrt(4 * np.pi * D_FREE * t), color=INK["primary"], lw=1.2, label="Gaussian, variance 2 D t")
+        ax2.legend(loc="upper right")
+    ax2.set(xlim=(-45, 45), ylim=(0, 0.12), xlabel="position along one axis (µm)", ylabel="fraction of molecules per µm", title="distribution along one axis")
+
+animate(fig, frame, list(range(0, 60, 3)) + list(range(60, N_STEPS + 1, 15)), fps=8, width=640, dpi=80,
+        alt="2000 random walkers start at one point and spread into a widening cloud; a dashed circle of radius square root of 4 D t grows with them, and a histogram of their positions along one axis widens as a Gaussian")
+```
+
 Cell bodies are 10–20 µm across, axons 1 µm or less. Over the measurement time, a molecule
 moves far enough to encounter membranes, myelin, and organelles, and its displacement is
 reduced by them. This is the basis of diffusion MRI: the measurement reports displacements
@@ -72,30 +116,51 @@ Three cases cover what tissue does to the random walk:
   at first and then stops growing once the molecule has reached the walls. Water inside an
   axon, measured across the axon, is the example.
 
-The simulation below runs the same random walk in four geometries. The step size and time
-step are chosen so that the free walk has $D = 3$ µm²/ms.
+The simulation below runs the same random walk, with the same $D = 3$ µm²/ms, in four
+geometries whose barriers are drawn in gray. The animation traces twelve molecules in each
+over 50 ms. The free walkers wander off in every direction; the hindered ones get less far,
+because every path detours around the obstacles; the walkers in the channel run freely
+along it and bounce between its walls; the walkers in the cell body are trapped.
 
 ```{code-cell} python
 :tags: [hide-input]
-D_FREE = 3.0        # um^2/ms
-STEP = 1.0          # um per step
-DT = STEP**2 / (4 * D_FREE)  # ms per step, from <r^2> = 4 D t in two dimensions
-N_STEPS = 600       # 50 ms
+from matplotlib.patches import Circle, Rectangle
+
 walks = {
-    "free (CSF)": phantoms.random_walk_2d(2000, N_STEPS, STEP, seed=0),
+    "free (CSF)": free,
     "hindered (extracellular)": phantoms.random_walk_2d(2000, N_STEPS, STEP, seed=0, radius=1.6, geometry="obstacles", spacing=4.0),
     "restricted, one axis (axon)": phantoms.random_walk_2d(2000, N_STEPS, STEP, seed=0, radius=1.0, geometry="channel"),
     "restricted (cell body)": phantoms.random_walk_2d(2000, N_STEPS, STEP, seed=0, radius=5.0, geometry="disc"),
 }
-t_ms = np.arange(N_STEPS + 1) * DT
+barrier = {"color": "0.8", "zorder": 0}
 
-fig, axes = plt.subplots(1, 4, figsize=(12, 3.2))
+fig, axes = plt.subplots(1, 4, figsize=(12, 3.4))
+lines = []
 for ax, (name, pos) in zip(axes, walks.items()):
-    for w in range(12):
-        ax.plot(pos[:, w, 0], pos[:, w, 1], lw=0.6, alpha=0.8)
+    if name.startswith("hindered"):
+        for cx in np.arange(-20, 21, 4.0):
+            for cy in np.arange(-20, 21, 4.0):
+                ax.add_patch(Circle((cx, cy), 1.6, **barrier))
+    elif name.startswith("restricted, one axis"):
+        ax.add_patch(Rectangle((-20, -20), 19, 40, **barrier))
+        ax.add_patch(Rectangle((1, -20), 19, 40, **barrier))
+    elif name.startswith("restricted (cell"):
+        ax.add_patch(Rectangle((-20, -20), 40, 40, **barrier))
+        ax.add_patch(Circle((0, 0), 5.0, color="white", zorder=0))
+    lines.append([ax.plot([], [], lw=0.7, alpha=0.9)[0] for _ in range(12)])
     ax.set(title=name, aspect="equal", xlim=(-20, 20), ylim=(-20, 20), xlabel="µm")
     ax.grid(False)
 fig.tight_layout()
+stamp = fig.text(0.5, 0.01, "", ha="center", fontsize=9)
+
+def frame(i):
+    for ax_lines, pos in zip(lines, walks.values()):
+        for w, line in enumerate(ax_lines):
+            line.set_data(pos[: i + 1, w, 0], pos[: i + 1, w, 1])
+    stamp.set_text(f"t = {t_ms[i]:4.1f} ms")
+
+animate(fig, frame, range(0, N_STEPS + 1, 12), fps=10, width=900, dpi=70,
+        alt="twelve random walks traced over 50 ms in four geometries: free walks spread widely, hindered walks spread by detours around a lattice of obstacles, walks in a narrow channel spread only along it, and walks in a small disc stay inside it")
 ```
 
 ## Measure it: displacement versus time
