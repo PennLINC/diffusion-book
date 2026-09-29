@@ -32,8 +32,8 @@ After this chapter you can:
 import numpy as np
 import matplotlib.pyplot as plt
 
-from dwibook import kspace, phantoms, presets, schemes, signal
-from dwibook.plotting import PALETTE, TISSUE_COLORS, set_style, show_image
+from dwibook import kspace, phantoms, presets, schemes, signal, synth
+from dwibook.plotting import INK, PALETTE, TISSUE_COLORS, set_style, show_image
 
 set_style()
 ```
@@ -47,17 +47,38 @@ do so before the protocol is run rather than after the data are found wanting.
 TE is set by the diffusion encoding ([Chapter 5](./05-diffusion-encoding.md)) and the readout ([Chapter 2](../01-mri-physics/02-spatial-encoding-kspace.md)), and the
 scanner reports the minimum it can reach for a given b-value. Signal falls as
 $e^{-\mathrm{TE}/T_2}$ ([Chapter 1](../01-mri-physics/01-spins-and-signal.md)). Each 10 ms of TE costs about 14 % of adult white matter
-signal and 12 % of gray matter signal; CSF is unaffected. Shortening TE is the single most
-effective way to raise SNR, and the ways to do it are stronger gradients, partial Fourier,
-and in-plane acceleration.
+signal and 12 % of gray matter signal; CSF, whose T2 is about two seconds, barely changes.
+Shortening TE is the single most effective way to raise SNR, and the ways to do it are
+stronger gradients, *partial Fourier* (skipping part of one side of k-space, whose content
+the reconstruction infers from the other side), and *in-plane acceleration* (skipping k-space
+lines, every other one at an acceleration factor R = 2, and filling the gaps from the receive coils' sensitivity patterns,
+[Chapter 3](../01-mri-physics/03-reconstruction.md)). Both shorten the time the readout needs to reach the center of k-space, where
+the echo is formed.
+
+The figure plots the b=0 signal of each tissue against TE, relative to its value at
+TE = 60 ms, with markers at 60 ms (a short TE, reachable with strong gradients and
+acceleration) and at the 88 ms of the HBCD protocol. Look at the gap between the two
+markers on the white and gray matter curves: that is the signal the longer TE gives up.
 
 ```{code-cell} python
 :tags: [hide-input]
-te = np.array([60, 70, 80, 88, 100, 120])
-print("b=0 signal relative to TE = 60 ms (adult preset)")
-print(f"{'TE':>5}" + "".join(f"{t:>8}" for t in ("WM", "GM", "CSF")))
-for t in te:
-    print(f"{t:>5}" + "".join(f"{np.exp(-(t - 60) / presets.T2_MS['adult'][k]):8.2f}" for k in ("WM", "GM", "CSF")))
+te = np.linspace(55, 130, 200)
+te_marks = (60.0, presets.TE_HBCD_MS)
+t2 = presets.T2_MS["adult"]
+fig, ax = plt.subplots(figsize=(6.5, 3.4))
+for k in ("WM", "GM", "CSF"):
+    ax.plot(te, np.exp(-(te - 60) / t2[k]), color=TISSUE_COLORS[k], label=k)
+    ax.plot(te_marks, [np.exp(-(t - 60) / t2[k]) for t in te_marks], "o", color=TISSUE_COLORS[k], ms=7)
+for t, lab in zip(te_marks, ("TE 60 ms", f"HBCD TE {presets.TE_HBCD_MS:.0f} ms")):
+    ax.axvline(t, color=INK["secondary"], lw=0.8, ls=":")
+    ax.text(t + 1, 0.42, lab, fontsize=8, color=INK["secondary"])
+ax.set(xlabel="TE (ms)", ylabel="b=0 signal relative to TE = 60 ms", ylim=(0.4, 1.12),
+       title="Signal lost to T2 decay as TE grows (adult preset)")
+ax.legend(loc="center right")
+fig.tight_layout()
+for k in ("WM", "GM", "CSF"):
+    print(f"{k:>3}: {1 - np.exp(-10 / t2[k]):.0%} lost per 10 ms of TE; "
+          f"at TE {presets.TE_HBCD_MS:.0f} ms, {np.exp(-(presets.TE_HBCD_MS - 60) / t2[k]):.2f} of the signal at TE 60 ms")
 ```
 
 ## Repetition time
@@ -65,12 +86,17 @@ for t in te:
 TR sets three things: how much longitudinal magnetization has recovered before the next
 excitation, how many slices fit in one TR, and the scan time. The steady-state signal is
 $1 - e^{-\mathrm{TR}/T_1}$. White matter recovers within about 3 s; CSF, with a T1 of about
-4 s, does not, and at a short TR its b=0 signal is suppressed. TRXScan represents this
-saturation as a per-compartment scale on the b=0 signal (the `--tissue-s0` option).
+4 s, does not, and at a short TR its b=0 signal is suppressed: in the b=0 image the
+ventricles look darker relative to the tissue than they would at a long TR, and the
+fraction of CSF that a voxel's signal implies comes out too small. The left panel below
+shows the recovery; at TR = 3 s white matter reaches 97 % of its full signal and CSF 53 %.
 
 The minimum TR is the time to acquire all slices once: the number of slices times the time
 per slice (about TE plus half the readout plus some overhead, roughly 120–150 ms), divided
-by the multiband factor.
+by the *multiband* factor. Multiband (also called simultaneous multi-slice) excites several
+slices at once and reads them in one readout; the receive coils' different views of each
+slice let the reconstruction pull them apart. With multiband 3, three slices share each
+readout, so a volume takes a third of the time.
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -85,6 +111,8 @@ for mb, color in zip([1, 2, 3, 4], PALETTE):
     ax2.plot(n_slices, n_slices * t_slice / mb, color=color, label=f"multiband {mb}")
 ax2.set(xlabel="number of 2 mm slices", ylabel="minimum TR (s)", title="TR needed to cover the slices"); ax2.legend()
 fig.tight_layout()
+print("recovered fraction at TR = 3 s: " + ", ".join(f"{name} {1 - np.exp(-3000 / t1):.0%}" for name, t1 in presets.T1_MS.items()))
+print(f"70 slices at {t_slice * 1000:.0f} ms each: TR {70 * t_slice:.1f} s without multiband, {70 * t_slice / 3:.1f} s with multiband 3")
 ```
 
 Seventy slices of 2 mm without multiband need a TR near 10 s; with multiband 3 it is about
@@ -93,12 +121,18 @@ the number of volumes.
 
 ## Voxel size
 
-Signal is proportional to voxel volume: a 1.5 mm isotropic voxel has 3.4 mm³, a 2.5 mm voxel
-15.6 mm³, a factor of 4.6 in SNR. The trade is partial volume. A 2.5 mm voxel at the cortex
-or the ventricle wall contains a mixture of tissues, and its diffusion measures are the
-mixture's. The synthetic slice below is shown at its native 2 mm and block-averaged to 4 mm,
-with noise scaled by the volume ratio, and the fraction of brain voxels that contain a
-mixture of tissue classes is counted at each size.
+Signal is proportional to voxel volume, because a bigger voxel holds more water. A 2 mm
+isotropic voxel holds 8 mm³ and a 1.5 mm voxel 3.4 mm³, so moving from 2 mm to 1.5 mm gives
+up more than half the SNR (a factor of 2.4). The trade is partial volume. A large voxel at
+the cortex or the ventricle wall contains a mixture of tissues, and its diffusion measures
+are the mixture's.
+
+The figure makes the trade visible with an exaggerated step. The synthetic slice is shown at
+its native 2 mm in-plane and block-averaged to 4 mm in-plane (same slice thickness), which
+multiplies the voxel volume, and so the SNR, by 4; the noise is scaled accordingly. Each
+title gives the fraction of brain voxels that are tissue mixtures, with no class above 80 %.
+Look at the left image's graininess and the right image's blurred cortex and ventricle
+edges.
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -121,9 +155,6 @@ for ax, f in zip(axes, [1, 2]):
     noisy = kspace.ifft2c(kspace.add_complex_noise(kspace.fft2c(im), sigma / f**2, seed=0))  # in-plane only: SNR ∝ area
     show_image(ax, noisy, f"{2 * f} mm in-plane, mixed voxels {mixed_fraction(f):.0%}", vmin=0, vmax=1)
 fig.tight_layout()
-print("fraction of brain voxels that are tissue mixtures (no class above 80 %):")
-for f in [1, 2]:
-    print(f"  {2 * f} mm: {mixed_fraction(f):.0%}")
 ```
 
 Resolution also determines what tractography can resolve: fibers that cross within a voxel
@@ -143,19 +174,41 @@ ventricle wall.
 [Chapter 5](./05-diffusion-encoding.md) gave the signal per tissue as a function of b. The choice of b-values is the
 choice of what to measure: b ≈ 1000 for tensor metrics, b = 2000–3000 for fiber orientation
 and multi-compartment models, higher only with strong gradients. The SNR of each shell
-follows from the b=0 SNR and the tissue decay:
+follows from the b=0 SNR and the tissue decay: multiply the b=0 SNR by the fraction of
+signal the tissue keeps at that b. The figure does this for a b=0 SNR of 30, for white
+matter with the gradient across and along the fibers and for gray matter. The shaded band
+is SNR below 3, where a magnitude image's noise floor ([Chapter 3](../01-mri-physics/03-reconstruction.md)) is comparable to the signal
+and the measured value no longer follows the tissue. Look at where each curve enters the
+band.
 
 ```{code-cell} python
 :tags: [hide-input]
 snr0 = 30.0
-print(f"SNR of white matter (across fibers) and gray matter by shell, for SNR {snr0:.0f} at b = 0")
-for b in [0, 500, 1000, 2000, 3000]:
-    print(f"  b = {b:>4}: WM {snr0 * signal.white_matter(b, 0.0):5.1f}   GM {snr0 * signal.gray_matter(b):5.1f}")
+b = np.linspace(0, 3500, 300)
+snr_curves = {
+    "WM, gradient across fibers": (snr0 * signal.white_matter(b, 0.0), dict(color=TISSUE_COLORS["WM"], ls="-")),
+    "WM, gradient along fibers": (snr0 * signal.white_matter(b, 1.0), dict(color=TISSUE_COLORS["WM"], ls="--")),
+    "GM": (snr0 * signal.gray_matter(b), dict(color=TISSUE_COLORS["GM"], ls="-")),
+}
+fig, ax = plt.subplots(figsize=(6.5, 3.6))
+ax.axhspan(0, 3, color=INK["grid"], zorder=0)
+ax.text(3450, 1.5, "noise-floor zone (SNR < 3)", ha="right", va="center", fontsize=8, color=INK["secondary"])
+for name, (s, sty) in snr_curves.items():
+    ax.plot(b, s, label=name, **sty)
+for bs in (500, 1000, 2000, 3000):
+    ax.axvline(bs, color=INK["secondary"], lw=0.6, ls=":")
+ax.set(xlabel="b (s/mm²)", ylabel="SNR", ylim=(0, snr0 * 1.05), xlim=(0, 3500),
+       title=f"SNR by b-value for SNR {snr0:.0f} at b = 0 (dotted: HBCD shells)")
+ax.legend(loc="upper right")
+fig.tight_layout()
+print(f"SNR at b = 3000 for SNR {snr0:.0f} at b = 0: WM across {snr0 * signal.white_matter(3000, 0.0):.1f}, "
+      f"WM along {snr0 * signal.white_matter(3000, 1.0):.1f}, GM {snr0 * signal.gray_matter(3000):.1f}")
 ```
 
-At b = 3000 gray matter is at SNR 4, where the magnitude bias of [Chapter 3](../01-mri-physics/03-reconstruction.md) is a few percent
-and denoising ([Chapter 8](../03-preprocessing/08-noise.md)) becomes necessary rather than optional; along the fibers, white
-matter is lower still.
+Across the fibers white matter keeps a usable SNR at every shell. Gray matter reaches about
+SNR 4 at b = 3000, just above the band, where the magnitude bias of [Chapter 3](../01-mri-physics/03-reconstruction.md) is a few
+percent and denoising ([Chapter 8](../03-preprocessing/08-noise.md)) becomes necessary rather than optional. Along the fibers,
+white matter falls into the band well before b = 3000.
 
 ## Number of directions and b=0 volumes
 
@@ -171,21 +224,57 @@ Three ways to shorten the acquisition, with different costs (Chapters [2](../01-
 
 | Option | What it shortens | Cost |
 |---|---|---|
-| Partial Fourier (6/8, 7/8) | EPI readout and TE, but not distortion | blurring along phase-encode; sensitive to rough phase |
-| In-plane acceleration (R = 2) | EPI readout, TE, and distortion, by R | noise up by more than √R; spatially varying |
+| Partial Fourier (6/8, 7/8 of the lines) | EPI readout and TE, but not distortion | some blurring along phase-encode; errors where the image phase varies quickly |
+| In-plane acceleration (R = 2) | EPI readout, TE, and distortion, by R | more noise: at least √R, times the g-factor, and uneven across the image |
 | Multiband (2–4) | TR by the factor | slice leakage; dropout affects several slices at once ([Chapter 12](../03-preprocessing/12-motion-and-dropout.md)) |
+
+The costs in plain words:
+
+- **Partial Fourier** fills in the skipped lines using the symmetry of k-space: for a real
+  image, one half of k-space mirrors the other. Real images carry a phase ([Chapter 3](../01-mri-physics/03-reconstruction.md)), and the
+  fill-in works only where that phase is smooth, which it usually is. Where it changes
+  quickly ("rough" phase: near air–tissue boundaries, or when the head moves during the
+  diffusion encoding) the filled-in lines are wrong and the image is blurred or distorted
+  in intensity there.
+- **In-plane acceleration** collects R times fewer lines, so the image averages less signal
+  and its noise rises by at least √R (the square root of the acceleration factor, about
+  1.4 at R = 2). The reconstruction then separates the folded copies of the image using the
+  coils' sensitivity patterns, and where the coils look alike (usually the middle of the
+  head) that separation amplifies the noise further. The factor by which it does is the
+  *g-factor*, a map that is near 1 at the edges and larger in the center.
+- **Multiband** separates the simultaneously excited slices by the same coil-sensitivity
+  trick. The separation is imperfect, and a faint copy of one slice can appear in another:
+  *slice leakage*.
+
+The figure shows the readout timelines for a 128-line EPI at the HBCD echo spacing. Each
+tick is one acquired k-space line, and the diamond marks the center of k-space, where the
+echo forms. Look at two things: where the diamond sits (it sets how short TE can be) and how
+long each bar is (the readout duration).
 
 ```{code-cell} python
 :tags: [hide-input]
 esp = presets.READOUT_HBCD_MS / 128
-print("EPI timing for a 128-line matrix, HBCD echo spacing")
-for label, kw in [("full", {}), ("6/8", {"partial_fourier": 0.75}), ("R = 2", {"accel": 2}), ("6/8 + R = 2", {"partial_fourier": 0.75, "accel": 2})]:
-    tr = kspace.epi_trajectory(128, 128, esp, **kw)
-    print(f"  {label:>12}: readout {tr.readout_ms:5.1f} ms, center at {tr.time_to_center_ms:5.1f} ms")
+epi_cases = [("full", {}), ("6/8 partial Fourier", {"partial_fourier": 0.75}),
+             ("R = 2", {"accel": 2}), ("6/8 + R = 2", {"partial_fourier": 0.75, "accel": 2})]
+fig, ax = plt.subplots(figsize=(7.5, 2.9))
+for i, (label, kw) in enumerate(epi_cases):
+    traj = kspace.epi_trajectory(128, 128, esp, **kw)
+    y = len(epi_cases) - 1 - i
+    ax.barh(y, traj.readout_ms, height=0.5, color=PALETTE[i], alpha=0.25)
+    ax.vlines(traj.times_ms, y - 0.25, y + 0.25, color=PALETTE[i], lw=0.5)
+    ax.plot(traj.time_to_center_ms, y, "D", color=INK["primary"], ms=8, mfc="white", mew=1.5)
+    ax.text(traj.readout_ms + 1.5, y, f"{traj.readout_ms:.0f} ms, center at {traj.time_to_center_ms:.0f} ms",
+            va="center", fontsize=8, color=INK["secondary"])
+    print(f"{label:>20}: {traj.lines.size:3d} lines, readout {traj.readout_ms:5.1f} ms, k-space center at {traj.time_to_center_ms:5.1f} ms")
+ax.set_yticks(range(len(epi_cases)), [lab for lab, _ in epi_cases][::-1])
+ax.set(xlabel="time from the first line (ms)", xlim=(0, 125), title="EPI readout: one tick per k-space line, ◇ = k-space center")
+ax.grid(axis="y", visible=False)
+fig.tight_layout()
 ```
 
-Partial Fourier and in-plane acceleration together halve the readout and reach the k-space
-center in a quarter of the time. Only one of them reduces susceptibility distortion. The
+Partial Fourier alone and R = 2 alone each reach the k-space center in half the time, 23 ms
+instead of 46 ms; together they cut the readout from 91 ms to 34 ms and reach the center in
+a quarter of the time. Only one of them reduces susceptibility distortion. The
 displacement depends on how long the readout takes to step from one line of the *full*
 k-space grid to the next. In-plane acceleration skips every other line, so each step covers
 twice the distance in the same time and the distortion halves. Partial Fourier leaves out
@@ -195,27 +284,56 @@ section is the same trade viewed from the artifact side.
 
 ## Phase-encode direction and readout time
 
-Off-resonance displaces signal along the phase-encode axis by the frequency offset times
-the total readout time ([Chapter 2](../01-mri-physics/02-spatial-encoding-kspace.md)). The total readout time is defined on the full matrix,
-as the time between adjacent lines times the number of lines, so it is shortened by
-in-plane acceleration but not by partial Fourier. Near the frontal sinuses and the ear canals the offset
-reaches 100–200 Hz.
+An *off-resonance* is a spin precessing slightly faster or slower than the scanner assumes,
+because the magnetic field it sits in is slightly off. The scanner reads position along the
+phase-encode axis from precession phase, so a spin with extra phase is placed in the wrong
+row: signal is displaced along the phase-encode axis by the frequency offset times the
+total readout time ([Chapter 2](../01-mri-physics/02-spatial-encoding-kspace.md)), in voxels. The main cause is air next to tissue, which bends the
+field; near the frontal sinuses and the ear canals the offset reaches 100–200 Hz. The total
+readout time is defined on the full matrix, as the time between adjacent lines times the
+number of lines, so it is shortened by in-plane acceleration but not by partial Fourier.
+
+The figure applies a smooth field map with a frontal hot spot (left, bottom) to the
+synthetic b=0 slice (left, top), with the front of the head at the top and phase encoding
+running top to bottom. The four panels on the right are the images the scanner would
+produce at two total readout times, 30 ms (roughly an accelerated readout) and 90 ms (about
+the HBCD readout), and with the two phase-encode polarities, anterior→posterior (AP) and
+posterior→anterior (PA). Look at the frontal lobe: at 90 ms it is pushed far out of place,
+in opposite directions for AP and PA; at 30 ms the same field does a third of the damage.
 
 ```{code-cell} python
 :tags: [hide-input]
-print("displacement (voxels) = frequency offset × total readout time")
-print(f"{'offset':>8}" + "".join(f"{rt:>10.0f} ms" for rt in (30, 60, 90)))
-for hz in [25, 50, 100, 200]:
-    print(f"{hz:>6} Hz" + "".join(f"{hz * rt / 1000:13.1f}" for rt in (30, 60, 90)))
+tissue_d = phantoms.brain_slice()
+img_d = phantoms.brain_image()
+field_hz = synth.synthetic_fieldmap(tissue_d["mask"], tissue_d["voxel_mm"], amplitude_hz=150.0)
+readouts_ms = (30.0, 90.0)
+fig = plt.figure(figsize=(9.5, 5.4))
+gs = fig.add_gridspec(2, 3, width_ratios=(1, 1, 1))
+ax = fig.add_subplot(gs[0, 0]); show_image(ax, img_d, "undistorted b=0", vmin=0, vmax=img_d.max())
+ax = fig.add_subplot(gs[1, 0])
+im = ax.imshow(np.where(tissue_d["mask"], field_hz, np.nan), cmap="RdBu_r", vmin=-150, vmax=150)
+ax.set_axis_off(); ax.set_title("field offset (Hz)")
+fig.colorbar(im, ax=ax, shrink=0.8)
+for r, pol in enumerate((+1, -1)):
+    for c, ro in enumerate(readouts_ms):
+        shift_vox = pol * field_hz * ro / 1000.0          # displacement = offset × readout time, sign set by polarity
+        ax = fig.add_subplot(gs[r, c + 1])
+        show_image(ax, synth.displace_along_pe(img_d, shift_vox), f"{'AP' if pol > 0 else 'PA'}, readout {ro:.0f} ms",
+                   vmin=0, vmax=img_d.max())
+        ax.contour(tissue_d["mask"], levels=[0.5], colors=[PALETTE[3]], linewidths=0.7)
+fig.tight_layout()
+peak = field_hz[tissue_d["mask"]].max()
+print(f"largest offset inside the brain: {peak:.0f} Hz -> {peak * 30 / 1000:.1f} voxels at 30 ms, {peak * 90 / 1000:.1f} voxels at 90 ms")
+print(f"100 Hz at the HBCD readout of {presets.READOUT_HBCD_MS:.0f} ms: {100 * presets.READOUT_HBCD_MS / 1000:.1f} voxels")
 ```
 
-At the HBCD readout of 92 ms a 100 Hz offset moves signal nine voxels. Two acquisition
-choices limit the damage: shorten the readout (above), and acquire a second set of volumes
-with the opposite phase-encode polarity so that the distortion can be estimated and
-removed ([Chapter 10](../03-preprocessing/10-susceptibility-distortion.md)). The polarity choice itself, anterior–posterior or posterior–anterior,
-decides whether frontal tissue is stretched or compressed; neither is better, but the choice
-must be recorded correctly in the metadata (`PhaseEncodingDirection`, `TotalReadoutTime`)
-or the correction will be applied backward.
+The orange outline is the true brain edge. At the HBCD readout of 92 ms a 100 Hz offset
+moves signal nine voxels. Two acquisition choices limit the damage: shorten the readout
+(above), and acquire a second set of volumes with the opposite phase-encode polarity so that
+the distortion can be estimated and removed ([Chapter 10](../03-preprocessing/10-susceptibility-distortion.md)). The polarity choice itself decides
+whether frontal tissue is stretched or compressed; neither is better, but the choice must be
+recorded correctly in the metadata (`PhaseEncodingDirection`, `TotalReadoutTime`) or the
+correction will be applied backward.
 
 ## Gradient hardware
 
@@ -252,21 +370,56 @@ voxel_mm, n_slices, mb, t_slice_s = 2.0, 72, 3, 0.14
 tr_s = n_slices * t_slice_s / mb
 bvals, _ = schemes.hbcd()
 n_ap = len(bvals)
-te_ms = signal.min_te(3000, 80, t_post_ms=kspace.epi_trajectory(120, 120, presets.READOUT_HBCD_MS / 120, partial_fourier=0.75, accel=2).time_to_center_ms)["te"]
+traj_we = kspace.epi_trajectory(120, 120, presets.READOUT_HBCD_MS / 120, partial_fourier=0.75, accel=2)
+te_ms = signal.min_te(3000, 80, t_post_ms=traj_we.time_to_center_ms)["te"]
+trt_ms = presets.READOUT_HBCD_MS / 2                    # total readout time: R = 2 halves it, partial Fourier does not
+snr0 = 30
 print(f"voxel {voxel_mm} mm, {n_slices} slices, multiband {mb}  ->  TR {tr_s:.2f} s")
 print(f"6/8 partial Fourier, R = 2, b_max 3000 on 80 mT/m  ->  TE about {te_ms:.0f} ms")
-print(f"{n_ap} volumes (HBCD shells) + 6 reverse-polarity b=0  ->  {schemes.scan_time_s(n_ap + 6, tr_s) / 60:.1f} min")
-print(f"{n_ap} volumes AP + {n_ap} volumes PA (full reverse-polarity copy) ->  {schemes.scan_time_s(2 * n_ap, tr_s) / 60:.1f} min")
-snr0 = 30
+print(f"total readout time {trt_ms:.0f} ms  ->  100 Hz moves signal {100 * trt_ms / 1000:.1f} voxels")
 print(f"expected SNR at b = 3000 in WM across fibers, for SNR {snr0} at b = 0: {snr0 * signal.white_matter(3000, 0.0):.1f}")
+
+# scan-time budget, one stacked bar per variant
+shell_counts = {int(round(bv / 500) * 500): n for bv, n in schemes.shells_of(bvals).items()}
+segments = [(f"b = {bv}" if bv else "b = 0", n) for bv, n in sorted(shell_counts.items())]
+variants = {
+    "minimal: scheme AP\n+ 6 b=0 PA": segments + [("reverse polarity", 6)],
+    "HBCD: scheme AP\n+ full copy PA": segments + [("reverse polarity", n_ap)],
+}
+seg_colors = dict(zip([s for s, _ in segments] + ["reverse polarity"], PALETTE[:len(segments)] + [INK["secondary"]]))
+fig, ax = plt.subplots(figsize=(8.5, 2.8))
+for i, (name, segs) in enumerate(variants.items()):
+    left = 0.0
+    for lab, n in segs:
+        w = schemes.scan_time_s(n, tr_s) / 60
+        ax.barh(i, w, left=left, color=seg_colors[lab], label=lab if i == 0 else None, height=0.55)
+        left += w
+    ax.text(left + 0.1, i, f"{left:.1f} min", va="center", fontsize=8)
+    print(f"{name.replace(chr(10), ' ')}: {sum(n for _, n in segs)} volumes, {left:.1f} min")
+ax.axvline(10, color=INK["primary"], ls="--", lw=1); ax.text(10.1, 0.5, "10 min\nbudget", fontsize=8, va="center")
+ax.set_yticks(range(len(variants)), list(variants)); ax.invert_yaxis()
+ax.set(xlabel="diffusion scan time (min)", xlim=(0, 11.5), title=f"Where the time goes (TR {tr_s:.2f} s)")
+ax.legend(fontsize=7, loc="upper left", bbox_to_anchor=(1.01, 1.0))
+ax.grid(axis="y", visible=False)
+fig.tight_layout()
 ```
 
-The minimal version, with six reverse-polarity b=0 volumes for distortion correction, takes
-under five minutes. The HBCD protocol instead acquires the full scheme in both polarities,
-which doubles the directions and averages the distortion correction over all volumes; it
-fits the ten-minute budget with time to spare for a fieldmap. Each line of the summary is a
-decision that a later chapter tests: the TE against [Chapter 1](../01-mri-physics/01-spins-and-signal.md), the readout against
-[Chapter 10](../03-preprocessing/10-susceptibility-distortion.md), multiband 3 against [Chapter 12](../03-preprocessing/12-motion-and-dropout.md), and the SNR at b = 3000 against [Chapter 8](../03-preprocessing/08-noise.md).
+The bars show where the time goes: each colored block is the volumes of one shell, gray is
+the reverse-polarity volumes. The minimal version, with six reverse-polarity b=0 volumes for
+distortion correction, takes under five minutes. The HBCD protocol instead acquires the full
+scheme in both polarities, which doubles the directions and averages the distortion
+correction over all volumes; it fits the ten-minute budget with time to spare for a
+fieldmap. The table collects each decision, why it was made, what it costs, and the chapter
+that tests it.
+
+| Parameter | Choice | Why | Cost | Tested in |
+|---|---|---|---|---|
+| Voxel size | 2.0 mm isotropic | enough SNR for b = 3000; partial volume acceptable for tracts | cortex and ventricle walls are mixtures | this chapter, voxel size |
+| Slices, multiband | 72 slices, multiband 3 | TR 3.36 s instead of about 10 s | slice leakage; dropout hits three slices at once | [Chapter 12](../03-preprocessing/12-motion-and-dropout.md) |
+| Readout | 6/8 partial Fourier, R = 2 | TE about 67 ms at b = 3000; total readout 46 ms | noise × √2 × g-factor; blurring along phase-encode | [Chapter 1](../01-mri-physics/01-spins-and-signal.md), [Chapter 3](../01-mri-physics/03-reconstruction.md) |
+| b-values | 0, 500, 1000, 2000, 3000 (HBCD) | tensor, kurtosis, and multi-shell models all possible (Table 6.1) | WM across fibers at SNR 18.7 at b = 3000; along fibers in the noise floor | [Chapter 8](../03-preprocessing/08-noise.md) |
+| Phase encoding | AP, with a full PA copy | distortion can be estimated and removed; 100 Hz moves signal 4.6 voxels | doubles the scan time | [Chapter 10](../03-preprocessing/10-susceptibility-distortion.md) |
+| Phase export | on | complex-domain denoising and diagnostics | storage only | [Chapter 3](../01-mri-physics/03-reconstruction.md), [Chapter 8](../03-preprocessing/08-noise.md) |
 
 ## What this implies for acquisition
 

@@ -9,7 +9,7 @@ kernelspec:
 :class: note
 - **Built in this page:** the synthetic series of [Chapter 8](./08-noise.md) with a simulated object phase ([Appendix B](../appendices/b-data-manifest.md#app-b-package-data)).
 - **Simulated live in this page:** one slice of the simulated brain under the full HBCD scheme, with the simulator's object phase and eddy-current phase ramp, phase-corrected and scored against its noise-free run.
-- **`noise-sweep`** (pending): four noise levels with one coil, plus an 8-coil GRAPPA run ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-noise-sweep)).
+- **`noise-sweep`** (pending): four noise levels with one coil, plus an 8-coil run reconstructed with GRAPPA, the parallel-imaging method of [Chapter 3](../01-mri-physics/03-reconstruction.md) that fills in skipped k-space lines from the coil data ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-noise-sweep)).
 - **`truth`** (pending): the 27 analytic ground-truth maps and the true fiber orientations ([Appendix A](../appendices/a-trxscan-cookbook.md#ds-truth), [Appendix E](../appendices/e-truth-map-catalogue.md)).
 
 Live-tier figures simulate one slice of the simulated brain in the page through TRXScan's Python package ([Chapter 0.2](../00-frontmatter/the-simulated-datasets.md#live-tier)); they run in seconds at build time.
@@ -45,6 +45,10 @@ negative: noise that would have pushed a weak signal below zero is folded back u
 complex image has no such floor, but its signal does not lie along one axis: every voxel
 carries a phase from the field offset, the coils, the eddy currents, and motion during the
 encoding ([Chapter 3](../01-mri-physics/03-reconstruction.md)), and that phase varies across the image and between volumes.
+A phase map is drawn with a cyclic color scale, because an angle of +180° is the same as
+−180°: the scale is dark at 0°, bluish for negative and reddish for positive angles, and
+light at ±180°, where its two ends meet. The first panel of the four-panel figure below is a
+typical example, a smooth gradient of color across the brain.
 
 If the phase is smooth, it can be estimated and removed. Rotating each voxel's complex value
 by the negative of its estimated phase puts the signal on the real axis, and the real part
@@ -97,6 +101,11 @@ The phase to remove is the slowly varying one. A low-pass filter of the complex 
 Gaussian blur of the real and imaginary parts separately, then the angle of the result)
 estimates it while averaging out the noise; the width of the filter is the one assumption,
 and it must be wide enough to suppress noise and narrow enough to follow the true phase.
+The four panels below show one b = 3000 volume: the true phase that the simulation put in;
+the phase as measured, the same gradient buried in speckle wherever the signal is weak; the
+magnitude image; and the real part after rotating each voxel by a phase estimated with a
+2-voxel filter. The real part is drawn with a diverging color scale, so that negative
+values, which a magnitude cannot have, show as blue.
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -127,13 +136,49 @@ v3 = np.flatnonzero(np.isclose(bvals, 3000))[0]
 fig, axes = plt.subplots(1, 4, figsize=(12, 3.2))
 axes[0].imshow(np.where(mask[:, :, K], phase[:, :, K, v3], np.nan), cmap="twilight", vmin=-np.pi, vmax=np.pi); axes[0].set_axis_off(); axes[0].set_title("true background phase, b = 3000")
 axes[1].imshow(np.where(mask[:, :, K], np.angle(complex_noisy[:, :, K, v3]), np.nan), cmap="twilight", vmin=-np.pi, vmax=np.pi); axes[1].set_axis_off(); axes[1].set_title("measured phase (noisy)")
-show_image(axes[2], magnitude[:, :, K, v3], "magnitude", vmin=-0.05, vmax=0.12)
-show_image(axes[3], real_valued[:, :, K, v3], "phase-corrected real part", vmin=-0.05, vmax=0.12)
+show_image(axes[2], magnitude[:, :, K, v3], "magnitude", vmin=0, vmax=0.12)
+show_image(axes[3], real_valued[:, :, K, v3], "phase-corrected real part", kind="diff", vmin=-0.12, vmax=0.12)
 fig.tight_layout()
+fig.colorbar(axes[3].images[0], ax=axes[3], shrink=0.75)
 ```
 
-The real-valued image has negative voxels in the background and in the darkest tissue,
-which is the point: noise is allowed to go both ways.
+The real-valued image has negative (blue) voxels in the background and in the darkest
+tissue, which is the point: noise is allowed to go both ways. In the magnitude image the
+same background is a uniform dark gray, never black: that is the floor.
+
+The filter width is a trade-off, and the next figure shows both ways to get it wrong. Each
+column uses a different width. The top row is the error of the estimated phase (estimated
+minus true) in the b = 3000 volume; the bottom row is the error of the real part, averaged
+over all 39 volumes so that the random noise mostly cancels and any bias remains. With a filter
+narrower than a voxel (left), the estimate follows the noise: the phase error is speckle,
+each measurement is rotated partly by its own noise, and the real part drifts back toward
+the magnitude, too bright (red) everywhere. With a filter much wider than the features of
+the phase (right), the estimate is smooth but cannot follow the true phase where it changes
+fastest, across the left of the slice and at the edge of the brain; the signal there is
+rotated partly onto the imaginary axis, and the real part comes out too dark (blue). A width
+of about two voxels (middle) sits between the two. The printed numbers put the same result
+in white matter at b = 3000: a bias of about +4 % with the narrow filter, −4 % with the wide
+one, and almost none at two voxels.
+
+```{code-cell} python
+:tags: [hide-input]
+widths = [0.5, 2.0, 8.0]
+b3 = np.isclose(bvals, 3000)
+fig, axes = plt.subplots(2, 3, figsize=(9.5, 6.2))
+for j, w in enumerate(widths):
+    smooth = ndimage.gaussian_filter(complex_noisy.real, (w, w, w, 0)) + 1j * ndimage.gaussian_filter(complex_noisy.imag, (w, w, w, 0))
+    phase_err = np.angle(np.exp(1j * (np.angle(smooth) - phase)))
+    rv = (complex_noisy * np.exp(-1j * np.angle(smooth))).real
+    resid = (rv - clean).mean(axis=-1)
+    show_image(axes[0, j], np.where(mask[:, :, K], phase_err[:, :, K, v3], 0), f"filter width {w:g} voxels\nphase error", kind="diff", vmin=-1, vmax=1)
+    show_image(axes[1, j], np.where(mask[:, :, K], resid[:, :, K], 0), "real part − true\n(mean of all volumes)", kind="diff", vmin=-0.01, vmax=0.01)
+    rms = np.sqrt((phase_err[..., b3][mask] ** 2).mean())
+    bias_w = 100 * (rv - clean)[..., b3][wm].mean() / clean[..., b3][wm].mean()
+    print(f"filter width {w:>3g} voxels: RMS phase error {rms:.2f} rad; WM bias of the real part at b = 3000 {bias_w:+.1f} %")
+fig.tight_layout()
+fig.colorbar(axes[0, 2].images[0], ax=axes[0, :], shrink=0.8, label="radians")
+fig.colorbar(axes[1, 2].images[0], ax=axes[1, :], shrink=0.8, label="signal units")
+```
 
 ## Measure it: the distribution and the bias
 
@@ -159,32 +204,71 @@ for label, s in [("magnitude", magnitude), ("real-valued", real_valued)]:
 ```
 
 The real-valued residual is Gaussian around zero at b = 3000, where the magnitude residual
-has a positive mean. Fits to real-valued data need one adjustment: values can be negative,
-so a fit to the logarithm of the signal (the linear tensor fit of [Chapter 15](../04-modeling/15-signal-representations.md)) is not
-possible, and nonlinear fits to the signal itself are used instead.
+has a positive mean. Fits to real-valued data need one adjustment. The quickest way to fit a
+tensor takes the logarithm of each signal value, which turns the exponential decay into a
+straight line ([Chapter 15](../04-modeling/15-signal-representations.md)); but a weak voxel can now come out negative, and a
+negative number has no logarithm. Real-valued data are therefore fitted to the signal
+itself, with a nonlinear fit, which treats a negative value like any other.
 
 ## When it fails
 
 - **Rough phase.** Near air-tissue interfaces, and in volumes with strong eddy-current or
   motion phase, the true phase varies faster than the filter allows. The estimate is then
   wrong, part of the signal is rotated onto the imaginary axis and lost, and the real part
-  is biased downward. A per-volume check of the imaginary residual shows where this happens.
+  is biased downward. The figure after this list shows the effect; a per-volume check of
+  the imaginary part after correction shows where it happens.
 - **Partial Fourier.** The reconstruction already assumed a smooth phase ([Chapter 3](../01-mri-physics/03-reconstruction.md)); the
   two assumptions compound, and the phase estimate should be made after the partial-Fourier
   reconstruction, from the complex image it produced.
 - **Multi-coil combination.** The phase must survive the combination: a sensitivity-weighted
   combination keeps it, a root-sum-of-squares discards it ([Chapter 3](../01-mri-physics/03-reconstruction.md)).
 
-Real-valued conversion and complex-domain denoising ([Chapter 8](./08-noise.md)) address the same problem
-from two sides and are often combined: denoise the complex data, then phase-correct and take
-the real part.
+To see the first failure, the next figure adds a sharp phase feature to every volume: a
+3-radian bump a few voxels wide at the front of the brain, where the air in the sinuses
+produces the steepest field changes. The phase is then estimated with the same 2-voxel
+filter. Look at the front of the brain in each panel. The left panel is the true phase with
+the bump. The middle panel is the real part minus the true signal, averaged over the three
+b = 0 volumes: a dark (blue) hole where the filter could not follow the bump and signal was
+rotated away. The right panel is the imaginary part after correction, which should be pure
+noise around zero; the lost signal appears there instead, so this is the map to check in
+real data.
+
+```{code-cell} python
+:tags: [hide-input]
+cy, cx = 7, 26   # the front of the brain, mid-line, in the display slice
+bump = 3.0 * np.exp(-((yy - cy) ** 2 + (xx - cx) ** 2) / (2 * 1.5**2) - (zz - K) ** 2 / (2 * 3.0**2))
+rough_phase = phase + bump[..., None]
+rough = synth.add_complex_noise(clean * np.exp(1j * rough_phase), sigma, seed=0)
+smooth = ndimage.gaussian_filter(rough.real, (2, 2, 2, 0)) + 1j * ndimage.gaussian_filter(rough.imag, (2, 2, 2, 0))
+rotated = rough * np.exp(-1j * np.angle(smooth))
+b0 = bvals == 0
+fig, axes = plt.subplots(1, 3, figsize=(10, 3.4))
+axes[0].imshow(np.where(mask[:, :, K], np.angle(np.exp(1j * rough_phase[:, :, K, 0])), np.nan), cmap="twilight", vmin=-np.pi, vmax=np.pi)
+axes[0].set_axis_off(); axes[0].set_title("true phase with a sharp feature")
+show_image(axes[1], np.where(mask[:, :, K], (rotated.real - clean)[:, :, K][..., b0].mean(-1), 0), "real part − true (b = 0 mean)", kind="diff", vmin=-0.15, vmax=0.15)
+show_image(axes[2], np.where(mask[:, :, K], rotated.imag[:, :, K][..., b0].mean(-1), 0), "imaginary part after correction", kind="diff", vmin=-0.15, vmax=0.15)
+fig.tight_layout()
+fig.colorbar(axes[2].images[0], ax=axes[1:], shrink=0.8)
+near = (np.hypot(yy - cy, xx - cx) <= 3) & (np.abs(zz - K) <= 1) & mask
+far = mask & ~(np.hypot(yy - cy, xx - cx) <= 8)
+rel = lambda region: 100 * (rotated.real - clean)[..., b0][region].mean() / clean[..., b0][region].mean()
+print(f"real part at b = 0, relative to the true signal: within 3 voxels of the feature {rel(near):+.0f} %; elsewhere {rel(far):+.1f} %")
+```
+
+Real-valued conversion and complex-domain denoising ([Chapter 8](./08-noise.md)) solve different halves of
+the problem and are used together. Complex denoising removes most of the random
+fluctuation; the real part removes the floor, which denoising alone makes small but cannot
+eliminate, because a magnitude is still taken at the end. The usual order is to denoise the
+complex data first, then estimate the phase from the denoised series, where it is far less
+noisy, and take the real part.
 
 ## Measure it: one slice, simulated live
 
-The simulator writes complex data with the phase a scanner would give it: the object phase
-model calibrated on real HBCD scans, plus an eddy-current phase ramp that changes with the
-diffusion direction. The same phase correction as above, applied to one simulated slice under
-the full 76-volume protocol, is scored against the noise-free run of the same slice.
+What the simulator adds to the toy example is a phase that behaves like a scanner's: an
+object phase modeled on real HBCD scans, plus an eddy-current phase ramp that changes with
+the diffusion direction, so that no single phase map serves every volume. The same
+per-volume correction as above, applied to one simulated slice under the full 76-volume
+protocol, is scored against the noise-free run of the same slice.
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -228,8 +312,14 @@ from volume to volume, is handled because the phase is estimated per volume.
 
 ## What this implies for acquisition
 
-- **Save the phase** ([Chapter 3](../01-mri-physics/03-reconstruction.md)); nothing else at the scanner is required.
-- **Prefer a combination that keeps the phase** if the coil combination is configurable.
+- **Save the phase** ([Chapter 3](../01-mri-physics/03-reconstruction.md)); nothing else at the scanner is required. The
+  request to the scanner operator is to reconstruct and export phase images alongside the
+  magnitude images for the diffusion series (on Siemens scanners, the reconstruction
+  setting "Magnitude et phase"; other vendors have an equivalent). Check afterward that the
+  DICOM-to-NIfTI conversion kept them: dcm2niix writes the phase as a separate file with a
+  `_ph` suffix.
+- **Prefer a combination that keeps the phase** if the coil combination is configurable:
+  an adaptive or sensitivity-weighted combination rather than sum of squares.
 - **Keep partial Fourier moderate**, so that the phase assumption both reconstructions rely
   on holds.
 

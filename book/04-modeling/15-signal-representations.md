@@ -56,12 +56,17 @@ are summaries of the signal that change with tissue but do not name a tissue pro
 **biophysical model** ([Chapter 17](./17-microstructure-models.md)) assigns the signal to compartments with named
 properties, such as an intra-axonal fraction, at the cost of assumptions that may not hold.
 Representations are the safer choice when the question is whether something differs;
-models are needed when the question is what differs.
+models are needed when the question is what differs. For example, a lower FA in a patient
+group says only that the signal depends less on direction there, which fewer axons, more
+crossing fibers, more dispersed fibers, or more free water could each produce; a lower
+intra-axonal fraction claims specifically that there is less water inside axons, and is
+right only if the model's compartments match the tissue.
 
 ## The synthetic series
 
 The toy tier uses the 2 mm slice with a three-shell scheme (20, 20, and 30 directions at
-b = 1000, 2000, 3000, plus four b=0), noise at SNR 25 in white matter at b = 0, and the
+b = 1000, 2000, 3000, plus four b=0), noise at SNR 25 in white matter at b = 0 (the signal-to-noise
+ratio: the white matter b = 0 signal is 25 times the standard deviation of the noise), and the
 noise-free fit of the same scheme as the reference. The synthetic white matter is the
 simulated brain's two-compartment model, so it has curvature in its decay ([Chapter 5](../02-diffusion-encoding/05-diffusion-encoding.md)) and the
 kurtosis and propagator representations have something to measure.
@@ -329,7 +334,9 @@ for ax, (label, keep) in zip(axes[1:], [("two shells (1000, 2000)", bvals <= 200
 fig.tight_layout()
 ```
 
-Kurtosis is a second-order quantity and inherits twice the noise sensitivity of the tensor;
+Kurtosis is estimated from the bend of the decay curve, a small difference between how
+fast the signal falls at low and at high b. Noise that barely moves the average slope (the
+diffusivity) moves that difference much more, so MK is noisier than MD from the same data;
 it is the representation most improved by denoising ([Chapter 8](../03-preprocessing/08-noise.md)) and most damaged by the
 Rician floor, which adds curvature of its own at high b.
 
@@ -454,9 +461,13 @@ at its top shell, or denoising ([Chapter 8](../03-preprocessing/08-noise.md)).
 ## Beyond the pulse pair: QTI
 
 Every representation above reads the signal from a single-direction encoding. Encoding
-with several gradient directions inside one measurement (b-tensor encoding) provides a
-further representation, q-space trajectory imaging, whose parameters separate microscopic
-anisotropy from orientation dispersion, a distinction the tensor cannot make. The simulated brain's
+with several gradient directions inside one measurement (b-tensor encoding: the gradient
+turns during the encoding, so one measurement weighs diffusion along a plane or along all
+directions at once) provides a further representation, q-space trajectory imaging, whose
+parameters separate microscopic anisotropy (elongated compartments, whatever their
+orientation) from orientation dispersion (how spread those orientations are), a
+distinction the tensor cannot make: to the tensor, many randomly oriented sticks and a
+ball of free water both look isotropic. The simulated brain's
 truth maps include these quantities, but the simulator does not yet produce b-tensor
 acquisitions, so this book states the idea ([Chapter 23](../05-advanced/23-frontiers.md)) without fitting it.
 

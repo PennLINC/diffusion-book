@@ -20,8 +20,8 @@ After this chapter you can:
 - state where the MR signal comes from and what T1, T2, and T2* describe
 - explain, from a simulation, why a spin echo recovers signal that a simple readout loses, and
   why diffusion MRI uses one
-- compute the b=0 signal of white matter, gray matter, and CSF at a given echo time using the
-  tissue parameters of the simulated brain
+- compute the b=0 signal (the signal with no diffusion weighting) of white matter, gray
+  matter, and CSF at a given echo time using the tissue parameters of the simulated brain
 - state the practical consequences of echo time and tissue T2 for diffusion data
 
 ```{code-cell} python
@@ -137,8 +137,10 @@ Two processes return the magnetization to equilibrium, and both are visible abov
 
 In practice the transverse signal decays faster than T2 alone predicts, because the field
 is never perfectly uniform across a voxel and spins in slightly different fields drift out
-of phase. This faster decay is **T2\***. The part added by the static field is reversible, and
-the spin echo below reverses it.
+of phase. This faster decay is **T2\***. The extra decay caused by the field differences is
+sometimes given its own time constant, T2′, so that $1/T_2^* = 1/T_2 + 1/T_2'$: the two
+losses add as rates. The part added by the static field is reversible, and the spin echo
+below reverses it.
 
 The tissue values used throughout this book are those of the simulated brain. The T2 values are
 TRXScan's `adult` compartment preset. TRXScan does not model T1, so the T1 values are 3 T
@@ -166,79 +168,119 @@ ax2.axvline(presets.TE_HBCD_MS, color="0.6", lw=1, ls="--")
 ax2.text(presets.TE_HBCD_MS + 5, 0.9, "TE = 88 ms", fontsize=8, color="0.4")
 ax1.legend()
 fig.tight_layout()
+print("recovered along the field 3 s after a 90° pulse: " + ", ".join(f"{n} {1 - np.exp(-3000 / tis.t1_ms):.0%}" for n, tis in tissues.items()))
 ```
+
+The left panel shows T1 recovery, which matters for how often the scanner can excite
+again. Three seconds after a pulse, white matter has almost fully recovered while CSF, with
+the longest T1, is only about halfway back. If the next excitation comes that soon, CSF
+starts with less magnetization and gives less signal; this is the repetition-time trade
+of [Chapter 7](../02-diffusion-encoding/07-acquisition-parameters.md). The rest of this chapter assumes a repetition time long enough for full recovery.
 
 Two practical points follow from the right panel. At a typical diffusion echo time of 88 ms,
 white and gray matter have lost about three quarters of their signal while CSF, with a T2 of
 about two seconds, has lost almost none. And the white and gray matter curves nearly
 coincide, so T2 alone provides little gray–white contrast at this TE. This is why b=0
-diffusion images look flat compared with a T1-weighted anatomical image, and why CSF is the
-brightest tissue in them.
+images, the images in a diffusion series taken with the diffusion gradients off, look flat
+compared with a T1-weighted anatomical image, and why CSF is the brightest tissue in them.
 
 ## Detection: why the signal is complex
 
-The voltage induced in the receive coil is a single real-valued oscillation at the Larmor
-frequency, around 128 MHz at 3 T. Its amplitude follows the transverse magnetization and its
-phase follows the precession. The receiver does not record this oscillation directly. It
-mixes the coil voltage with two reference signals from the scanner's oscillator, one a cosine
-at the Larmor frequency and one a sine (90° apart), and low-pass filters each product. This
-is quadrature demodulation. The result is two slowly varying real channels, called in-phase
-(I) and quadrature (Q), which are stored as the real and imaginary parts of one complex
-number. The complex value is the transverse magnetization as seen in a frame rotating with
-the reference oscillator: its magnitude is the amount of transverse magnetization and its
-angle is the precession phase relative to the reference.
+The precessing magnetization induces a voltage in the receive coil, and that voltage
+oscillates at the Larmor frequency, around 128 MHz at 3 T. The scanner does not keep this
+fast oscillation. Instead it records the transverse magnetization as an arrow seen from a
+viewpoint that itself turns at the Larmor frequency, like a camera riding on a merry-go-round.
+From there, magnetization that precesses at exactly the Larmor frequency stands still, and
+magnetization in a slightly stronger or weaker field turns slowly one way or the other. The
+spin-echo animation later in this chapter uses the same turning viewpoint.
 
-Two consequences follow. First, every sample the scanner records, and therefore every k-space
-value and every reconstructed voxel, is complex; the magnitude image is a derived quantity
-([Chapter 3](./03-reconstruction.md)). Second, which channel is called real and which imaginary is a convention, and a
-constant phase offset depends on the reference oscillator, cable lengths, and receiver
-electronics. The absolute phase of an image therefore has no physical meaning. Differences in
-phase, between voxels, between acquisitions, or between echoes, are what carry information.
+Each recorded sample is this arrow, stored as one complex number: two values, the arrow's
+horizontal and vertical components, called the real and imaginary parts. The arrow's length,
+the **magnitude**, is the amount of transverse magnetization. Its angle, the **phase**, is how
+far it has turned relative to the scanner's reference.
 
-The demonstration below uses a carrier of 2 kHz instead of 128 MHz so that the oscillation is
-visible, and an off-resonance of 50 Hz so that the demodulated signal has a phase that changes
-with time.
+The figure shows both views. So that the oscillation is visible, the carrier (the fast
+oscillation at the Larmor frequency) here is 2 kHz instead of 128 MHz, and the magnetization is given a 50 Hz off-resonance (a field slightly
+different from nominal), so that the arrow turns slowly in the turning frame.
 
 ```{code-cell} python
 :tags: [hide-input]
 fs, carrier, offset = 40_000.0, 2_000.0, 50.0  # Hz; sampling rate, carrier, off-resonance
 T2 = 20.0  # ms
-t = np.arange(0, 0.06, 1 / fs)  # s
-coil_voltage = np.exp(-t * 1000 / T2) * np.cos(2 * np.pi * (carrier + offset) * t)  # real
+# the filter averages over 1 ms, so the oscillation is simulated from 1 ms before t = 0 and the
+# extra stretch is cropped after filtering; otherwise the first samples would be averaged over
+# half a window and come out distorted
+t_all = np.arange(-0.001, 0.06, 1 / fs)  # s
+coil_all = np.exp(-t_all * 1000 / T2) * np.cos(2 * np.pi * (carrier + offset) * t_all)  # real
 
-# quadrature demodulation: multiply by the two references, then low-pass (moving average)
-kernel = np.ones(80)
-lowpass = lambda x: np.convolve(x, kernel, mode="same") / np.convolve(np.ones_like(x), kernel, mode="same")
-I = lowpass(2 * coil_voltage * np.cos(2 * np.pi * carrier * t))
-Q = lowpass(-2 * coil_voltage * np.sin(2 * np.pi * carrier * t))
+# quadrature demodulation: multiply by the two references, then low-pass (a moving average, applied twice)
+kernel = np.ones(20) / 20  # 0.5 ms: one carrier period
+lowpass = lambda x: np.convolve(x, kernel, mode="same")
+keep = t_all >= 0
+t, coil_voltage = t_all[keep], coil_all[keep]
+I = lowpass(lowpass(2 * coil_all * np.cos(2 * np.pi * carrier * t_all)))[keep]
+Q = lowpass(lowpass(-2 * coil_all * np.sin(2 * np.pi * carrier * t_all)))[keep]
 signal = I + 1j * Q
 
-fig, axes = plt.subplots(1, 4, figsize=(12, 3))
-axes[0].plot(t[:400] * 1000, coil_voltage[:400], lw=0.8, color="0.3")
-axes[0].set(title="coil voltage (real, at the carrier)", xlabel="time (ms)")
-axes[1].plot(t * 1000, I, label="I (real)")
-axes[1].plot(t * 1000, Q, label="Q (imaginary)")
-axes[1].set(title="demodulated channels", xlabel="time (ms)"); axes[1].legend()
-axes[2].plot(t * 1000, np.abs(signal))
-axes[2].plot(t * 1000, np.exp(-t * 1000 / T2), color="0.5", lw=1, ls="--")
-axes[2].set(title="magnitude of I + iQ (dashed: T2 decay)", xlabel="time (ms)", ylim=(0, 1.05))
-axes[3].plot(t * 1000, np.unwrap(np.angle(signal)) / (2 * np.pi), color="0.3")
-axes[3].set(title="phase of I + iQ (cycles)", xlabel="time (ms)")
+fig, (ax0, ax1) = plt.subplots(1, 2, figsize=(10, 3.9), gridspec_kw={"width_ratios": [1.5, 1]})
+ax0.plot(t[:600] * 1000, coil_voltage[:600], lw=0.8, color="0.3")
+ax0.plot(t[:600] * 1000, np.exp(-t[:600] * 1000 / T2), color="0.6", lw=1, ls="--", label="T2 decay")
+ax0.set(title="what the coil sees: a fast oscillation", xlabel="time (ms)", ylabel="coil voltage")
+ax0.legend(loc="upper right", fontsize=8)
+keep = t <= 0.04
+ax1.plot(signal.real[keep], signal.imag[keep], color="0.8", lw=1)
+for k, t_ms in enumerate([0, 5, 10, 15, 20]):
+    z = signal[int(round(t_ms / 1000 * fs))]
+    c = PALETTE[(0, 1, 2, 3, 6)[k]]
+    ax1.annotate("", xy=(z.real, z.imag), xytext=(0, 0), arrowprops=dict(arrowstyle="-|>", color=c, lw=2))
+    ax1.text(z.real * 1.12 + 0.02, z.imag * 1.12 + 0.02, f"{t_ms} ms", fontsize=8, color=c, ha="center", va="center")
+ax1.axhline(0, color="0.85", lw=0.8, zorder=0)
+ax1.axvline(0, color="0.85", lw=0.8, zorder=0)
+ax1.set(xlim=(-0.8, 1.25), ylim=(-0.7, 0.98), aspect="equal", xlabel="real part", ylabel="imaginary part",
+        title="what is recorded: an arrow in the turning frame")
 fig.tight_layout()
+print(f"phase turned per 5 ms at {offset:.0f} Hz: {360 * offset * 0.005:.0f} degrees; "
+      f"magnitude at 5 ms: {np.abs(signal[int(0.005 * fs)]):.2f} (T2 decay predicts {np.exp(-5 / T2):.2f})")
 ```
 
-The magnitude decays with T2 regardless of the off-resonance; the phase advances linearly
-at the off-resonance frequency. That separation is what the rest of the book relies on: the
-magnitude carries the tissue signal, and the phase carries the frequency offset, which
-becomes a position ([Chapter 2](./02-spatial-encoding-kspace.md)), a field map ([Chapter 10](../03-preprocessing/10-susceptibility-distortion.md)), or an eddy-current signature
-([Chapter 11](../03-preprocessing/11-eddy-currents.md)).
+On the left is the coil voltage: it swings up and down many times per millisecond, and
+only its envelope (dashed) carries the decay. On the right is what the scanner stores: the
+arrow drawn every 5 ms. Each arrow is a quarter turn further round than the one before,
+because the 50 Hz offset turns the phase by 90° every 5 ms, and each is shorter, because
+the transverse magnetization decays with T2. The two effects separate cleanly: the length
+follows T2 whatever the offset, and the angle advances at a rate set by the offset alone.
+That separation is what the rest of the book relies on: the magnitude carries the tissue
+signal, and the phase carries the frequency offset, which becomes a position ([Chapter 2](./02-spatial-encoding-kspace.md)), a
+field map ([Chapter 10](../03-preprocessing/10-susceptibility-distortion.md)), or an eddy-current signature ([Chapter 11](../03-preprocessing/11-eddy-currents.md)).
+
+Two consequences follow. First, every sample the scanner records, and therefore every k-space
+value and every reconstructed voxel, is complex; the magnitude image is a derived quantity
+([Chapter 3](./03-reconstruction.md)). Second, the phase is measured against the scanner's own reference, and it
+includes a constant offset from the reference oscillator, cable lengths, and receiver
+electronics. The absolute phase of an image therefore has no physical meaning. Differences in
+phase, between voxels, between acquisitions, or between echoes, are what carry information.
+
+:::{dropdown} How the receiver produces the complex signal (quadrature demodulation)
+The coil voltage is a single real-valued oscillation at the Larmor frequency. The receiver
+mixes (multiplies) it with two reference signals from the scanner's oscillator, one a cosine
+at the Larmor frequency and one a sine, 90° apart, and low-pass filters each product to
+remove the fast components. This is quadrature demodulation. The result is two slowly
+varying real channels, called in-phase (I) and quadrature (Q), which are stored as the real
+and imaginary parts of one complex number. Their combination is the transverse
+magnetization as seen in a frame rotating with the reference oscillator, the turning
+viewpoint above. Which channel is called real and which imaginary is a convention. The
+figure above was computed exactly this way, with a moving average as the low-pass filter.
+:::
 
 ## Spin echo versus gradient echo
 
 After the 90° pulse, spins in a voxel precess at slightly different frequencies because the
 field is not perfectly uniform. Their contributions drift out of phase, and the summed signal,
-the free induction decay (FID), falls off with T2*. A gradient echo refocuses only the
-dephasing that a gradient itself introduced, so it remains T2*-weighted.
+the free induction decay (FID), falls off with T2*. One way to form an echo is a
+**gradient echo**: a gradient, a deliberate variation of the field across the scanner
+([Chapter 2](./02-spatial-encoding-kspace.md)), is switched on in one direction and then in the other, so that the dephasing it
+caused is undone. It undoes only that dephasing, not the dephasing from the field's own
+imperfections, so a gradient echo remains T2*-weighted. The alternative is a **spin echo**.
 
 A 180° pulse applied at time TE/2 reverses the accumulated phase of every spin. Each spin
 continues to precess at its own rate, so at time TE the phases realign and a spin echo forms.
@@ -331,7 +373,7 @@ Diffusion MRI is built on the spin echo for two reasons:
 ### See it: a Bloch simulator
 
 The simulation below follows a few thousand spins with different off-resonance frequencies.
-With T2 = 80 ms and a field inhomogeneity that gives T2* = 16 ms, a 90° pulse alone produces an
+With T2 = 80 ms and a field inhomogeneity with T2′ = 20 ms, which gives T2* = 16 ms, a 90° pulse alone produces an
 FID that is gone within 40 ms. Adding a 180° pulse at 25 ms produces an echo at 50 ms whose
 amplitude matches the T2 curve.
 
@@ -364,7 +406,9 @@ fig.tight_layout()
 
 TRXScan provides three tissue presets: `adult` (3 T literature T2 values) and `neonatal` and
 `infant` (the longer T2 values of unmyelinated tissue). With a long TR, the b=0 signal of each
-tissue is its proton density times the T2 decay at TE. At the HBCD echo time:
+tissue is its **proton density**, the amount of MR-visible hydrogen it holds relative to pure
+water, times the T2 decay at TE. The table leaves proton density out and shows only the
+decay: the fraction of each tissue's signal that survives to the HBCD echo time.
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -376,9 +420,16 @@ for preset, t2 in presets.T2_MS.items():
     print(f"{preset:>9} {s['WM']:6.2f} {s['GM']:6.2f} {s['CSF']:6.2f} {s['GM']/s['WM']:7.2f} {s['CSF']/s['WM']:7.2f}")
 ```
 
-The same relation applied voxel by voxel to the simulated brain's tissue fractions gives the synthetic
-b=0 images used in the next two chapters. The adult image is dark in tissue and bright in CSF;
-the neonatal image retains more tissue signal at the same TE.
+Read the last two columns. In every preset gray matter is barely brighter than white matter
+(a ratio near 1), so the echo time produces little gray–white contrast. CSF is several times
+brighter than white matter in the adult but less than twice as bright in the neonate,
+because neonatal tissue keeps much more of its own signal. The infant preset has the same
+T2 values as the neonatal one, so its row is identical.
+
+The same relation applied voxel by voxel to the simulated brain's tissue fractions, now
+including proton density, gives the synthetic b=0 images used in the next two chapters. All
+three are shown on the same gray scale. Look at the tissue around the ventricles: dark in
+the adult, mid-gray in the neonate, while the ventricles are bright in both.
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -387,6 +438,10 @@ for ax, preset in zip(axes, ["adult", "neonatal", "infant"]):
     show_image(ax, phantoms.brain_image(te_ms=TE, preset=preset), f"{preset} preset, TE {TE:.0f} ms", vmin=0, vmax=1)
 fig.tight_layout()
 ```
+
+The decay curves show where these numbers come from and how they would change with the
+echo time. The dashed line is the HBCD echo time; each curve's height there is one entry of
+the table.
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -402,11 +457,30 @@ axes[0].legend()
 fig.tight_layout()
 ```
 
-Both presets give weak gray–white contrast at 88 ms. In the adult, both tissues have short
-T2 and are strongly attenuated; in the neonate, both have long T2 and are mildly attenuated.
-In both, CSF is far brighter than tissue. This matters for diffusion fitting because voxels
-at the edge of the ventricles and sulci contain a mixture of tissue and CSF, and the CSF
-contribution dominates the b=0 signal of the mixture ([Chapter 17](../04-modeling/17-microstructure-models.md)).
+In the adult, white and gray matter both have short T2 and fall steeply together; in the
+neonate both have long T2 and fall slowly together. Either way the two tissue curves stay
+close, and CSF stays near the top.
+
+### Worked example: a voxel at the edge of a ventricle
+
+The brightness of CSF matters most in voxels that are only partly CSF, at the edges of the
+ventricles and in the sulci. Take an adult voxel that is 80 % white matter and 20 % CSF by
+volume, imaged at TE = 88 ms. Each tissue contributes its volume fraction times its proton
+density times its T2 decay:
+
+```{code-cell} python
+:tags: [hide-input]
+frac = {"WM": 0.8, "CSF": 0.2}
+contrib = {k: frac[k] * phantoms.PROTON_DENSITY[k] * np.exp(-TE / presets.T2_MS["adult"][k]) for k in frac}
+total = sum(contrib.values())
+for k, c in contrib.items():
+    print(f"{k:>4}: {frac[k]:.0%} of the volume x proton density {phantoms.PROTON_DENSITY[k]:.2f} "
+          f"x T2 decay {np.exp(-TE / presets.T2_MS['adult'][k]):.2f} = {c:.3f}  ({c / total:.0%} of the voxel's b=0 signal)")
+```
+
+CSF fills a fifth of the voxel but supplies more than half of its b=0 signal. Any model
+fitted to this voxel sees mostly free water, not white matter, which is why partial-volume
+CSF has to be handled explicitly ([Chapter 17](../04-modeling/17-microstructure-models.md)).
 
 :::{admonition} Simulated dataset pending
 :class: note
@@ -419,10 +493,12 @@ added when the offline pipeline produces them.
 - **Echo time costs signal.** Each additional 10 ms of TE removes about 14 % of adult white
   matter signal. The diffusion encoding sets the minimum TE ([Chapter 5](../02-diffusion-encoding/05-diffusion-encoding.md)); stronger gradients
   shorten it.
-- **CSF dominates long-TE b=0 images.** Partial-volume CSF does not decay while tissue does.
-  Fits at tissue–CSF boundaries need a free-water term ([Chapter 17](../04-modeling/17-microstructure-models.md)).
-- **TR and T1.** A short TR saturates long-T1 tissue, most of all CSF. TRXScan represents this
-  with a per-compartment b=0 scale rather than a T1 model; [Chapter 7](../02-diffusion-encoding/07-acquisition-parameters.md) uses it.
+- **CSF dominates long-TE b=0 images.** Partial-volume CSF does not decay while tissue does,
+  as the worked example shows. Fits at tissue–CSF boundaries need a free-water term, an extra
+  model component for freely diffusing water ([Chapter 17](../04-modeling/17-microstructure-models.md)).
+- **TR and T1.** A short TR leaves long-T1 tissue, most of all CSF, only partly recovered
+  (saturated), so it gives less signal. The book's simulator does not model T1 directly; it
+  imitates this by scaling down each tissue's b=0 signal, as [Chapter 7](../02-diffusion-encoding/07-acquisition-parameters.md) shows.
 - **Age changes the numbers.** Unmyelinated tissue has long T2, so the same protocol yields
   more tissue signal and different contrast in neonates. The presets exist for this.
 - **Field strength** raises the available magnetization and SNR, but shortens T2* and

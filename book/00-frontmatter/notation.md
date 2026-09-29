@@ -5,8 +5,28 @@ kernelspec:
   display_name: Python 3
 ---
 
-Symbols as used throughout the book, with units and the chapter that introduces each.
-Vectors are bold; a hat marks a unit vector.
+Terms and symbols as used throughout the book, with units and the chapter that introduces
+each. Vectors are bold; a hat marks a unit vector. [Appendix D](../appendices/d-glossary.md) is the full glossary.
+
+## Terms
+
+Acquisition terms that recur in the book, each in one plain sentence. The chapter column
+says where the term is explained properly.
+
+| Term | In plain words | Chapter |
+|---|---|---|
+| proton density | how much MR-visible hydrogen a tissue holds, relative to pure water; it scales the signal before any decay | 1 |
+| spin echo, gradient echo | two ways of forming the signal peak that is recorded; a spin echo undoes the dephasing from field differences, a gradient echo does not | 1 |
+| b=0 image | an image taken with no diffusion weighting; its contrast comes mainly from proton density and T2 | 1, 5 |
+| k-space | the grid of spatial-frequency samples the scanner actually records; an image is computed from it | 2 |
+| FOV (field of view) | the width of the region the image covers | 2 |
+| readout axis, phase-encode axis | the two in-plane image axes: along the readout, samples are taken within one fast sweep; along phase-encode, line by line, much more slowly, so that this axis collects the distortions | 2 |
+| EPI (echo-planar imaging) | the fast readout that records a whole slice's k-space after one excitation, used for nearly all diffusion MRI | 2 |
+| partial Fourier | skipping part of one side of k-space to shorten the echo time, at some cost in sharpness | 2 |
+| parallel imaging: GRAPPA, SENSE | skipping k-space lines to shorten the readout and filling them in from the differences between receive coils | 3 |
+| ACS (autocalibration signal) | a small fully sampled block at the center of k-space from which GRAPPA learns how to fill in the skipped lines | 3 |
+| g-factor | the extra, position-dependent noise amplification that parallel imaging adds | 3 |
+| multiband | exciting and recording several slices at once, to shorten the time per volume | 7 |
 
 ## Physics and encoding
 

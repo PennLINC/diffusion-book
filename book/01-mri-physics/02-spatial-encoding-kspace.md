@@ -201,7 +201,18 @@ slice is not uniform, and its size says how strongly the image contains that str
 The coordinate $\mathbf{k}$ is set by the gradient history: the longer and stronger the
 gradients that have been applied, the farther from the center of k-space the current sample
 lies. A pulse sequence is a plan for moving through k-space and recording samples along the
-way; reconstruction is an inverse Fourier transform of those samples. Slice selection uses
+way; reconstruction is an inverse Fourier transform of those samples.
+
+A 2-D k-space is covered one line at a time, and the two directions of the image play
+different roles:
+
+- The **readout** (or frequency-encode) direction, horizontal ($k_x$) in this book, is the
+  one the animation showed: a gradient along $x$ stays on while the receiver records, and a
+  whole line of samples is collected in well under a millisecond.
+- The **phase-encode** direction, vertical ($k_y$), is stepped between lines: a short
+  gradient pulse along $y$ moves the next line one step up or down in k-space. Covering it
+  takes one line per step, so it is the slow direction, and most of the artifacts of the
+  next sections act along it. Slice selection uses
 the same principle during excitation: a gradient along the slice direction makes the RF pulse
 resonant only within a slab.
 
@@ -213,8 +224,9 @@ consequences for image geometry and for the diffusion encoding are the subject o
 The images in this chapter are a synthetic b=0 slice of the simulated brain: the tissue
 fractions of one axial slice, weighted by proton density and T2 decay at the HBCD echo time
 ([Chapter 1](./01-spins-and-signal.md)). Its k-space is computed directly. The axes of a k-space image are
-spatial frequencies, in cycles per millimeter: $k_x$ runs horizontally and $k_y$, the
-phase-encode axis, vertically. A sample at the center describes the mean of the image; a
+spatial frequencies, in cycles per millimeter: $k_x$, the readout axis, runs horizontally
+and $k_y$, the phase-encode axis, vertically; the arrows on the k-space panel mark them. A
+sample at the center describes the mean of the image; a
 sample at the edge describes a pattern that repeats every two voxels, the finest the grid
 can hold. For 2 mm voxels the outermost sample is at 0.25 cycles/mm.
 
@@ -227,6 +239,11 @@ fig, axes = plt.subplots(1, 3, figsize=(11, 3.4))
 show_image(axes[0], img, "image (synthetic b=0, 2 mm voxels)")
 show_kspace(axes[1], ksp, "k-space magnitude (log scale)", voxel_mm=VOXEL)
 show_kspace(axes[2], ksp, "k-space phase", voxel_mm=VOXEL, phase=True)
+arrow = dict(arrowstyle="->", color="white", lw=1.5)
+axes[1].annotate("", xy=(0.22, -0.2), xytext=(-0.2, -0.2), arrowprops=arrow)
+axes[1].text(0.01, -0.165, "readout ($k_x$): one line", color="white", ha="center", va="center", fontsize=8)
+axes[1].annotate("", xy=(-0.2, 0.22), xytext=(-0.2, -0.17), arrowprops=arrow)
+axes[1].text(-0.185, 0.16, "phase-encode ($k_y$):\nline to line", color="white", ha="left", va="center", fontsize=8)
 fig.tight_layout()
 ```
 
@@ -234,7 +251,9 @@ The later k-space panels in this chapter share these axes and omit the labels. M
 energy is at the center of k-space. The center encodes contrast and coarse
 shape; the periphery encodes edges and fine detail. Reconstructing from only one or the other
 shows the division. In each pair below, the left panel is the part of k-space that was
-kept (the rest set to zero) and the right panel is the image reconstructed from it:
+kept (the rest set to zero) and the right panel is the image reconstructed from it. The
+central 16 × 16 samples of this 128 × 128 grid hold as much detail as an image with 16 mm
+voxels, eight times coarser than the 2 mm grid:
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -244,7 +263,7 @@ low = np.zeros_like(ksp); low[c - 8 : c + 8, c - 8 : c + 8] = ksp[c - 8 : c + 8,
 high = ksp - low
 
 fig, axes = plt.subplots(1, 4, figsize=(12, 3))
-show_kspace(axes[0], low, "kept: the central 16 × 16 samples")
+show_kspace(axes[0], low, "kept: central 16 × 16 (≈ 16 mm voxels)")
 show_image(axes[1], kspace.ifft2c(low), "reconstructed from them")
 show_kspace(axes[2], high, "kept: everything except the center")
 show_image(axes[3], kspace.ifft2c(high), "reconstructed from that")
@@ -274,7 +293,7 @@ show_kspace(axes[0, 0], ksp, "k-space: full sampling")
 show_kspace(axes[0, 1], lowres, "k-space: central 32 × 32 kept")
 show_kspace(axes[0, 2], every_other, "k-space: every other line kept")
 show_image(axes[1, 0], img, "image: full sampling")
-show_image(axes[1, 1], kspace.ifft2c(lowres), "image: larger voxels")
+show_image(axes[1, 1], kspace.ifft2c(lowres), "image: 8 mm voxels")
 show_image(axes[1, 2], kspace.ifft2c(every_other), "image: FOV halved, wrapped")
 fig.tight_layout()
 ```
@@ -313,16 +332,41 @@ fig.tight_layout()
 
 The timing of the readout determines several artifacts. With $N_y$ lines and an echo spacing
 of 0.5–1 ms, the readout lasts 40–90 ms. TRXScan uses the HBCD protocol's 91.7 ms total
-readout time for any matrix size. For a 128-line matrix:
+readout time for any matrix size.
+
+Two times matter. The **readout duration** is how long the train of lines lasts, from the
+first line to the last. The **time to center** is how long the train takes to reach the
+$k_y = 0$ line, the line that carries most of the signal: the echo has to form then, so this
+time sets how short the echo time can be. Two ways of skipping lines change both, and the
+next sections return to each:
+
+- **Partial Fourier** (here 6/8) skips the first quarter of the lines, on one side of
+  k-space, and relies on the symmetry of k-space to supply them.
+- **In-plane acceleration** by a factor $R$ (here $R = 2$) keeps every second line and
+  recovers the missing ones with the help of the receive coils ([Chapter 3](./03-reconstruction.md)).
+
+For a 128-line matrix, each bar below is one readout; the dark mark is where it reaches the
+center of k-space:
 
 ```{code-cell} python
 :tags: [hide-input]
 esp = 91.7 / 128
-for label, kw in [("full", {}), ("partial Fourier 6/8", {"partial_fourier": 0.75}),
-                  ("R = 2", {"accel": 2}), ("6/8 and R = 2", {"partial_fourier": 0.75, "accel": 2})]:
+schemes = [("full", {}), ("partial Fourier 6/8", {"partial_fourier": 0.75}),
+           ("R = 2", {"accel": 2}), ("6/8 and R = 2", {"partial_fourier": 0.75, "accel": 2})]
+fig, ax = plt.subplots(figsize=(8, 2.6))
+for i, (label, kw) in enumerate(schemes):
     tr = kspace.epi_trajectory(128, 128, esp, **kw)
+    ax.barh(i, tr.readout_ms, height=0.55, color=PALETTE[0], alpha=0.35)
+    ax.plot([tr.time_to_center_ms] * 2, [i - 0.3, i + 0.3], color=INK["primary"], lw=2.5)
+    ax.text(tr.readout_ms + 1.5, i, f"{tr.lines.size} lines, {tr.readout_ms:.1f} ms; center at {tr.time_to_center_ms:.1f} ms",
+            va="center", fontsize=8.5)
     print(f"{label:>20}: {tr.lines.size:3d} lines, readout {tr.readout_ms:5.1f} ms, "
           f"k-space center reached after {tr.time_to_center_ms:5.1f} ms")
+ax.set(yticks=range(len(schemes)), yticklabels=[s[0] for s in schemes], xlim=(0, 150),
+       xlabel="time since the first line (ms)", title="readout duration (bar) and time to the center of k-space (mark)")
+ax.invert_yaxis()
+ax.grid(axis="y", visible=False)
+fig.tight_layout()
 ```
 
 Three consequences of the long readout, each treated in its own chapter:
@@ -452,7 +496,7 @@ What to look at in each column:
 
 For an object with no phase, k-space is symmetric about its center, so half of the lines are
 redundant. Partial Fourier acquisitions skip a fraction of the lines on one side, typically
-acquiring 5/8 to 7/8 of them. The timings printed above show the two benefits: the readout is
+acquiring 5/8 to 7/8 of them. The readout timings above show the two benefits: the readout is
 shorter, and the center of k-space is reached sooner, which shortens the minimum echo time.
 The price is that the skipped lines have to be supplied by the reconstruction, which relies
 on the symmetry, and real images do have phase (from field inhomogeneity, coil phase, eddy
@@ -469,17 +513,27 @@ overshoot does not shrink with more samples; it only moves closer to the edge.
 
 ```{code-cell} python
 :tags: [hide-input]
-x = np.linspace(-1, 1, 2001)
+x = np.linspace(-1, 1, 20001)
 step = (np.abs(x) < 0.5).astype(float)
-fig, ax = plt.subplots(figsize=(7.5, 3))
+fig, ax = plt.subplots(figsize=(7.5, 3.2))
 for n_harm, color in zip([8, 16, 64], PALETTE[:3]):
     approx = 0.5 + sum((2 / (np.pi * k)) * np.sin(np.pi * k / 2) * np.cos(np.pi * k * x) for k in range(1, n_harm + 1))
     ax.plot(x, approx, color=color, label=f"{n_harm} frequencies", lw=1.5)
+    print(f"{n_harm:2d} frequencies: largest overshoot {(approx.max() - 1) * 100:.1f} % of the step")
 ax.plot(x, step, color="0.3", lw=1, ls="--", label="edge")
-ax.set(xlabel="position", ylabel="intensity", xlim=(0.2, 0.8), title="An edge reconstructed from a limited number of frequencies")
-ax.legend()
+over = approx.max()
+ax.axhline(over, color=INK["secondary"], lw=0.8, ls=":")
+ax.text(0.205, over + 0.02, f"highest point: {(over - 1) * 100:.0f} % above the top of the step", ha="left", va="bottom",
+        fontsize=9, color=INK["secondary"])
+ax.set(xlabel="position", ylabel="intensity", xlim=(0.2, 0.8), ylim=(-0.15, 1.3),
+       title="An edge reconstructed from a limited number of frequencies")
+ax.legend(loc="center right")
 fig.tight_layout()
 ```
+
+The dotted line marks the highest point of the curves: each of them overshoots the top of
+the step by about 9 %, however many frequencies are kept, and the overshoot sits closer to
+the edge the more there are.
 
 In an image, the overshoot appears as ripples parallel to every sharp boundary. In the brain
 the sharpest boundaries are between CSF and tissue, so the ventricle walls and the cortical
@@ -521,7 +575,46 @@ this out for routine use. The diffusion gradients are strong enough that small b
 movements of the head during the encoding, including pulsation, give each excitation a
 different, unknown phase. In a single-shot acquisition that phase is common to every line and
 has no effect on the magnitude image; if the lines came from different excitations, the
-phases would disagree and the image would carry ghosts. The standard acquisition is therefore
+phases would disagree and the image would carry ghosts.
+
+The figure shows the difference on the synthetic slice. In both acquisitions the diffusion
+encoding leaves a random phase on the object, an offset plus a gentle ramp across the head,
+drawn afresh for every excitation. On the left one excitation records every line, so every
+line carries the same phase. On the right two excitations are interleaved, the first
+recording the odd lines and the second the even ones, as a two-shot EPI would; each has its
+own phase. The third panel repeats the two-shot acquisition, as the next volume of a
+diffusion series would, with new random phases.
+
+```{code-cell} python
+:tags: [hide-input]
+rng = np.random.default_rng(2)
+def shot_phase():
+    """Random phase from motion during the diffusion encoding: an offset plus a ramp of up to about 1 rad across the image."""
+    return np.exp(1j * (rng.uniform(-np.pi, np.pi) + rng.uniform(-1, 1) * cc / nx + rng.uniform(-1, 1) * rr / ny))
+one_shot = np.abs(kspace.ifft2c(kspace.fft2c(img * shot_phase())))
+def two_shots():
+    """Odd k-space lines from one excitation, even lines from another, each with its own phase."""
+    k_a, k_b = kspace.fft2c(img * shot_phase()), kspace.fft2c(img * shot_phase())
+    return np.abs(kspace.ifft2c(np.where((np.arange(ny) % 2 == 1)[:, None], k_a, k_b)))
+two_a, two_b = two_shots(), two_shots()
+print(f"one shot: largest error anywhere {np.abs(one_shot - img).max() / img[mask].mean() * 100:.1f} % of the brain's mean signal")
+for name, im in [("two shots", two_a), ("two shots, next volume", two_b)]:
+    print(f"{name}: ghost outside the brain, mean {im[ghost_zone].mean() / img[mask].mean() * 100:.0f} % of the brain's "
+          f"mean signal; signal inside the brain off by {np.abs(im - img)[mask].mean() / img[mask].mean() * 100:.0f} % on average")
+fig, axes = plt.subplots(1, 3, figsize=(10, 3.6))
+show_image(axes[0], one_shot, "one shot: all lines share a phase", vmin=0, vmax=img.max())
+show_image(axes[1], two_a, "two shots, each with its own phase", vmin=0, vmax=img.max())
+show_image(axes[2], two_b, "two shots, next volume", vmin=0, vmax=img.max())
+fig.tight_layout()
+```
+
+The single-shot image is exact: a phase that every line shares changes nothing in the
+magnitude. With two shots, the part of the signal on which the two phases disagree is moved
+half a field of view along phase-encode, to the place where the Nyquist ghost appeared, and
+is missing from where it belongs, so the brain itself is darkened unevenly. How much moves
+depends on how far apart the two phases happen to be, and the phases are new at every
+excitation, so the ghost and the darkening change from volume to volume, as the printed
+numbers show. The standard acquisition is therefore
 single-shot EPI, and its long readout is the origin of most of the artifacts corrected in
 Part III. The multi-shot and non-EPI readouts that work around the phase problem are
 uncommon in practice and are described in [Chapter 23](../05-advanced/23-frontiers.md).
@@ -529,9 +622,12 @@ uncommon in practice and are described in [Chapter 23](../05-advanced/23-frontie
 ## Measure it: a TRXScan slice and its k-space
 
 Everything above used a synthetic object and our own toy Fourier transform. Here the
-simulator acquires one slice of the simulated brain the way a scanner would: eight receive coils,
-GRAPPA 2, 6/8 partial Fourier, the HBCD readout, and it hands back the k-space it actually
-sampled for every coil, before any reconstruction.
+simulator acquires one slice of the simulated brain the way a scanner would: eight receive
+coils, in-plane acceleration $R = 2$, 6/8 partial Fourier, the HBCD readout, and it hands
+back the k-space it actually sampled for every coil, before any reconstruction. The
+acceleration method it simulates is GRAPPA, which fills in the skipped lines from the coils;
+how it does so, and how the eight coil images are combined into one, is the subject of
+[Chapter 3](./03-reconstruction.md). Here only the sampling and the timing matter.
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -543,26 +639,26 @@ k = sim.kspace
 print(f"acquired k-space {k.acquired.shape} (volume, slice, coil, ky, kx); "
       f"{int(k.mask[:, 0].sum())} of {k.shape[0]} phase-encode lines sampled "
       f"(partial Fourier {sim.protocol.partial_fourier:g}, GRAPPA {sim.protocol.accel})")
-fig, axes = plt.subplots(1, 4, figsize=(12, 3.2))
-show_kspace(axes[0], k.acquired[0, 0, 0], "coil 0, as acquired (b = 0)")
-show_kspace(axes[1], k.reconstructed[0, 0, 0], "coil 0, after GRAPPA and windowing")
-show_image(axes[2], np.rot90(k.combined[0, 0]), "combined complex image, magnitude")
-show_image(axes[3], ph.axial(sim.phase, 0), "phase (radians)", kind="phase")
+fig, axes = plt.subplots(1, 3, figsize=(9.5, 3.2))
+show_kspace(axes[0], k.acquired[0, 0, 0], "coil 1, as acquired (b = 0)")
+show_kspace(axes[1], k.reconstructed[0, 0, 0], "coil 1, skipped lines filled in")
+show_image(axes[2], np.rot90(k.combined[0, 0]), "image from all eight coils")
 fig.tight_layout()
 ```
 
-The un-acquired lines are exactly zero in the raw k-space: the block at one edge is the
-partial Fourier band and the alternate rows are the GRAPPA undersampling, which the reconstruction
-fills in from the eight coils' complementary spatial sensitivities before the inverse
-transform. The same object, once through the real readout, also tells us the timing of every
-line, which is what the BIDS sidecar summarizes:
+In the left panel the lines that were not acquired are exactly zero: the dark block at one
+edge is the quarter skipped by partial Fourier, and the alternate dark rows are the lines
+skipped by the acceleration. The middle panel is the same coil's k-space after the
+reconstruction has filled them in, and the right panel the image made from all eight
+coils ([Chapter 3](./03-reconstruction.md) covers both steps). The same acquisition also
+reports the timing of every line, which is what the BIDS sidecar summarizes:
 
 ```{code-cell} python
 :tags: [hide-input]
 r = sim.readout
 print(f"{r.ny} phase-encode lines at {r.t_line_ms:.3f} ms each; first to last acquired line "
       f"{r.total_readout_ms:.1f} ms (sidecar TotalReadoutTime {sim.sidecar['TotalReadoutTime'] * 1e3:.1f} ms); "
-      f"k-space centre reached {r.time_to_center_ms:.1f} ms into the train; TE {r.t_echo_ms:.0f} ms")
+      f"k-space center reached {r.time_to_center_ms:.1f} ms into the train; TE {r.t_echo_ms:.0f} ms")
 fig, ax = plt.subplots(figsize=(7, 2.8))
 ax.plot(r.t_read_ms[r.ky_order], r.ky_order - r.ny // 2, ".-", color=PALETTE[0], ms=3, lw=0.8)
 acq = r.acquired_lines
@@ -574,11 +670,12 @@ fig.tight_layout()
 ```
 
 The train walks from the top of k-space down, one line per echo spacing. Partial Fourier
-skips the first quarter of the lines, so the centre (where the echo forms and the contrast is
-decided) is reached that much sooner and the readout ends earlier; GRAPPA skips every second
-line outside the central calibration band. The simulator keeps the echo time you asked for,
-so the shorter path to the centre is a TE you may lower, not one it lowers for you. Chapter 3 reconstructs this k-space in Python and checks the result against
-what the simulator produced.
+skips the first quarter of the lines, so the center (where the echo forms and the contrast is
+decided) is reached that much sooner and the readout ends earlier; the acceleration skips
+every second line outside a band of fully sampled central lines, which the reconstruction
+uses for calibration ([Chapter 3](./03-reconstruction.md)). The simulator keeps the echo time
+you asked for, so the shorter path to the center is a TE you may lower, not one it lowers
+for you.
 
 ## What this implies for acquisition
 

@@ -40,7 +40,7 @@ from dipy.core.gradients import gradient_table
 from dipy.reconst.dti import TensorModel
 
 from dwibook import phantoms, schemes, synth
-from dwibook.plotting import PALETTE, animate, set_style, show_image
+from dwibook.plotting import INK, PALETTE, animate, set_style, show_image
 
 set_style()
 ```
@@ -64,9 +64,161 @@ slice by slice within a few seconds. Head motion affects it on two time scales:
   in the highest shell, and it is the dominant motion artifact in children and clinical
   populations.
 
+### Why a rotated head needs rotated b-vectors
+
+The scanner applies each diffusion gradient in its own fixed frame. If the head has turned,
+the same gradient meets the fibers at a different angle, and the signal of that volume is
+the signal for that different angle. Registration turns the image back, but it does not
+change which direction was actually measured relative to the tissue:
+
+```{code-cell} python
+:tags: [hide-input]
+def rot2(deg):
+    a = np.radians(deg)
+    return np.array([[np.cos(a), -np.sin(a)], [np.sin(a), np.cos(a)]])
+
+theta = np.linspace(0, 2 * np.pi, 200)
+head = np.array([0.75 * np.cos(theta), np.sin(theta)])                      # top-down view, anterior up
+nose = np.array([[-0.15, 0.0, 0.15], [0.97, 1.18, 0.97]])
+fiber = np.array([[-0.45, 0.45], [-0.35, 0.35]])                             # a fiber bundle at about 38 degrees
+g = np.array([1.0, 0.0])                                                     # the gradient, fixed in the scanner
+TURN = 10.0
+
+def draw_head(ax, deg, title):
+    R = rot2(deg)
+    for shape, kw in [(head, dict(color=INK["secondary"], lw=1.5)), (nose, dict(color=INK["secondary"], lw=1.5)),
+                      (fiber, dict(color=PALETTE[0], lw=5, solid_capstyle="round"))]:
+        xy = R @ shape
+        ax.plot(xy[0], xy[1], **kw)
+    ax.set(xlim=(-1.5, 1.6), ylim=(-1.55, 1.45), aspect="equal", title=title)
+    ax.set_axis_off()
+
+def arrow(ax, vec, **kw):
+    ax.annotate("", xy=(1.25 * vec[0], -1.3 + 1.25 * vec[1]), xytext=(0, -1.3), arrowprops=dict(arrowstyle="-|>", lw=2, **kw))
+
+fig, axes = plt.subplots(1, 3, figsize=(9.5, 3.6))
+draw_head(axes[0], 0, "reference position")
+arrow(axes[0], g, color=PALETTE[1])
+axes[0].text(1.3, -1.3, "g", color=PALETTE[1], va="center")
+draw_head(axes[1], TURN, f"head turned {TURN:.0f}°,\nsame gradient from the scanner")
+arrow(axes[1], g, color=PALETTE[1])
+axes[1].text(1.3, -1.3, "g", color=PALETTE[1], va="center")
+draw_head(axes[2], 0, "after registration: image turned back")
+arrow(axes[2], g, color=INK["secondary"], linestyle="--")
+arrow(axes[2], rot2(-TURN) @ g, color=PALETTE[1])
+axes[2].text(1.3, -1.3, "b-vector as\nin the table", color=INK["secondary"], va="bottom", fontsize=8)
+axes[2].text(1.3, -1.55, "rotated b-vector", color=PALETTE[1], va="center", fontsize=8)
+fig.tight_layout()
+```
+
+In the middle panel the head (and its fiber, in blue) has turned 10° while the scanner's
+gradient (orange arrow) has not, so the angle between gradient and fiber is 10° different
+from what it would have been. After registration (right) the image is back in the reference
+position, and in that frame the gradient the tissue actually experienced points 10° the
+other way (solid arrow), not along the direction written in the b-vector table (dashed). A
+fit that uses the table's direction assigns this volume's signal to the wrong angle. The fix
+is to rotate each volume's b-vector by the rotation the registration found
+{cite:p}`leemans2009`.
+
+### Why movement during the encoding erases signal
+
+The diffusion pulses wind each spin's phase in proportion to its position along the gradient
+and then unwind it ([Chapter 5](../02-diffusion-encoding/05-diffusion-encoding.md)). A spin
+that has moved between the pulses keeps a leftover phase proportional to how far it moved,
+and the pulses are strong: at b = 1000 (with the 20 ms pulses 40 ms apart of Chapter 5), a
+displacement of about 36 µm, under 2 % of a 2 mm voxel, is enough for a full turn. What
+matters is whether the spins within one voxel moved by *different* amounts. The animation
+follows the spins across one 2 mm voxel. If the whole head shifts, every spin gets the same
+leftover phase: the arrows turn together, and the signal, the length of their sum, is
+unchanged (the image only records its size). If the head turns, spins on one side of the
+voxel move farther along the gradient than spins on the other side, their phases fan out,
+and the sum shrinks.
+
+```{code-cell} python
+:tags: [hide-input]
+DELTA, SMALL_DELTA, VOX = 0.040, 0.020, 2.0                 # s, s, mm
+def k_of(b):                                                 # phase per mm of displacement, rad/mm
+    return np.sqrt(b / (DELTA - SMALL_DELTA / 3))
+def kept(b, turn_deg):                                       # |mean phasor| across one voxel for a turn of the head
+    x = np.linspace(-VOX / 2, VOX / 2, 401)
+    return np.abs(np.mean(np.exp(1j * k_of(b) * np.radians(turn_deg) * x)))
+
+x_spins = np.linspace(-VOX / 2, VOX / 2, 13)
+turns = np.linspace(0, 1.0, 101)
+frames = [("still", 0.0)] * 2 + [("shift", d) for d in (0.1, 0.3, 0.5) for _ in range(2)] + \
+         [("turn", a) for a in np.linspace(0, 1.0, 11)] + [("turn", 1.0)] * 2
+
+fig, (ax, axc) = plt.subplots(1, 2, figsize=(8.4, 3.4), gridspec_kw=dict(width_ratios=[1.35, 1]))
+for b, colr in [(1000, PALETTE[0]), (3000, PALETTE[1])]:
+    axc.plot(turns, [kept(b, a) for a in turns], color=colr, label=f"b = {b}")
+dot, = axc.plot([], [], "o", color=INK["primary"], ms=7)
+axc.set(xlabel="head turn between the pulses (degrees)", ylabel="signal kept in the voxel", ylim=(0, 1.05))
+axc.legend(loc="upper right")
+
+def frame(i):
+    kind, amount = frames[i]
+    phase = k_of(1000) * (amount if kind == "shift" else np.radians(amount) * x_spins) * np.ones_like(x_spins)
+    frac = kept(1000, amount) if kind == "turn" else 1.0
+    ax.clear()
+    ax.add_patch(plt.Rectangle((-1.1, -0.35), 2.2, 0.7, fill=False, ec=INK["grid"], lw=1))
+    for xs, ph in zip(x_spins, phase):
+        ax.annotate("", xy=(xs + 0.13 * np.cos(ph), 0.25 * np.sin(ph)), xytext=(xs, 0), arrowprops=dict(arrowstyle="-|>", color=PALETTE[0], lw=1.4))
+    mean = np.mean(np.exp(1j * phase)) if kind == "shift" else frac * np.exp(1j * 0)
+    ax.plot([-1.0, 1.0], [-0.75, -0.75], color=INK["grid"], lw=8, solid_capstyle="butt")
+    ax.plot([-1.0, -1.0 + 2.0 * abs(mean)], [-0.75, -0.75], color=PALETTE[1], lw=8, solid_capstyle="butt")
+    ax.text(0, -1.0, f"sum of the arrows (b = 1000): {100 * abs(mean):.0f} % of full signal", ha="center", fontsize=9)
+    ax.set(xlim=(-1.25, 1.25), ylim=(-1.15, 0.5), aspect="equal")
+    ax.set_axis_off()
+    ax.set_title({"still": "head still: spins realign",
+                  "shift": f"whole head shifts {amount:.1f} mm: spins turn together",
+                  "turn": f"head turns {amount:.1f}°: spins fan out"}[kind], fontsize=9)
+    dot.set_data([amount if kind == "turn" else 0.0], [frac])
+    fig.tight_layout()
+
+animate(fig, frame, range(len(frames)), fps=2, width=700,
+        alt="a row of spin arrows across one voxel after the second diffusion pulse; with the head still or shifted as a whole the arrows stay parallel and the summed signal bar stays full; as the head turns by up to 1 degree the arrows fan out and the bar shrinks, following a curve of signal kept versus turn angle that falls faster at b = 3000")
+print(f"displacement for one full turn of phase at b = 1000: {1000 * 2 * np.pi / k_of(1000):.0f} µm")
+print("signal kept in a 2 mm voxel for a turn of the head between the pulses:")
+for a in (0.25, 0.5, 1.0):
+    print(f"  {a:.2f} degrees: b = 1000 {100 * kept(1000, a):.0f} %, b = 3000 {100 * kept(3000, a):.0f} %")
+```
+
+A shift of the whole head, even by half a millimeter, turns every arrow by the same amount
+and the bar stays full. A turn of a fraction of a degree fans the arrows across the voxel,
+and the bar shrinks; the curve on the right shows how fast. A turn of half a degree leaves
+the voxel 66 % of its signal at b = 1000 but 19 % at b = 3000, and a full degree leaves 4 %
+at b = 1000 (the small rebound of the b = 3000 curve is the arrows wrapping past a full
+turn; the signal stays low). A turn of a degree in the few tens of milliseconds between the pulses is a quick
+jerk (a cough, a swallow, a startle), and it happens in a scan of dozens of volumes. Because
+the turn affects every voxel of the slice being encoded, the whole slice goes dark: this is
+**slice dropout**. (Pulsation of the brain with the heartbeat moves neighboring tissue by
+different amounts in the same way, which is why dropout-like signal loss also appears near
+the brainstem without any head motion.)
+
 **Multiband** acquisition excites several slices at once and separates them using the
-coils ([Chapter 7](../02-diffusion-encoding/07-acquisition-parameters.md)). A movement during one excitation therefore affects all slices of that
-group, spread across the brain at regular intervals, rather than one slice.
+coils ([Chapter 7](../02-diffusion-encoding/07-acquisition-parameters.md)). Each excitation,
+or shot, carries its own diffusion encoding, so a movement during one shot affects all
+slices of that group, spread across the brain at regular intervals, rather than one slice:
+
+```{code-cell} python
+:tags: [hide-input]
+N_DEMO, HIT = 15, 7
+fig, axes = plt.subplots(1, 2, figsize=(7.5, 3.4))
+for ax, mb in zip(axes, (1, 3)):
+    group = [HIT % (N_DEMO // mb) + j * (N_DEMO // mb) for j in range(mb)]
+    ax.add_patch(plt.matplotlib.patches.Ellipse((0, N_DEMO / 2 - 0.5), 1.9, N_DEMO + 2, fill=False, ec=INK["secondary"], lw=1.2))
+    for s in range(N_DEMO):
+        hit = s in group
+        ax.plot([-0.8, 0.8], [s, s], color=PALETTE[1] if hit else INK["grid"], lw=6 if hit else 4, solid_capstyle="butt")
+    ax.set(xlim=(-1.3, 1.3), ylim=(-3.2, N_DEMO + 1), title=f"{'single-band' if mb == 1 else f'multiband {mb}'}: {N_DEMO // mb} shots of {mb} slice{'s' if mb > 1 else ''}")
+    ax.set_axis_off()
+    ax.text(0, -2.8, f"one movement darkens slice{'s' if mb > 1 else ''} {', '.join(map(str, group))}", ha="center", fontsize=8)
+fig.tight_layout()
+```
+
+The head is seen from the side, with its slices as horizontal bars. Without multiband, a
+movement during one shot darkens one slice (orange). With multiband 3 the same movement
+darkens three slices a third of the brain apart, because they were encoded together.
 
 ## The artifact-free reference
 
@@ -148,20 +300,31 @@ not rotated), and the registered series with the rotated b-vectors.
 ref_fit = synth.dti_maps(reference, bvals, bvecs, mask=mask)
 cases = [("uncorrected", moved, bvecs), ("registered, b-vectors not rotated", registered, bvecs), ("registered, b-vectors rotated", registered, bvecs_rot)]
 wm = vol["wm"] > 0.9
-fig, axes = plt.subplots(1, 4, figsize=(12, 3.2))
-show_image(axes[0], ref_fit["fa"][:, :, K], "FA, reference", kind="scalar", vmin=0, vmax=0.9)
-for ax, (label, s, bv) in zip(axes[1:], cases):
+fig, axes = plt.subplots(2, 4, figsize=(12, 6.2), layout="constrained")
+show_image(axes[0, 0], ref_fit["fa"][:, :, K], "FA, reference", kind="scalar", vmin=0, vmax=0.9)
+show_image(axes[1, 0], wm[:, :, K], "white matter (where\ndirection error is scored)", vmin=0, vmax=1)
+for j, (label, s, bv) in enumerate(cases, start=1):
     m = synth.dti_maps(s, bvals, bv, mask=mask)
     fa_err = np.abs(m["fa"] - ref_fit["fa"])[wm].mean()
     ang = np.degrees(np.arccos(np.clip(np.abs(np.sum(m["evecs"][..., 0] * ref_fit["evecs"][..., 0], axis=-1)), 0, 1)))
-    show_image(ax, (m["fa"] - ref_fit["fa"])[:, :, K] * mask[:, :, K], f"FA error, {label}", kind="diff", vmin=-0.3, vmax=0.3)
-    print(f"{label:>34}: WM FA error {fa_err:.3f}, principal-direction error {np.median(ang[wm]):.1f}°")
-fig.tight_layout()
+    show_image(axes[0, j], (m["fa"] - ref_fit["fa"])[:, :, K] * mask[:, :, K], f"FA error,\n{label}", kind="diff", vmin=-0.3, vmax=0.3)
+    im_ang = axes[1, j].imshow(np.where(wm[:, :, K], ang[:, :, K], np.nan), cmap="magma", vmin=0, vmax=5)
+    axes[1, j].set_facecolor("black"); axes[1, j].set_xticks([]); axes[1, j].set_yticks([]); axes[1, j].grid(False)
+    axes[1, j].set_title("principal-direction error")
+    print(f"{label:>34}: WM FA error {fa_err:.3f}, principal-direction error median {np.median(ang[wm]):.1f}°, "
+          f"voxels off by more than 3°: {100 * np.mean(ang[wm] > 3):.0f} %")
+fig.colorbar(im_ang, ax=axes[1, 1:], shrink=0.8, label="degrees")
 ```
 
-Registration removes the large errors at edges. Rotating the b-vectors then removes a
-smaller, distributed error in the fiber directions; with rotations of a few degrees the
-direction error is a few degrees, which matters for tractography more than for FA.
+The top row is the FA error, the bottom row the angle between each white-matter voxel's
+fitted principal direction and the true one. Registration removes the large FA errors at
+the edges and most of the direction error (bright voxels in the second column; the median
+falls from 3.4° to 1.7°). Rotating the b-vectors changes FA very little and darkens the
+direction map only slightly: the median falls to 1.4° and the share of white-matter voxels
+off by more than 3° from 15 % to 12 %. The gain is modest here because only 3 of 12
+diffusion-weighted volumes moved, by a few degrees each. It grows with the size of the
+rotations and the number of rotated volumes, and the direction error is what tractography
+follows, so pipelines always rotate.
 
 ## Slice dropout
 
@@ -180,9 +343,15 @@ fig, axes = plt.subplots(1, 3, figsize=(9.5, 3.4))
 show_image(axes[0], dwi_drop[:, :, dropped[1], 4], f"volume 4, slice {dropped[1]}: dropped", vmin=0, vmax=0.2)
 show_image(axes[1], dwi_drop[:, :, dropped[1] + 1, 4], f"volume 4, slice {dropped[1] + 1}: normal", vmin=0, vmax=0.2)
 axes[2].imshow(dwi_drop[:, 26, :, 4].T, cmap="gray", vmin=0, vmax=0.2, origin="lower", aspect="auto"); axes[2].set_axis_off()
-axes[2].set_title(f"coronal view: multiband {MB} drops slices {dropped}")
+axes[2].set_title(f"side (sagittal) view: slices\n{', '.join(map(str, dropped))} dark")
 fig.tight_layout()
 ```
+
+The dropped slice (left) shows nearly the same anatomy as its neighbor (middle) at 40 % of the
+brightness. Seen from the side (right), the event is a set of dark horizontal lines, one per
+slice of the shot, evenly spaced through the brain (the top one, slice 46, crosses only a thin
+cap of brain): the multiband pattern from the schematic
+above.
 
 ### Detection and replacement
 
@@ -192,6 +361,29 @@ has a residual far outside the distribution of that slice across volumes. The af
 slice is then replaced by the prediction, and the fit is repeated without it
 {cite:p}`andersson2016b`. The same principle is used by FSL eddy (`--repol`) and by
 SHORELine in QSIPrep.
+
+"Far outside the distribution" needs a yardstick that the outlier cannot bend. The usual
+z-score, the distance from the mean in units of the standard deviation, fails here, because
+the dropped slice pulls the mean toward itself and inflates the standard deviation. With 12
+volumes it can never reach a large z, however extreme it is. The robust alternative uses the
+**median** in place of the mean and the **median absolute deviation** (MAD, the median of
+each value's distance from the median) in place of the standard deviation; one outlier
+barely moves either. A slice's residual in 12 volumes, 11 of them near zero and one at −0.6:
+
+```{code-cell} python
+:tags: [hide-input]
+example = np.array([0.01, -0.02, 0.0, 0.02, -0.01, 0.015, -0.005, 0.01, -0.015, 0.005, 0.0, -0.6])
+z_usual = (example[-1] - example.mean()) / example.std()
+med_ex = np.median(example)
+mad_ex = 1.4826 * np.median(np.abs(example - med_ex))  # 1.4826 makes the MAD match the SD for normal data
+print(f"mean {example.mean():+.3f}, SD {example.std():.3f}  ->  usual z of the outlier {z_usual:.1f}")
+print(f"median {med_ex:+.3f}, scaled MAD {mad_ex:.3f}  ->  robust z of the outlier {(example[-1] - med_ex) / mad_ex:.0f}")
+```
+
+With the mean and standard deviation the dropped value scores about −3, which a threshold
+of 4 would miss; the outlier has hidden itself by inflating the yardstick. With the median
+and MAD it scores in the dozens and stands out unmistakably. The detector below computes
+this robust z for every slice in every diffusion-weighted volume and flags values below −4.
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -218,28 +410,91 @@ fig, ax = plt.subplots(figsize=(7, 3.2))
 im = ax.imshow(z, cmap="RdBu_r", vmin=-8, vmax=8, aspect="auto", origin="lower", extent=(dw[0] - 0.5, dw[-1] + 0.5, -0.5, n_slices - 0.5))
 ax.set(xlabel="volume", ylabel="slice", title="standardized residual of each slice in each diffusion-weighted volume")
 fig.colorbar(im, ax=ax, shrink=0.8, label="robust z")
+ax.scatter([v for _, v in flagged], [k for k, _ in flagged], s=90, facecolors="none", edgecolors=INK["primary"], lw=1.5)
 fig.tight_layout()
+is_flagged = np.zeros(z.shape, bool)
+for k, v in flagged:
+    is_flagged[k, list(dw).index(v)] = True
+others = z[~is_flagged]
+print(f"robust z of the flagged slices: {', '.join(f'{val:.0f}' for val in z[is_flagged])}; "
+      f"most extreme value anywhere else: {others[np.abs(others).argmax()]:.1f}, in slice {np.argwhere(np.where(is_flagged, 0, np.abs(z)) == np.abs(others).max())[0][0]}")
+```
 
+Each cell is one slice of one volume. The three circled cells, all in volume 4, are the
+only ones below −4: the three slices of the one multiband shot, found from the residuals
+alone, without being told where the event happened. The margin is narrower than in the
+worked example (about −5, while a few cells elsewhere reach ±4). The dropped slice pulls the
+tensor fit of its own slice toward itself, so the other volumes of that slice also miss
+their predictions and its MAD grows. This is why FSL eddy repeats the detection after
+replacing what it found, refitting each time without the outliers.
+
+The flagged slices are then replaced by their predictions. Here is slice 29 of volume 4 at
+each stage:
+
+```{code-cell} python
+:tags: [hide-input]
 repaired = dwi_drop.copy()
 for k, v in flagged:
     repaired[:, :, k, v] = pred[:, :, k, v]
-fit_drop = synth.dti_maps(dwi_drop, bvals, bvecs, mask=mask)
-fit_rep = synth.dti_maps(repaired, bvals, bvecs, mask=mask)
+first_pass = repaired.copy()
+# second pass: refit with the replaced slices, predict again, replace again
+fit2 = TensorModel(gtab, fit_method="WLS", return_S0_hat=True).fit(repaired, mask=mask)
+pred2 = fit2.predict(gtab, S0=fit2.S0_hat)
+for k, v in flagged:
+    repaired[:, :, k, v] = pred2[:, :, k, v]
 k = dropped[1]
-print(f"FA error in WM of slice {k}: with dropout {np.abs(fit_drop['fa'] - ref_fit['fa'])[:, :, k][wm[:, :, k]].mean():.3f}, "
-      f"after replacement {np.abs(fit_rep['fa'] - ref_fit['fa'])[:, :, k][wm[:, :, k]].mean():.3f}")
+panels = [(dwi_drop, "dropped slice (acquired)"), (first_pass, "replaced, first pass"), (repaired, "replaced, after refitting"), (reference, "reference (no dropout)")]
+fig, axes = plt.subplots(1, 4, figsize=(11, 3.2), layout="constrained")
+for ax, (s, title) in zip(axes, panels):
+    show_image(ax, s[:, :, k, 4], title, vmin=0, vmax=0.2)
+wm_k = wm[:, :, k]
+for s, title in panels[:3]:
+    fa_k = synth.dti_maps(s, bvals, bvecs, mask=mask)["fa"][:, :, k]
+    print(f"{title:>26}: signal {s[:, :, k, 4][wm_k].mean() / reference[:, :, k, 4][wm_k].mean():.0%} of the reference in WM, "
+          f"FA error in WM {np.abs(fa_k - ref_fit['fa'][:, :, k])[wm_k].mean():.3f}")
 ```
 
-Replacement uses the other volumes' information to fill the gap; it cannot recover the
+The first replacement is brighter than the dropped slice but still darker than the
+reference, because the tensor it was predicted from was fitted with the dark slice included
+and was pulled down by it. Refitting with the replaced slice and predicting again closes
+part of the remaining gap: the white-matter signal rises from 68 % to 82 % of the reference
+and the FA error in the slice falls from 0.034 to 0.020 (0.056 with the dropout left in).
+Further rounds continue the approach; this iteration is what FSL eddy performs. The replacement is never
+identical to the reference: it is a prediction from the other volumes, smoother than a real
+measurement. Replacement uses the other volumes' information to fill the gap; it cannot
+recover the
 measurement, and a dataset with many dropped slices in the same shell is effectively a
 dataset with fewer directions. Pipelines report the number of replaced slices per volume
 as a quality measure, and studies set a threshold above which a scan is excluded.
 
 ## Reporting motion
 
-Pipelines summarize motion as the framewise displacement between successive volumes, the
-translation plus the rotation converted to millimeters at the head's surface, and as the
-count of outlier slices. Both should be inspected before any group analysis, because
+Pipelines summarize motion with two numbers per volume. The first is the **framewise
+displacement** (FD): how far the head moved since the previous volume, adding the three
+translations in millimeters to the three rotations converted to millimeters as the distance
+a point on a 50 mm sphere, roughly the head's surface, travels. The second is the count of
+outlier slices from the detection above. A worked conversion, and the FD of the toy series:
+
+```{code-cell} python
+:tags: [hide-input]
+VOXEL_MM, RADIUS_MM = 3.0, 50.0
+print(f"a 1° rotation moves a point 50 mm from the center by {RADIUS_MM * np.radians(1.0):.2f} mm")
+rot_deg = np.array([p[0] for p in poses]); trans_mm = VOXEL_MM * np.array([p[1] for p in poses])
+fd_toy = np.r_[0.0, np.abs(np.diff(trans_mm, axis=0)).sum(axis=1) + RADIUS_MM * np.radians(np.abs(np.diff(rot_deg, axis=0))).sum(axis=1)]
+fig, ax = plt.subplots(figsize=(6.5, 2.6))
+ax.bar(np.arange(len(bvals)), fd_toy, color=PALETTE[0])
+ax.axhline(0.5, color=INK["secondary"], ls="--", lw=1)
+ax.text(len(bvals) - 0.5, 0.55, "0.5 mm", ha="right", va="bottom", fontsize=8, color=INK["secondary"])
+ax.set(xlabel="volume", ylabel="framewise displacement (mm)")
+ax.grid(axis="x", visible=False)
+fig.tight_layout()
+print("FD above zero: " + ", ".join(f"volume {v} {fd_toy[v]:.1f} mm" for v in np.flatnonzero(fd_toy > 0)))
+```
+
+Each moved volume produces two bars: one for moving away from the reference position and
+one for moving back in the next volume. A threshold such as the dashed 0.5 mm line is a
+common way to count high-motion volumes; the live section below uses the same measure on a
+real subject's motion. Both numbers should be inspected before any group analysis, because
 motion correlates with age and with clinical status, and residual motion effects bias FA
 downward and MD upward in a way that can masquerade as a group difference.
 
@@ -266,6 +521,11 @@ moved = ph.run(g, ph.PROTO.replace(mb=3), ts.Artifacts(noise=2e-4, motion=trace,
 print(f"{len(moved.dropout)} dropout events in {g.bvals.size} volumes: " + ", ".join(f"volume {d.volume} shot {d.shot} x{d.attenuation:.2f}" for d in moved.dropout))
 ```
 
+The two plots are the measured head pose of each volume, translations and rotations, over
+the part of the scan simulated here: flat stretches are a still head, and steps are
+movements between volumes. The printed line lists the dropout events the simulator added;
+"x0.40", for example, means that shot kept 40 % of its signal.
+
 ```{code-cell} python
 :tags: [hide-input]
 fd = trace.framewise_displacement(g.bvals.size)
@@ -288,9 +548,13 @@ dataset runs the full 76-volume trace and FSL eddy on it.
 
 - **Shorter scans move less.** Multiband and short TR reduce the time per volume and the
   total time.
-- **Interleaved shells and spread b=0 volumes** limit the damage of a movement to a few
-  directions of every shell rather than a whole shell.
-- **Higher multiband factors spread dropout** over more slices per event.
+- **Interleaved shells and spread b=0 volumes.** Interleaving means ordering the volumes
+  so that the shells alternate through the scan (b = 1000, 2000, 1000, 2000, …) rather
+  than acquiring one shell after the other. A burst of movement then costs a few directions
+  of every shell rather than most of one shell.
+- **Multiband is a trade-off.** A higher multiband factor shortens the scan, so there is less
+  time to move, but each dropout event darkens more slices, because more slices share each
+  shot.
 - **Padding, instruction, and, for children, mock scanning** reduce motion more than any
   sequence parameter.
 - **Acquire enough directions that replacing some slices leaves a usable scheme.**

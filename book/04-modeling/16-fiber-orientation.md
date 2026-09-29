@@ -210,8 +210,9 @@ fiber amounts cannot be negative matters in practice.
 ## The synthetic crossing
 
 The toy tier adds a second fiber population to the 2 mm slice: inside a band of rows
-through the middle of the brain, half of the white matter signal comes from fibers at 60°
-to the boundary-tangent fibers, within the slice plane, so that every white matter voxel
+through the middle of the brain, half of the white matter signal comes from a second fiber
+population. The first population runs along the white matter boundary, as everywhere else
+in the slice; the second lies in the slice plane at 60° to the first, so that every white matter voxel
 of the band holds a 60° crossing, an angle at which the methods start to differ (a 90°
 crossing is resolved by all of them). The two orientation fields are the answer key. The scheme has three shells with 30
 directions each (b = 1000, 2000, 3000) plus four b=0, and noise is added at SNR 25.
@@ -526,6 +527,11 @@ directions, and higher harmonic orders move the split angle down; noise moves it
 | Multi-tissue CSD | ≥ 2 (3 preferred) | ≥ 45 on the top shell | needs tissue masks; suppresses partial-volume peaks |
 | DSI | Cartesian grid, b to 4000+ | 200–500 | model-free; long scan; strong gradients |
 | CS-DSI | random subset of the grid | ~60–100 | needs the compressed-sensing reconstruction (not in dipy) |
+
+CS-DSI is compressed-sensing DSI ([Chapter 6](../02-diffusion-encoding/06-qspace-sampling.md)): it acquires a random subset of the DSI grid
+and fills in the missing points with a reconstruction that assumes the displacement
+distribution can be described by a few coefficients (a sparsity prior), trading scan time
+for that assumption.
 
 ## Measure it: the simulated datasets
 
