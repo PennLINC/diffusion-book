@@ -88,8 +88,11 @@ $$S(b) = S_0\, e^{-b D}.$$
 
 $S_0$ is the signal without diffusion weighting (the b=0 image of [Chapter 1](../01-mri-physics/01-spins-and-signal.md)). With $D$ in
 mm²/s and $b$ in s/mm², the product $bD$ is dimensionless; at $b = 1000$ s/mm² free water
-($D = 3 \times 10^{-3}$) retains $e^{-3} \approx 5$ % of its signal and white matter across the
-fibers ($D \approx 0.6 \times 10^{-3}$) retains about 55 %. The separation $\Delta$ is
+($D = 3 \times 10^{-3}$) retains $e^{-3} \approx 5$ % of its signal, and the water between
+white matter fibers, diffusing across them ($D \approx 0.6 \times 10^{-3}$), retains about 55 %.
+White matter as a whole keeps more than that across the fibers, about 80 %, because the
+water inside the axons cannot move across them at all; a single $D$ does not describe it,
+as the next figure shows. The separation $\Delta$ is
 approximately the diffusion time of [Chapter 4](./04-diffusion-in-tissue.md).
 
 ```{code-cell} python

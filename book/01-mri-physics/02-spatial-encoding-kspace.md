@@ -271,7 +271,7 @@ uncommon in practice and are described in [Chapter 23](../05-advanced/23-frontie
 ## Measure it: a TRXScan slice and its k-space
 
 Everything above used a synthetic object and our own toy Fourier transform. Here the
-simulator acquires one slice of the phantom the way a scanner would: eight receive coils,
+simulator acquires one slice of the simulated brain the way a scanner would: eight receive coils,
 GRAPPA 2, 6/8 partial Fourier, the HBCD readout, and it hands back the k-space it actually
 sampled for every coil, before any reconstruction.
 
@@ -327,7 +327,8 @@ what the simulator produced.
 - **Voxel size and FOV are k-space decisions.** Smaller voxels require more lines, a longer
   readout, and therefore more distortion and blur.
 - **Readout length drives the main EPI artifacts.** Partial Fourier and in-plane
-  acceleration both shorten it and both reduce the minimum TE. [Chapter 7](../02-diffusion-encoding/07-acquisition-parameters.md) discusses their costs.
+  acceleration both shorten it and both reduce the minimum TE, but only in-plane
+  acceleration reduces distortion, because only it changes the spacing of the lines. [Chapter 7](../02-diffusion-encoding/07-acquisition-parameters.md) discusses their costs.
 - **Ringing is a property of every acquisition**, not a malfunction. It is worst at CSF
   boundaries and can be reduced after the fact ([Chapter 9](../03-preprocessing/09-gibbs-ringing.md)).
 - **Single-shot EPI is a compromise** accepted so that diffusion encoding is robust to

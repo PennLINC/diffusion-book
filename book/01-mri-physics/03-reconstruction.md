@@ -74,7 +74,8 @@ in what they require:
 
 - **Root sum of squares** requires no information about the coils. It is a magnitude
   combination, it inherits a smooth intensity variation across the image, and it raises the
-  noise floor in proportion to the number of coils (see the noise section).
+  noise floor as the number of coils grows, roughly with its square root (see the noise
+  section).
 - **Sensitivity-weighted combination** (Roemer) requires the coil sensitivities, which are
   measured in a calibration scan or estimated from the center of k-space. It gives the best
   SNR and preserves the phase.
@@ -300,8 +301,8 @@ shows what denoising in the complex domain and noise-aware fitting do about it.
 This section will load the `slab-kspace` dataset (8 coils, GRAPPA R = 2, partial Fourier
 6/8, exported raw k-space), apply the GRAPPA, partial-Fourier, and coil-combination steps
 above to the simulator's own k-space, and confirm that they reproduce TRXScan's reconstructed
-magnitude and phase. It waits on the k-space export flag in the simulator (implementation
-plan §4, item T2).
+magnitude and phase. It waits on a planned simulator option to export the raw k-space
+([Appendix A](../appendices/a-trxscan-cookbook.md#ds-slab-kspace)).
 :::
 
 ## Complex data: what phase makes possible

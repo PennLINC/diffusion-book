@@ -57,9 +57,9 @@ dirs = schemes.electrostatic_directions(60)
 d_par, d_perp, _ = presets.ADULT_DIFFUSIVITY["WM_extra"]
 d_intra = presets.ADULT_DIFFUSIVITY["WM_intra"]
 f = presets.ADULT_FRACTIONS["WM_intra"]
-# a WM voxel = the simulated brain's stick + tensor; its trace does not depend on how the fibers are arranged
-trace_mean = f * d_intra / 3 + (1 - f) * (d_par + 2 * d_perp) / 3
-spherical = np.exp(-b * trace_mean)
+# a WM voxel = the simulated brain's stick + tensor. Spherical encoding sees each compartment's
+# mean diffusivity (trace / 3), whatever its shape or orientation, so the signal is a sum over compartments
+spherical = f * np.exp(-b * d_intra / 3) + (1 - f) * np.exp(-b * (d_par + 2 * d_perp) / 3)
 
 def powder_linear(fibers):
     """direction-averaged linear-encoding signal of a voxel with the given fiber orientations, equal fractions"""
@@ -69,10 +69,21 @@ def powder_linear(fibers):
         out += np.mean(signal.white_matter(b[:, None], cos[None, :]), axis=1) / len(fibers)
     return out
 
-coherent = powder_linear([np.array([0, 0, 1.0])])
-crossing = powder_linear([np.array([0, 0, 1.0]), np.array([0, 1.0, 0])])
-rng = np.random.default_rng(0)
-dispersed = powder_linear([v / np.linalg.norm(v) for v in rng.normal(size=(40, 3))])
+arrangements = {
+    "coherent": [np.array([0, 0, 1.0])],
+    "90° crossing": [np.array([0, 0, 1.0]), np.array([0, 1.0, 0])],
+    "fully dispersed": list(schemes.electrostatic_directions(200)),  # fibers spread evenly over the sphere
+}
+coherent, crossing, dispersed = (powder_linear(fibers) for fibers in arrangements.values())
+
+def tensor_fa(fibers, bval=1000.0):
+    """FA of a log-linear tensor fit to the voxel's linear-encoding signal on one shell"""
+    s = np.mean([signal.white_matter(bval, dirs @ fib) for fib in fibers], axis=0)
+    gx, gy, gz = dirs.T
+    design = np.column_stack([gx**2, gy**2, gz**2, 2 * gx * gy, 2 * gx * gz, 2 * gy * gz])
+    dxx, dyy, dzz, dxy, dxz, dyz = np.linalg.lstsq(design, -np.log(s) / bval, rcond=None)[0]
+    ev = np.linalg.eigvalsh([[dxx, dxy, dxz], [dxy, dyy, dyz], [dxz, dyz, dzz]])
+    return np.sqrt(1.5 * np.sum((ev - ev.mean()) ** 2) / np.sum(ev**2))
 
 fig, ax = plt.subplots(figsize=(7, 3.4))
 ax.semilogy(b, spherical, color="0.3", lw=2, label="spherical encoding: any fiber arrangement")
@@ -82,17 +93,18 @@ ax.semilogy(b, dispersed, color=PALETTE[2], ls=":", label="linear, direction-ave
 ax.set(xlabel="b (s/mm²)", ylabel="signal / S₀", ylim=(0.05, 1.05), title="the same white matter voxel, three fiber arrangements")
 ax.legend(fontsize=8)
 fig.tight_layout()
+print("tensor FA at b = 1000: " + ", ".join(f"{name} {tensor_fa(fibers):.2f}" for name, fibers in arrangements.items()))
 ```
 
 The three direction-averaged linear curves coincide, because the direction average removes
 the arrangement, and all three lie above the spherical curve by the same margin, because
-the margin is set by the microscopic anisotropy alone. A tensor fit to any of the three
-voxels would give FA of 0.85, 0.4, and near zero; b-tensor encoding gives the same
-microscopic anisotropy for all three. Diffusion time ([Chapter 22](./22-multi-diffusion-time.md)) and echo time ([Chapter 20](./20-multi-te.md))
+the margin is set by the microscopic anisotropy alone. A tensor fit to the three voxels
+gives very different FA values, printed above, falling from coherent to dispersed; b-tensor
+encoding gives the same microscopic anisotropy for all three. Diffusion time ([Chapter 22](./22-multi-diffusion-time.md)) and echo time ([Chapter 20](./20-multi-te.md))
 are the other dimensions being added to the encoding, and acquisitions that vary several at
 once, multidimensional diffusion MRI, are the current frontier of the field. The simulated brain's
 truth includes the b-tensor quantities (microscopic FA, isotropic and anisotropic kurtosis);
-simulating the acquisition (implementation plan item T7) would close that loop.
+simulating the acquisition, a planned simulator extension, would close that loop.
 
 ## Diffusion relaxometry
 

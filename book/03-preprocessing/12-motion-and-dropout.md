@@ -245,9 +245,9 @@ downward and MD upward in a way that can masquerade as a group difference.
 
 ## Measure it: one slice, simulated live
 
-The simulator can move the head the way a real one moved. The phantom ships with the head
-motion that qsiprep estimated for its own subject, one rigid pose per volume; for each volume
-the streamlines and tissue maps are moved by that pose and the signal is re-simulated, so the
+The simulator can move the head the way a real one moved. The simulated brain was built from
+a real subject, and it comes with the head motion that qsiprep estimated for that subject,
+one rigid pose per volume; for each volume the fiber paths and tissue maps are moved by that pose and the signal is re-simulated, so the
 fibre-to-gradient angles change as they do in a moving head, not just the image position.
 Multiband dropout events are added on top, and the simulator records which shots dropped.
 
