@@ -28,7 +28,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from dwibook import presets, schemes, signal
-from dwibook.plotting import PALETTE, TISSUE_COLORS, set_style
+from dwibook.plotting import PALETTE, TISSUE_COLORS, animate, set_style
 
 set_style()
 ```
@@ -73,15 +73,116 @@ ax.grid(False)
 fig.tight_layout()
 ```
 
+The blue blocks are the two diffusion-gradient pulses, each lasting $\delta$, with their
+starts separated by $\Delta$, one on each side of the 180° pulse. The image is read out
+after the second pulse, centered on the echo time.
+
+The animation runs this sequence on three rows of molecules lined up along the gradient
+direction, each drawn as an arrow pointing in the direction of its phase. The first gradient
+pulse winds the phases into a helix, because each molecule's phase advances in proportion to
+its position, and the sum over the row, on the right, drops to zero. That loss is temporary.
+The 180° pulse reverses every phase, and the second pulse adds the same winding again,
+which exactly unwinds a molecule that stayed where it was: the top row ends aligned, with
+its full signal. A molecule that wandered between the pulses is unwound by the wrong amount,
+in proportion to how far it moved, and keeps a leftover phase. The faster the diffusion,
+the farther the molecules moved, the more their leftover phases scatter, and the shorter
+the sum.
+
+```{code-cell} python
+:tags: [hide-input]
+N_MOL, N_SHOW, N_FRAMES = 800, 25, 100
+G1, FLIP, G2, READ = (10, 30), 45, (60, 80), 90   # frames: first pulse, 180°, second pulse, readout
+K = 2 * np.pi * 2 / (G1[1] - G1[0])               # phase per unit position per frame of gradient: 2 turns per unit
+rng = np.random.default_rng(0)
+x0 = np.linspace(-1, 1, N_MOL)                    # starting positions along the gradient axis
+rows = {"no motion": 0.0, "slow diffusion": 0.006, "fast diffusion": 0.016}  # random step per frame
+show = np.linspace(0, N_MOL - 1, N_SHOW).astype(int)
+
+def history(step):
+    x, ph, xs, phs = x0.copy(), np.zeros(N_MOL), [], []
+    for i in range(N_FRAMES):
+        if i == FLIP:
+            ph = -ph                              # the 180° pulse reverses every phase
+        if G1[0] <= i < G1[1] or G2[0] <= i < G2[1]:
+            ph = ph + K * x                       # a gradient adds phase in proportion to position
+        xs.append(x.copy())
+        phs.append(ph.copy())
+        x = x + rng.normal(scale=step, size=N_MOL)
+    return np.array(xs), np.array(phs)
+
+hist = {name: history(step) for name, step in rows.items()}
+
+fig = plt.figure(figsize=(9, 5.4))
+gs = fig.add_gridspec(4, 2, height_ratios=[0.8, 1, 1, 1], width_ratios=[5, 1])
+axt = fig.add_subplot(gs[0, 0])
+t = np.arange(N_FRAMES)
+on = ((t >= G1[0]) & (t < G1[1])) | ((t >= G2[0]) & (t < G2[1]))
+axt.fill_between(t, 0, on.astype(float), color=PALETTE[0], alpha=0.7, step="post")
+for x, label in [(0, "90°"), (FLIP, "180°"), (READ, "readout")]:
+    axt.axvline(x, color="0.6", lw=1)
+    axt.text(x + 0.8, 1.15, label, fontsize=8, color="0.4")
+for g in (G1, G2):
+    axt.text((g[0] + g[1]) / 2, 0.35, "gradient", ha="center", fontsize=8, color="white")
+cursor = axt.axvline(0, color=PALETTE[1], lw=2)
+axt.set(xlim=(0, N_FRAMES), ylim=(0, 1.5), yticks=[], xticks=[])
+axt.grid(False)
+quivers, sums = [], []
+for r, name in enumerate(rows):
+    ax = fig.add_subplot(gs[r + 1, 0])
+    xs, phs = hist[name]
+    quivers.append(ax.quiver(xs[0, show], np.zeros(N_SHOW), np.cos(phs[0, show]), np.sin(phs[0, show]),
+                             color=PALETTE[r], pivot="middle", scale=22, width=0.006, headwidth=3))
+    ax.set(xlim=(-1.15, 1.15), ylim=(-1, 1), yticks=[], xticks=[])
+    ax.set_ylabel(name, fontsize=8, rotation=0, ha="right", va="center")
+    ax.grid(False)
+    for side in ("top", "right", "left"):
+        ax.spines[side].set_visible(False)
+    axs = fig.add_subplot(gs[r + 1, 1])
+    axs.add_patch(plt.Circle((0, 0), 1, fill=False, color="0.85"))
+    arrow = axs.annotate("", xy=(1, 0), xytext=(0, 0), arrowprops=dict(arrowstyle="-|>", color=PALETTE[r], lw=2))
+    label = axs.text(1.35, 0, "", va="center", fontsize=8)
+    axs.set(xlim=(-1.2, 2.4), ylim=(-1.2, 1.2), aspect="equal")
+    axs.set_axis_off()
+    if r == 0:
+        axs.set_title("sum of all molecules", fontsize=8)
+    sums.append((arrow, label))
+fig.text(0.42, 0.015, "position along the gradient →", ha="center", fontsize=8, color="0.3")
+stage = fig.suptitle("", fontsize=10)
+fig.tight_layout(rect=(0, 0.03, 1, 0.95))
+
+def frame(i):
+    cursor.set_xdata([i, i])
+    for q, (arrow, label), (xs, phs) in zip(quivers, sums, hist.values()):
+        q.set_offsets(np.column_stack([xs[i, show], np.zeros(N_SHOW)]))
+        q.set_UVC(np.cos(phs[i, show]), np.sin(phs[i, show]))
+        s = np.exp(1j * phs[i]).mean()
+        arrow.xy = (s.real, s.imag)
+        label.set_text(f"{abs(s):.2f}")
+    stage.set_text("first gradient: the phase winds with position" if G1[0] <= i < G1[1] else
+                   "180° pulse: every phase is reversed" if FLIP - 3 <= i <= FLIP + 3 else
+                   "second gradient: the same winding is added again" if G2[0] <= i < G2[1] else
+                   "readout: molecules that moved keep a leftover phase" if i >= G2[1] else
+                   "the molecules wander between the pulses" if i >= G1[1] else "before the encoding: all in phase")
+
+animate(fig, frame, range(N_FRAMES), fps=12, width=760, dpi=75,
+        alt="three rows of molecules along the gradient axis, drawn as arrows showing their phase: the first gradient winds the phases into a helix, the 180-degree pulse reverses them, and the second gradient unwinds them; molecules that did not move end aligned with a full-length sum, slowly diffusing molecules end slightly scattered with a shorter sum, and fast-diffusing molecules end scattered with a much shorter sum")
+```
+
 ## The b-value
 
 Three settings determine how sensitive the measurement is: the gradient amplitude $G$, the
-duration of each pulse $\delta$, and the separation between the pulses $\Delta$. They are
-combined into one number, the b-value,
+duration of each pulse $\delta$, and the separation between the pulses $\Delta$. In the
+animation's terms, $G$ and $\delta$ together set how tightly the first pulse winds the phase,
+and so how much leftover phase a given displacement produces; $\Delta$ sets how long the
+molecules have to wander. The three are combined into one number, the b-value, which grows
+with the square of the winding and with the wandering time. Doubling the gradient strength
+makes $b$ four times larger; doubling the separation roughly doubles it. The formula is
+
 
 $$b = \gamma^2 G^2 \delta^2 \left(\Delta - \tfrac{\delta}{3}\right),$$
 
-in units of s/mm². For water diffusing freely with coefficient $D$, the signal falls
+in units of s/mm², where $\gamma$ is the constant of [Chapter 1](../01-mri-physics/01-spins-and-signal.md) that converts field into
+precession frequency. For water diffusing freely with coefficient $D$, the signal falls
 exponentially with $b$:
 
 $$S(b) = S_0\, e^{-b D}.$$
