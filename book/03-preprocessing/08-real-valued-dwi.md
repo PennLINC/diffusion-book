@@ -276,7 +276,7 @@ part is taken, with the phase estimate refined from the denoised series if neede
 ## Measure it: one slice, simulated live
 
 What the simulator adds to the toy example is a phase that behaves like a scanner's: an
-object phase modeled on real HBCD scans, plus an eddy-current phase ramp that changes with
+object phase modeled on real HBCD scans {cite:p}`dean2024`, plus an eddy-current phase ramp that changes with
 the diffusion direction, so that no single phase map serves every volume. The same
 per-volume correction as above, applied to one simulated slice under the acquired 76-volume
 HBCD protocol (in acquisition order, with the shells interleaved), is scored against the

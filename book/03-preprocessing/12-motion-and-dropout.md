@@ -72,7 +72,7 @@ rigid copy of the head. Registering the whole volume as one rigid body cannot un
 FSL eddy can model it by letting the head pose change within the volume
 (`--mporder`, *slice-to-volume* correction {cite:p}`andersson2017`); for that it must know
 when each slice (or multiband group) was acquired, given as a slice-timing file
-(`--slspec`) or read from the BIDS JSON sidecar (`--json`).
+(`--slspec`) or read from the BIDS JSON sidecar (`--json`) {cite:p}`gorgolewski2016`.
 
 ### Why a rotated head needs rotated b-vectors
 
@@ -206,7 +206,7 @@ different amounts in the same way, which is why dropout-like signal loss also ap
 the brainstem without any head motion.)
 
 **Multiband** acquisition excites several slices at once and separates them using the
-coils ([Chapter 7](../02-diffusion-encoding/07-acquisition-parameters.md)). Each excitation,
+coils {cite:p}`setsompop2012` ([Chapter 7](../02-diffusion-encoding/07-acquisition-parameters.md)). Each excitation,
 or shot, carries its own diffusion encoding, so a movement during one shot affects all
 slices of that group, spread across the brain at regular intervals, rather than one slice:
 

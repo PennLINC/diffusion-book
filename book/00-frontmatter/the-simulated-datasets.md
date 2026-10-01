@@ -184,7 +184,7 @@ ship with the book.
 
 ## What TRXScan simulates
 
-TRXScan is a headless diffusion-MRI simulator {cite:p}`neher2014` that turns the three
+TRXScan is a headless diffusion-MRI simulator, a port of Fiberfox {cite:p}`neher2014`, that turns the three
 inputs into a diffusion series as a scanner would record it. It works in the two stages of
 the diagram. The **signal stage** decides how much signal each voxel's water gives for
 each diffusion measurement, from the tissue it contains and the direction of its fibers.
@@ -212,12 +212,12 @@ shot.
 :::
 
 The output is a BIDS complex diffusion series (BIDS is the standard folder and file layout
-for neuroimaging data): magnitude and phase images, the gradient table, and JSON sidecars
+for neuroimaging data {cite:p}`gorgolewski2016`): magnitude and phase images, the gradient table, and JSON sidecars
 with the phase-encode direction, readout time, and echo time that the corrections of
 Part III read. [Appendix A](../appendices/a-trxscan-cookbook.md) lists the flags that switch each effect on and the commands behind
 every dataset.
 
-The default protocol is the HBCD study's multi-shell scheme, and the book uses it in two
+The default protocol is the HBCD study's multi-shell scheme {cite:p}`dean2024`, and the book uses it in two
 versions with the same shells. The bundled copy, 75 volumes per polarity, is sorted by b for
 teaching: the shells come in blocks of increasing b, with a b=0 volume about every eight
 volumes, which makes plots of the scheme easy to read. The toy tier and most pipeline-tier
@@ -266,7 +266,7 @@ what makes the live and pipeline tiers one simulator rather than two.
 
 **Pipeline tier.** Full-brain TRXScan simulations of the two source anatomies (most of them
 of `sub-0001a` under the bundled 75-volume scheme), made offline by a Snakemake
-pipeline, versioned, and downloaded by the pages that use them. Each is a directory of
+pipeline {cite:p}`molder2021`, versioned, and downloaded by the pages that use them. Each is a directory of
 BIDS files with a provenance record; [Appendix A](../appendices/a-trxscan-cookbook.md#app-a-datasets) describes every dataset and gives
 the commands that produce it. Until a dataset is released, the figures that need it are
 marked *Simulated dataset pending*.

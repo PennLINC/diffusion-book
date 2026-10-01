@@ -60,14 +60,14 @@ The size of the error is the frequency offset times the **total readout time**:
 $$\text{displacement (voxels)} = \Delta f\ (\text{Hz}) \times \text{TotalReadoutTime}\ (\text{s}).$$
 
 The total readout time here is not simply how long the EPI train lasts. As the BIDS
-metadata standard defines it, it is the *effective* echo spacing (the time from one
+metadata standard {cite:p}`gorgolewski2016` defines it, it is the *effective* echo spacing (the time from one
 k-space line to the next, divided by the in-plane acceleration factor) times one less than
 the number of lines in the reconstructed image along phase-encode. It is the time the
 readout would take to step across the whole of k-space, one line per voxel. In-plane
 acceleration shortens it, because the scanner skips lines and so steps through k-space
 faster; partial Fourier does not, because it leaves the spacing of the acquired lines and
 the size of the reconstructed image unchanged and only omits lines at one edge. For HBCD's
-effective total readout time of 91.7 ms, 100 Hz moves signal by nine voxels, close to 2 cm
+effective total readout time of 91.7 ms {cite:p}`dean2024`, 100 Hz moves signal by nine voxels, close to 2 cm
 at the 2 mm voxels used on this page. The direction of the displacement follows the sign of the
 field offset and the polarity of the phase-encode blips, which set whether the lines are
 traversed front to back (AP) or back to front (PA): reversing the blips reverses the
@@ -228,7 +228,7 @@ fig.tight_layout()
   which is called **unwrapping**. The fieldmap must also be registered (aligned) to the EPI
   data, since it is a separate scan. This works with a single polarity.
 - **Blip-up/blip-down estimation** (FSL topup, TORTOISE DRBUDDI): the field is estimated
-  as the smooth displacement that makes the two polarities agree {cite:p}`andersson2003`.
+  as the smooth displacement that makes the two polarities agree {cite:p}`andersson2003,irfanoglu2015`.
   This is the method of most current pipelines and needs only a few extra b=0 volumes of the
   opposite polarity. Those b=0 volumes serve to *estimate* the field. The diffusion-weighted
   volumes, acquired in one polarity only, are then corrected from that polarity alone: each

@@ -59,7 +59,7 @@ print(f"tools: TRXScan branch {cfg['tools']['trxscan_branch']}; container image 
 
 Two gradient schemes carry the HBCD name. The default, `hbcd`, is the 75-volume scheme
 bundled with the `dwibook` package, sorted by b-value for teaching; it is not the order in
-which HBCD acquires its volumes. The acquired protocol, `hbcd76`, has 76 volumes: it opens
+which HBCD acquires its volumes {cite:p}`dean2024`. The acquired protocol, `hbcd76`, has 76 volumes: it opens
 with six b=0 volumes and then interleaves the shells. It comes with the sub-60501 reference
 data and is used where a trace measured in that subject is replayed volume by volume
 (`eddy`, `motion-mb`), so that each row of the trace meets the volume it was measured on.
@@ -74,7 +74,7 @@ partial Fourier 6/8, T2* decay during the readout, and a faint Nyquist ghost.
 
 Each chapter lists the datasets it uses in the box at its top and links here. For each dataset this section gives what is simulated and why, the chapters that use it, and the exact command lines, rendered from the pipeline configuration, followed by the files the dataset directory holds once the pipeline has run. The line *pipeline description* under each name is the one-line description the configuration file carries.
 
-Every dataset is a BIDS dataset. Each source anatomy is a subject (`sub-0001a`,
+Every dataset is a BIDS dataset {cite:p}`gorgolewski2016`. Each source anatomy is a subject (`sub-0001a`,
 `sub-60501`), and each simulation run is one complex diffusion series in its `dwi`
 directory: `part-mag` and `part-phase` images with their JSON sidecars, and the `.bval` and
 `.bvec` tables. The runs of a dataset differ by an `acq-` label, which names the scheme, the

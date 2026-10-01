@@ -338,7 +338,7 @@ train of lines lasts, from the first line to the last. The **time to center** is
 the train takes to reach the $k_y = 0$ line, the line that carries most of the signal: the
 echo has to form then, so this time sets how short the echo time can be. The **total
 readout time** that the image's metadata record (the BIDS sidecar field
-`TotalReadoutTime`) is neither of these. It is defined as the *effective* echo spacing
+`TotalReadoutTime` {cite:p}`gorgolewski2016`) is neither of these. It is defined as the *effective* echo spacing
 times one less than the number of phase-encode lines of the reconstructed image,
 $(N_y - 1)\,\Delta t_\mathrm{esp}/R$, where the effective echo spacing is the physical
 spacing divided by the in-plane acceleration $R$. It is the quantity that sets how far an
@@ -351,7 +351,7 @@ change these times, and the next sections return to each:
 - **In-plane acceleration** by a factor $R$ (here $R = 2$) keeps every second line and
   recovers the missing ones with the help of the receive coils ([Chapter 3](./03-reconstruction.md)).
 
-The reference protocol, HBCD, records a total readout time of 91.7 ms. That is its
+The reference protocol, HBCD {cite:p}`dean2024`, records a total readout time of 91.7 ms. That is its
 *effective* value: the protocol is accelerated in-plane, and the 91.7 ms already includes
 the acceleration. The simulator uses 91.7 ms as the effective readout time of every
 acquisition, whatever its matrix size or acceleration setting. As an illustration, the

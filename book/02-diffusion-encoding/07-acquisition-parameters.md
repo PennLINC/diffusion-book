@@ -57,7 +57,7 @@ the echo is formed.
 
 The figure plots the b=0 signal of each tissue against TE, relative to its value at
 TE = 60 ms, with markers at 60 ms (a short TE, reachable with strong gradients and
-acceleration) and at the 88 ms of the HBCD protocol. Look at the gap between the two
+acceleration) and at the 88 ms of the HBCD protocol {cite:p}`dean2024`. Look at the gap between the two
 markers on the white and gray matter curves: that is the signal the longer TE gives up.
 
 ```{code-cell} python
@@ -98,7 +98,7 @@ k-space center, plus some overhead for fat suppression, excitation, and spoiling
 HBCD-like TE near 90 ms and an unshortened readout it is roughly 120–150 ms; the figure
 uses 140 ms. Multiband (also called simultaneous multi-slice) excites several slices at
 once and reads them in one readout; the receive coils' different views of each slice let
-the reconstruction pull them apart. With multiband 3, three slices share each readout, so
+the reconstruction pull them apart {cite:p}`moeller2010,feinberg2010,setsompop2012`. With multiband 3, three slices share each readout, so
 a volume takes a third of the time. It has two costs. Separating the slices amplifies the
 noise where the coils see the slices alike, by a g-factor like that of in-plane
 acceleration (below). And the shorter TR it allows leaves less time for T1 recovery, so
@@ -251,7 +251,7 @@ The costs in plain words:
 - **Multiband** separates the simultaneously excited slices by the same coil-sensitivity
   trick, with the same g-factor noise penalty where the coils see the slices alike (though
   without the √R loss, since no lines are skipped). The separation is imperfect, and a
-  faint copy of one slice can appear in another: *slice leakage*. And the time it saves
+  faint copy of one slice can appear in another: *slice leakage* {cite:p}`xu2013`. And the time it saves
   is only free if TR stays long enough for T1 recovery: at a TR of 3 s white matter
   recovers 97 % of its signal but CSF only 53 % (the figure in the TR section).
 
@@ -305,7 +305,7 @@ row: signal is displaced along the phase-encode axis by the frequency offset tim
 total readout time ([Chapter 2](../01-mri-physics/02-spatial-encoding-kspace.md)), in voxels. The main cause is air next to tissue, which bends the
 field; near the frontal sinuses and the ear canals the offset reaches 100–200 Hz. The
 total readout time that sets the displacement is the *effective* one, defined on the full
-reconstructed matrix: BIDS records it as `TotalReadoutTime` = effective echo spacing ×
+reconstructed matrix: BIDS {cite:p}`gorgolewski2016` records it as `TotalReadoutTime` = effective echo spacing ×
 (number of phase-encode lines in the reconstructed image − 1), where the effective echo
 spacing is the time between acquired lines divided by the acceleration factor. It is
 shortened by in-plane acceleration but not by partial Fourier, and it is not the duration
@@ -477,4 +477,5 @@ that tests it.
 ## Further reading
 
 Protocol design for diffusion studies is discussed in {cite:t}`jones2010` and
-{cite:p}`jones2013`; the HBCD acquisition is documented in the study's protocol papers.
+{cite:p}`jonescercignani2010,tournier2013`; the HBCD acquisition is documented in
+{cite:t}`dean2024`.

@@ -411,12 +411,12 @@ already been accounted for, so the tools that estimate them also apply them toge
 The major pipelines follow the same order and differ mainly in which program does each
 step. All of them write the rotated b-vectors and a quality report.
 
-| Step | FSL {cite:p}`andersson2016,andersson2016b` | MRtrix {cite:p}`tournier2019` | QSIPrep {cite:p}`cieslak2021` | HCP pipelines {cite:p}`glasser2013` |
+| Step | FSL {cite:p}`jenkinson2012,andersson2016,andersson2016b` | MRtrix {cite:p}`tournier2019` | QSIPrep {cite:p}`cieslak2021` | HCP pipelines {cite:p}`glasser2013` |
 |---|---|---|---|---|
 | Denoising (Ch 8) | — | `dwidenoise` | yes | — |
 | Unringing (Ch 9) | — | `mrdegibbs` | yes | — |
-| Susceptibility field (Ch 10) | topup | topup (wrapped) | topup, or TORTOISE DRBUDDI | topup |
-| Eddy currents, motion, outliers (Ch 11–12) | eddy | eddy (wrapped) | eddy, or TORTOISE DIFFPREP | eddy |
+| Susceptibility field (Ch 10) | topup | topup (wrapped) | topup, or TORTOISE DRBUDDI {cite:p}`irfanoglu2015` | topup |
+| Eddy currents, motion, outliers (Ch 11–12) | eddy | eddy (wrapped) | eddy, or TORTOISE DIFFPREP {cite:p}`rohde2004` | eddy |
 | Gradient nonlinearity (Ch 13) | — | — | in the composed transform, with a coefficient file | gradwarp |
 | One composed resampling | eddy applies the topup field with its own | as FSL | yes | eddy as FSL; gradwarp applied after it |
 | Bias field | — | `dwibiascorrect` | yes | — |

@@ -133,10 +133,10 @@ build against a local pipeline output instead, set `DWIBOOK_DATA` to its directo
 ## Reproducing the simulations
 
 [Appendix A](../appendices/a-trxscan-cookbook.md) lists the command line behind every dataset, generated from the pipeline's own
-configuration, and each downloaded dataset is a BIDS dataset that carries, in its
+configuration, and each downloaded dataset is a BIDS dataset {cite:p}`gorgolewski2016` that carries, in its
 `derivatives/trxscan` directory, a `provenance.json` with the commands, the simulator
 version, and the container image that produced it. The pipeline itself is a
-Snakemake workflow in the repository's `pipelines` directory; it requires the TRXScan
+Snakemake workflow {cite:p}`molder2021` in the repository's `pipelines` directory; it requires the TRXScan
 binaries and the simulation inputs, which are distributed separately from the book.
 
 ## Conventions
@@ -154,7 +154,8 @@ that Chapters 2 through 5 define, and it will make sense by the end of
   unless stated, field offsets in Hz, displacements in voxels or mm as labeled. The
   notation page (0.3) lists every symbol.
 - The reference protocol is the multi-shell scheme of the HBCD study (b = 500, 1000,
-  2000, 3000; echo time 88 ms; effective total readout time 91.7 ms; 1.7 mm voxels), which
+  2000, 3000; echo time 88 ms; effective total readout time 91.7 ms; 1.7 mm voxels)
+  {cite:p}`dean2024`, which
   is what the simulator reproduces by default and what the toy tier approximates at 2 mm.
   It appears in two versions with the same shells. The toy tier and most pipeline-tier
   datasets use a bundled copy of 75 volumes per polarity, sorted by b for teaching (shells
