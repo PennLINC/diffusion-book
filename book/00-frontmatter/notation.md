@@ -60,7 +60,7 @@ says where the term is explained properly.
 
 | Symbol | Meaning | Unit | Chapter |
 |---|---|---|---|
-| $D$ | diffusion coefficient; free water 3 × 10⁻³ mm²/s = 3 µm²/ms | mm²/s | 4 |
+| $D$ | diffusion coefficient; free water at 37 °C 3 × 10⁻³ mm²/s = 3 µm²/ms {cite:p}`holz2000` | mm²/s | 4 |
 | ADC | apparent diffusion coefficient (measured, depends on b, direction, time) | mm²/s | 4, 21 |
 | $D_\parallel$, $D_\perp$ | diffusivity along and across a fiber | mm²/s | 5 |
 | $f$ | volume or signal fraction of a compartment (intra-axonal unless stated) | – | 17 |

@@ -93,7 +93,7 @@ average over all the molecules, and $D$ is the diffusion coefficient. The averag
 displacement itself, $\langle x \rangle$, is zero, because every direction is equally
 likely; it is the spread that grows. The histogram on the right has variance $2Dt$. The
 circle in the animation adds the two axes of the plane, so its radius is $\sqrt{4Dt}$.
-Free water at 37 °C has $D \approx 3 \times 10^{-3}$ mm²/s, which is 3 µm² per millisecond.
+Free water at 37 °C has $D \approx 3 \times 10^{-3}$ mm²/s {cite:p}`holz2000`, which is 3 µm² per millisecond.
 The root-mean-square displacement along one axis, $\sqrt{2Dt}$, is then:
 
 ```{code-cell} python

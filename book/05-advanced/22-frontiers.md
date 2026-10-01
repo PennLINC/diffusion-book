@@ -340,7 +340,7 @@ distortion:
 | Readout-segmented EPI (RESOLVE) | k-space split along the readout axis into segments, each read in one shot; a 2-D navigator after each | much shorter echo spacing: less distortion and blur; the most widely available multi-shot option on clinical scanners | scan time grows with the number of segments; segments reacquired when the navigator shows too much motion |
 | Spiral readouts | k-space sampled along spirals from the center | short echo time, efficient sampling | off-resonance blurs instead of shifting; needs a good field map |
 | Reduced field of view | only a small region is excited along the phase-encode axis | fewer lines, short readout; used in the spinal cord and optic nerve | covers only that region |
-| Simultaneous multi-slice ([Chapter 7](../02-diffusion-encoding/07-acquisition-parameters.md)) | several slices excited and read together | shorter TR, more directions per minute | noise amplification when slices are unfolded; now standard |
+| Simultaneous multi-slice {cite:p}`setsompop2012` ([Chapter 7](../02-diffusion-encoding/07-acquisition-parameters.md)) | several slices excited and read together | shorter TR, more directions per minute | noise amplification when slices are unfolded; now standard |
 | 3-D segmented readouts | a thick slab encoded in 3-D over several excitations | no slice-profile penalty, thin sections | the same shot-to-shot phase problem, in three dimensions |
 
 Multi-shot and reduced-field-of-view methods are established for the spinal cord and optic
@@ -390,4 +390,4 @@ extension makes a further chapter of this book testable.
 
 b-tensor encoding {cite:p}`westin2016,lasic2014`, the theory of what diffusion MRI can and
 cannot resolve {cite:p}`novikov2019`, integrated diffusion-relaxometry {cite:p}`hutter2018`,
-and the simulator this book is built on {cite:p}`neher2014`.
+and Fiberfox, the simulator that TRXScan ports {cite:p}`neher2014`.

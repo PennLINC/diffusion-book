@@ -9,7 +9,7 @@ kernelspec:
 Every figure in this book is produced by code you can run, and every model fit or artifact
 correction is scored against a known answer. The answer exists because the brain in these
 pages is simulated: a tractogram and tissue maps pass through **TRXScan**, a headless
-diffusion-MRI simulator that models the scanner from the diffusion signal through k-space
+diffusion-MRI simulator ported from Fiberfox {cite:p}`neher2014` that models the scanner from the diffusion signal through k-space
 to the reconstructed complex image, and the same simulated brain yields analytic ground-truth maps.
 
 :::{admonition} Status

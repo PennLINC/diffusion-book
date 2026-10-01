@@ -379,7 +379,7 @@ function below computes the minimum echo time for a simplified sequence in which
 two pulses sit directly against the 180° pulse and the EPI readout needs 23 ms to reach
 the center of k-space. The echo time is defined by that moment, because the center of
 k-space holds the image's overall brightness and contrast ([Chapter 2](../01-mri-physics/02-spatial-encoding-kspace.md)).
-The 23 ms is that of the HBCD protocol, which uses 6/8 partial Fourier: it skips a quarter
+The 23 ms is that of the HBCD protocol {cite:p}`dean2024`, which uses 6/8 partial Fourier: it skips a quarter
 of the k-space lines, all from the side read first, so the readout reaches the center
 sooner. The right panel shows how much white matter signal is left at each echo time, as a
 fraction of what it would have with no T2 decay at all.

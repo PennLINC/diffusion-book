@@ -551,7 +551,7 @@ each output value is a weighted sum of the measured samples, so the noise in the
 image stays Gaussian with zero mean. Not every step in this chapter is. A root-sum-of-squares
 combination is itself a magnitude, and the phase-aware partial-Fourier reconstructions
 (homodyne and POCS) estimate the phase from the data and use it, so they are not linear
-either. Keeping the complex image, which BIDS supports as `part-mag` and `part-phase` pairs
+either. Keeping the complex image, which BIDS {cite:p}`gorgolewski2016` supports as `part-mag` and `part-phase` pairs
 and which TRXScan writes by default, keeps the zero-mean noise available to what comes next,
 with one condition. The diffusion encoding leaves each volume a phase of its own, from
 motion during the encoding, that changes from volume to volume and from repeat to repeat

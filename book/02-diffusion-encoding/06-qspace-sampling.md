@@ -184,8 +184,8 @@ reliably from it.
 ## Multi-shell
 
 Several b-values, each with its own direction set. The HBCD scheme of the reference
-protocol is one example (b = 500, 1000, 2000, 3000); the Human Connectome Project's
-1000/2000/3000 with 90 directions each is another. The shells sample the decay with b as
+protocol is one example (b = 500, 1000, 2000, 3000) {cite:p}`dean2024`; the Human Connectome Project's
+1000/2000/3000 with 90 directions each is another {cite:p}`sotiropoulos2013`. The shells sample the decay with b as
 well as the angular profile.
 
 Why does the decay need more than one shell? [Chapter 5](./05-diffusion-encoding.md) showed that tissue signal plotted
@@ -510,11 +510,11 @@ ones are spread evenly, which changes nothing for the models.
 
 :::{admonition} In practice: the b-value and b-vector files
 :class: tip
-A scheme travels with the image as two small text files in FSL's format. The `.bval` file
+A scheme travels with the image as two small text files in the format of FSL {cite:p}`jenkinson2012`. The `.bval` file
 holds one b-value per volume (s/mm², 0 for the b=0 volumes). The `.bvec` file holds three
 rows, x, y, and z, with one column per volume: the unit gradient direction of that volume
 (zeros for b=0). The converter that makes the NIfTI image from the scanner's DICOM files
-(usually `dcm2niix`) writes both.
+(usually `dcm2niix` {cite:p}`li2016`) writes both.
 
 - **The directions are in the image's frame, not the scanner's.** FSL's b-vectors are
   given along the image's voxel axes (first, second, third array dimension), and when the
@@ -547,7 +547,7 @@ rows, x, y, and z, with one column per volume: the unit gradient direction of th
 One volume is acquired per TR (the repetition time, the time taken to acquire every slice of
 one volume once), so scan time is the number of volumes times TR. What sets TR is the
 subject of [Chapter 7](./07-acquisition-parameters.md): mainly the number of slices, and *multiband*, which excites and reads
-several slices at once. With 2 mm slices and a multiband factor of 3 (three slices at a
+several slices at once {cite:p}`feinberg2010,setsompop2012`. With 2 mm slices and a multiband factor of 3 (three slices at a
 time), a whole-brain TR is about 3.5 s, the value used below:
 
 ```{code-cell} python

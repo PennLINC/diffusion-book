@@ -282,7 +282,7 @@ shells together, over single-shell CSD, check its peaks in known crossing region
 trusting them, and track probabilistically with ACT. The remaining limits are the ones no
 processing removes: the fixed diffusion time, the Gaussian assumptions of the models, and
 the resolution. (The column uses the book's bundled HBCD scheme, 75 volumes sorted by b
-for readability. The protocol HBCD acquires has 76 volumes, with the shells interleaved
+for readability. The protocol HBCD acquires {cite:p}`dean2024` has 76 volumes, with the shells interleaved
 after six b=0 volumes and the same directions per shell, so every verdict is the same.)
 
 ## Measure it: the simulated datasets

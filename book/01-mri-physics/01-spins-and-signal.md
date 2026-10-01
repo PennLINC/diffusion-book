@@ -145,7 +145,8 @@ below reverses it.
 
 The tissue values used throughout this book are those of the simulated brain. The T2 values are
 TRXScan's `adult` compartment preset. TRXScan does not model T1, so the T1 values are 3 T
-literature figures and appear only in this chapter's simulations.
+literature figures (white and gray matter from {cite:t}`wansapura1999`; the 4 s for CSF is
+approximate) and appear only in this chapter's simulations.
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -405,11 +406,12 @@ fig.tight_layout()
 
 ## Measure it: contrast at the three presets
 
-TRXScan provides three tissue presets: `adult` (3 T literature T2 values) and `neonatal` and
-`infant` (the longer T2 values of unmyelinated tissue). With a long TR, the b=0 signal of each
+TRXScan provides three tissue presets: `adult` (T2 values for adult tissue at 3 T) and `neonatal` and
+`infant` (the longer T2 values of unmyelinated tissue {cite:p}`leppert2009`). With a long TR, the b=0 signal of each
 tissue is its **proton density**, the amount of MR-visible hydrogen it holds relative to pure
 water, times the T2 decay at TE. The table leaves proton density out and shows only the
-decay: the fraction of each tissue's signal that survives to the HBCD echo time.
+decay: the fraction of each tissue's signal that survives to the HBCD echo time of 88 ms
+{cite:p}`dean2024`.
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -500,7 +502,7 @@ added when the offline pipeline produces them.
 - **TR and T1.** A short TR leaves long-T1 tissue, most of all CSF, only partly recovered
   (saturated), so it gives less signal. The book's simulator does not model T1 directly; it
   imitates this by scaling down each tissue's b=0 signal, as [Chapter 7](../02-diffusion-encoding/07-acquisition-parameters.md) shows.
-- **Age changes the numbers.** Unmyelinated tissue has long T2, so the same protocol yields
+- **Age changes the numbers.** Unmyelinated tissue has long T2 {cite:p}`leppert2009`, so the same protocol yields
   more tissue signal and different contrast in neonates. The presets exist for this.
 - **Field strength** raises the available magnetization and SNR, but shortens T2* and
   lengthens T1, which shifts the practical choices of TE and TR.

@@ -61,7 +61,7 @@ These files ship inside the `dwibook` package so that the toy tier of the book b
 without any download: one axial slice of the simulated brain's tissue fractions at 2 mm
 (`brain_slice.npz`), the same slice at 1 mm (`brain_slice_1mm.npz`), a 3 mm tissue volume
 (`brain_volume.npz`), and the 75-volume HBCD gradient scheme (`schemes/hbcd_ap.bval`,
-`.bvec`). The scheme is sorted by b-value for teaching; HBCD acquires its volumes in a
+`.bvec`). The scheme is sorted by b-value for teaching; HBCD {cite:p}`dean2024` acquires its volumes in a
 different order, starting with six b=0 volumes and interleaving the shells (76 volumes,
 [Appendix A](./a-trxscan-cookbook.md#app-a-datasets)). Each NPZ records its provenance:
 

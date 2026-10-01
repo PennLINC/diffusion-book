@@ -9,7 +9,9 @@ kernelspec:
 The book is built by executing every notebook in one Python environment, described by
 `environment.yml` at the root of the repository. The versions below are read from the
 environment that built the page you are reading, so they are the versions behind every
-figure and number in it.
+figure and number in it. The pages rely on NumPy {cite:p}`harris2020`, SciPy
+{cite:p}`virtanen2020`, nibabel {cite:p}`nibabel`, DIPY {cite:p}`garyfallidis2014`, Matplotlib
+{cite:p}`hunter2007`, scikit-image {cite:p}`vanderwalt2014`, and pooch {cite:p}`uieda2020`.
 
 ```{code-cell} python
 :tags: [hide-input]
@@ -62,10 +64,10 @@ build ([Appendix A](./a-trxscan-cookbook.md)):
 
 | Tool | Role | Where it runs |
 |---|---|---|
-| TRXScan, `trxscan-microstructure` | the simulator and its ground truth | native binary, built from the branch named in the pipeline configuration; to be pinned to a commit before the first data release |
-| FSL (topup, eddy, dtifit, bedpostx), MRtrix (dwi2response, dwi2fod, tckgen, tcksift2), TORTOISE, qsiprep | the reference preprocessing and reconstruction tools the chapters compare against | the `pennlinc/qsiprep` container image; the configuration names a development tag for now, to be pinned to a released tag before the first data release |
-| gradunwarp | HCP gradient-nonlinearity correction ([Chapter 13](../03-preprocessing/13-gradient-nonlinearity.md)) | pip, in the pipeline environment |
-| Snakemake | pipeline driver | the `dwibook` environment |
+| TRXScan, `trxscan-microstructure` | the simulator and its ground truth, a port of Fiberfox {cite:p}`neher2014` | native binary, built from the branch named in the pipeline configuration; to be pinned to a commit before the first data release |
+| FSL {cite:p}`jenkinson2012` (topup {cite:p}`andersson2003`, eddy {cite:p}`andersson2016`, dtifit, bedpostx {cite:p}`behrens2003`), MRtrix {cite:p}`tournier2019` (dwi2response, dwi2fod, tckgen, tcksift2 {cite:p}`smith2015`), TORTOISE {cite:p}`irfanoglu2015`, qsiprep {cite:p}`cieslak2021` | the reference preprocessing and reconstruction tools the chapters compare against | the `pennlinc/qsiprep` container image; the configuration names a development tag for now, to be pinned to a released tag before the first data release |
+| gradunwarp | HCP gradient-nonlinearity correction {cite:p}`glasser2013` ([Chapter 13](../03-preprocessing/13-gradient-nonlinearity.md)) | pip, in the pipeline environment |
+| Snakemake | pipeline driver {cite:p}`molder2021` | the `dwibook` environment |
 
 ## Reproducibility
 
